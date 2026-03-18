@@ -147,9 +147,7 @@ func (q *Queue) initFTS() error {
 		note_path,
 		content,
 		title,
-		tags,
-		content='',
-		contentless_delete=1
+		tags
 	)`)
 	return err
 }

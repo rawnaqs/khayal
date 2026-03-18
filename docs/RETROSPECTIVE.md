@@ -202,87 +202,140 @@ Record not just what was chosen, but why:
 
 ---
 
-## Code Quality Fixes (2026-03-19)
+## Phase 2: Core API (2026-03-19)
 
-### Issues Identified and Resolved
+### Implementation Summary
 
-| Issue | Severity | Resolution |
-|-------|----------|-------------|
-| No context support | High | Added `context.Context` to all DB operations |
-| Ignored parse errors | High | Return errors instead of ignoring |
-| Magic numbers | Medium | Extracted to named constants |
-| No interface for testing | Medium | Added `JobStore` interface |
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Chi router | ✅ Complete | With graceful shutdown (30s timeout) |
+| Auth middleware | ✅ Complete | Token via `X-Khayal-Token` header |
+| Request logger | ✅ Complete | Uses `log/slog`, panic recovery |
+| Health endpoint | ✅ Complete | `/v1/health` |
+| Capture endpoint | ✅ Complete | Text sync, URL/image queued |
+| Queue endpoints | ✅ Complete | List, get, retry, discard |
+| Search endpoint | ✅ Complete | Keyword + semantic + hybrid (RRF) |
+| Tests | ✅ 16 passing | All handlers tested |
 
-### Changes Made
+### Key Design Decisions
 
-#### 1. Context Support
+1. **Single middleware file** - Combined auth and logging into `middleware.go` instead of separate files
+2. **Chi router in tests** - Use chi router for path param tests to ensure handlers work in routing context
+3. **JSON helpers** - `WriteJSON`, `WriteError`, `WriteCreated`, `WriteNoContent` for consistent responses
+4. **Mock embeddings** - Semantic search uses deterministic mock for testing; real embeddings in Phase 4
 
-**Before:**
+### Config Additions
+
 ```go
-func (q *Queue) CreateJob(job *Job) error
-```
-
-**After:**
-```go
-func (q *Queue) CreateJob(ctx context.Context, job *Job) error
-```
-
-**Benefit:** Operations can be cancelled, timed out, or traced.
-
-#### 2. Error Handling
-
-**Before:**
-```go
-job.CreatedAt, _ = time.Parse(time.RFC3339, createdAtStr)  // Error ignored!
-```
-
-**After:**
-```go
-job.CreatedAt, err = time.Parse(time.RFC3339, createdAtStr)
-if err != nil {
-    return nil, fmt.Errorf("failed to parse created_at: %w", err)
+ServerConfig {
+    MaxTextBodyMB    int  // default: 1
+    MaxImageBodyMB   int  // default: 10  
+    ShutdownTimeoutS int  // default: 30
+}
+SearchConfig {
+    MaxResults int  // default: 50
+    MaxExcerpt int  // default: 500
+    RRFK       int  // default: 60 (Reciprocal Rank Fusion constant)
 }
 ```
 
-**Benefit:** Failures are reported, not silently lost.
+### Testing Pattern
 
-#### 3. Constants
-
-**Before:**
+Handlers tested via `httptest.NewRecorder`:
 ```go
-if offset >= 100000 {  // Magic number
+req := httptest.NewRequest(http.MethodGet, "/v1/queue", nil)
+rec := httptest.NewRecorder()
+ts.Server.queueListHandler(rec, req)
 ```
 
-**After:**
+For path params, wrap with chi router:
 ```go
-const (
-    batchSize       = 1000
-    maxSearchChunks = 100000
+r := chi.NewRouter()
+r.Get("/v1/queue/{id}", ts.Server.queueGetHandler)
+r.ServeHTTP(rec, req)
+```
+
+---
+
+## Bug Fix (2026-03-19)
+
+### Issue: Capture Not Saving Notes
+
+**Problem:** Text captures created jobs in the database but never wrote notes to the vault.
+
+**Root Cause:** `handleTextCapture()` set `NotePath` but never called `vault.WriteNote()`.
+
+**Fix:** Added proper note writing flow:
+```go
+if jobType == "text" {
+    note := &vault.Note{
+        Metadata: vault.NoteMetadata{...},
+        Title: extractTitle(req.Content),
+        Raw:   req.Content,
+    }
+    notePath, err := s.vault.WriteNote(note)
+    // Index for FTS5 search
+    s.queue.IndexNote(ctx, notePath, note.Title, req.Content, "")
+}
+```
+
+**Test Added:** `TestCaptureText` now verifies `ts.Vault.NoteExists(resp.NotePath)`.
+
+### Issue: Search Returns Empty Results (FTS5 Contentless Mode)
+
+**Problem:** Captured notes were saved to vault but search returned no results.
+
+**Root Cause:** FTS5 table was created with `content=''` (contentless mode):
+```sql
+CREATE VIRTUAL TABLE notes_fts USING fts5(
+    note_path, content, title, tags,
+    content='',           -- <-- Contentless mode
+    contentless_delete=1
 )
 ```
 
-**Benefit:** Code is self-documenting, easy to adjust.
+Contentless FTS5 requires external content table and `rowid` matching. Direct inserts fail silently.
 
-#### 4. Interface for Testing
+**Fix:** Removed contentless mode parameters:
+```sql
+CREATE VIRTUAL TABLE notes_fts USING fts5(
+    note_path, content, title, tags
+)
+```
 
-**Added:**
+**Note:** Required deleting `testdata/khayal.db` to recreate with correct schema.
+
+### Issue: Duplicate History Frontmatter
+
+**Problem:** Notes had duplicate `history:` keys in frontmatter or malformed YAML.
+
+**Root Cause:** 
+1. YAML marshaling outputs `history:` followed by indented list items
+2. Initial fix only skipped the `history:` line but not the following list items
+3. Then explicit history block was added, causing duplicates or malformed YAML
+
+**Fix:** Replaced YAML marshaling with manual frontmatter construction:
 ```go
-type JobStore interface {
-    CreateJob(ctx context.Context, job *Job) error
-    GetJob(ctx context.Context, id string) (*Job, error)
-    // ...
+func (w *Writer) renderNote(note *Note) string {
+    buf.WriteString("---\n")
+    buf.WriteString(fmt.Sprintf("created: %s\n", note.Metadata.Created.Format(time.RFC3339)))
+    // ... explicit field-by-field construction
+    buf.WriteString("---\n\n")
 }
 ```
 
-**Benefit:** Allows mocking for unit tests, better separation of concerns.
+**Result:** Clean, predictable YAML output with exactly one `history:` block.
 
-### Code Quality Checklist
+---
+
+## Code Quality Checklist
 
 | Check | Status |
 |-------|--------|
 | `go vet` | ✅ Pass |
-| Tests | ✅ 24 passing |
+| Tests | ✅ 24 passing (Phase 1) + 16 passing (Phase 2) = 40 total |
 | Context support | ✅ All DB operations |
 | Error handling | ✅ No ignored errors |
 | Named constants | ✅ No magic numbers |
 | Interface defined | ✅ `JobStore` |
+| Graceful shutdown | ✅ 30s timeout |

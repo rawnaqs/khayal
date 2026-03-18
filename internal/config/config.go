@@ -22,6 +22,7 @@ type Config struct {
 	LLM    LLMConfig    `yaml:"llm"`
 	Worker WorkerConfig `yaml:"worker"`
 	DB     DBConfig     `yaml:"db"`
+	Search SearchConfig `yaml:"search"`
 }
 
 type VaultConfig struct {
@@ -43,10 +44,13 @@ type StrategyConfig struct {
 }
 
 type ServerConfig struct {
-	Host    string `yaml:"host"`
-	Port    int    `yaml:"port"`
-	Token   string `yaml:"token"`
-	LogFile string `yaml:"log_file"`
+	Host             string `yaml:"host"`
+	Port             int    `yaml:"port"`
+	Token            string `yaml:"token"`
+	LogFile          string `yaml:"log_file"`
+	MaxTextBodyMB    int    `yaml:"max_text_body_mb"`
+	MaxImageBodyMB   int    `yaml:"max_image_body_mb"`
+	ShutdownTimeoutS int    `yaml:"shutdown_timeout_s"`
 }
 
 type LLMConfig struct {
@@ -69,6 +73,12 @@ type DBConfig struct {
 	Path string `yaml:"path"`
 }
 
+type SearchConfig struct {
+	MaxResults int `yaml:"max_results"`
+	MaxExcerpt int `yaml:"max_excerpt"`
+	RRFK       int `yaml:"rrf_k"`
+}
+
 func DefaultConfig() *Config {
 	return &Config{
 		Vault: VaultConfig{
@@ -85,10 +95,13 @@ func DefaultConfig() *Config {
 			},
 		},
 		Server: ServerConfig{
-			Host:    "127.0.0.1",
-			Port:    7766,
-			Token:   "",
-			LogFile: DefaultLogPath,
+			Host:             "127.0.0.1",
+			Port:             7766,
+			Token:            "",
+			LogFile:          DefaultLogPath,
+			MaxTextBodyMB:    1,
+			MaxImageBodyMB:   10,
+			ShutdownTimeoutS: 30,
 		},
 		LLM: LLMConfig{
 			Provider:    "ollama",
@@ -104,6 +117,11 @@ func DefaultConfig() *Config {
 		},
 		DB: DBConfig{
 			Path: DefaultDBPath,
+		},
+		Search: SearchConfig{
+			MaxResults: 50,
+			MaxExcerpt: 500,
+			RRFK:       60,
 		},
 	}
 }
@@ -129,11 +147,34 @@ func LoadFromPath(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
 
+	cfg.ApplyDefaults()
+
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 
 	return cfg, nil
+}
+
+func (c *Config) ApplyDefaults() {
+	if c.Server.MaxTextBodyMB == 0 {
+		c.Server.MaxTextBodyMB = 1
+	}
+	if c.Server.MaxImageBodyMB == 0 {
+		c.Server.MaxImageBodyMB = 10
+	}
+	if c.Server.ShutdownTimeoutS == 0 {
+		c.Server.ShutdownTimeoutS = 30
+	}
+	if c.Search.MaxResults == 0 {
+		c.Search.MaxResults = 50
+	}
+	if c.Search.MaxExcerpt == 0 {
+		c.Search.MaxExcerpt = 500
+	}
+	if c.Search.RRFK == 0 {
+		c.Search.RRFK = 60
+	}
 }
 
 func (c *Config) Validate() error {

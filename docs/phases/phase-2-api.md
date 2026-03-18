@@ -720,22 +720,22 @@ go test ./internal/api/... -v
 
 ## Checklist
 
-- [ ] Chi router setup
-- [ ] Global middleware chain
-- [ ] Auth middleware
-- [ ] Logging middleware
-- [ ] Health endpoint
-- [ ] Capture text handler
-- [ ] Capture URL handler
-- [ ] Capture image handler
-- [ ] Queue list endpoint
-- [ ] Queue get endpoint
-- [ ] Queue retry endpoint
-- [ ] Queue discard endpoint
-- [ ] Search keyword endpoint
-- [ ] Search semantic stub
-- [ ] Error responses standardized
-- [ ] Integration tests passing
+- [x] Chi router setup
+- [x] Global middleware chain
+- [x] Auth middleware
+- [x] Logging middleware
+- [x] Health endpoint
+- [x] Capture text handler
+- [ ] Capture URL handler (handled by generic capture)
+- [ ] Capture image handler (multipart stub - future)
+- [x] Queue list endpoint
+- [x] Queue get endpoint
+- [x] Queue retry endpoint
+- [x] Queue discard endpoint
+- [x] Search keyword endpoint
+- [x] Search semantic stub (mock embeddings)
+- [x] Error responses standardized
+- [x] Integration tests passing
 - [ ] go vet clean
 - [ ] golangci-lint clean
 

@@ -108,6 +108,11 @@ func (w *Writer) InboxPath() string {
 	return w.inboxPath
 }
 
+func (w *Writer) Exists() bool {
+	_, err := os.Stat(w.basePath)
+	return err == nil
+}
+
 func (w *Writer) MediaPath() string {
 	return w.mediaPath
 }
@@ -289,21 +294,23 @@ func (w *Writer) renderNote(note *Note) string {
 	var buf bytes.Buffer
 
 	buf.WriteString("---\n")
+	buf.WriteString(fmt.Sprintf("created: %s\n", note.Metadata.Created.Format(time.RFC3339)))
 
-	yamlData, err := yaml.Marshal(&note.Metadata)
-	if err != nil {
-		return ""
+	if note.Metadata.Updated != nil {
+		buf.WriteString(fmt.Sprintf("updated: %s\n", note.Metadata.Updated.Format(time.RFC3339)))
 	}
 
-	for _, line := range strings.Split(string(yamlData), "\n") {
-		if strings.HasPrefix(line, "tags:") || strings.HasPrefix(line, "history:") {
-			buf.WriteString(line + "\n")
-			continue
-		}
-		if strings.TrimSpace(line) == "tags: []" || strings.TrimSpace(line) == "history: []" {
-			continue
-		}
-		buf.WriteString(line + "\n")
+	buf.WriteString(fmt.Sprintf("type: %s\n", note.Metadata.Type))
+	buf.WriteString(fmt.Sprintf("status: %s\n", note.Metadata.Status))
+
+	if note.Metadata.SourceURL != "" {
+		buf.WriteString(fmt.Sprintf("source_url: %s\n", note.Metadata.SourceURL))
+	}
+	if note.Metadata.SourceFile != "" {
+		buf.WriteString(fmt.Sprintf("source_file: %s\n", note.Metadata.SourceFile))
+	}
+	if note.Metadata.UserContext != "" {
+		buf.WriteString(fmt.Sprintf("user_context: %s\n", note.Metadata.UserContext))
 	}
 
 	if len(note.Metadata.Tags) > 0 {

@@ -5,3 +5,7 @@ var (
 	Commit    = ""
 	BuildDate = ""
 )
+
+func Get() string {
+	return Version
+}

@@ -12,7 +12,7 @@ vault:
 server:
   host: 127.0.0.1
   port: 7766
-  token: ""
+  token: "abc"
   log_file: ~/.config/khayal/logs/khayal.log
 
 llm:
