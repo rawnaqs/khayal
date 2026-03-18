@@ -26,7 +26,6 @@ A local-first, privacy-focused second brain. Capture anything — text, images, 
 
 - Not a chat interface over your notes
 - Not a graph database
-- Not an Obsidian replacement
 - Not a SaaS, subscription, or cloud service
 
 ---
@@ -38,7 +37,761 @@ Capture  → zero friction, any device
 Process  → immediate, local, private
 Search   → fast, semantic + keyword
 Store    → plain markdown, yours forever
+Connect  → proactive discovery of related thoughts
 ```
+
+---
+
+## Vault Safety Contract
+
+khayal treats your vault with extreme care. These rules are non-negotiable:
+
+1. **Never write invalid YAML** — validate frontmatter before every write
+2. **Never overwrite user edits** — check mtime, abort if modified externally
+3. **Never write invalid UTF-8** — sanitize all LLM output
+4. **Never create illegal filenames** — strict sanitization on all paths
+5. **Never write broken wikilinks** — verify targets exist before writing
+6. **Never grow frontmatter unbounded** — hard caps on all list fields
+7. **Never race with Obsidian** — file locking on all writes
+8. **Never hard-delete from vault** — soft-delete to `.khayal-trash/` only
+9. **Never write outside inbox/** — khayal's blast radius is contained
+10. **Always write atomically** — temp file + rename, never partial writes
+
+---
+
+## CLI UX
+
+Two distinct CLI tools with distinct audiences, jobs, and UX philosophies.
+
+### The Two Tools
+
+#### khayal — server administration CLI
+
+**Audience:** You, on the Mac Air, managing the server.
+**Job:** Run, monitor, configure, and maintain the khayal server.
+**Feel:** Sysadmin tool. Dense, verbose, operational. You run it when something needs attention.
+**When used:** Setup, troubleshooting, reindexing, checking server health.
+
+#### kl — capture and retrieval CLI
+
+**Audience:** You, on any machine, capturing and finding thoughts.
+**Job:** Get thoughts into the vault and find them again.
+**Feel:** Personal tool. Minimal, fast, warm. Used dozens of times per day.
+**When used:** Every time you have a thought, find something, check what you captured.
+
+### khayal commands
+
+```bash
+khayal init         # first-run setup — generates config.yaml + token
+khayal start        # starts server + worker, runs dep checker
+khayal stop         # graceful shutdown
+khayal restart      # stop + start
+khayal status       # full admin dashboard (Bubble Tea TUI)
+khayal reindex      # rebuild all chunk embeddings from vault
+khayal version      # version + build info
+khayal logs         # tail ~/.config/khayal/logs/khayal.log
+khayal config       # view current config (redacts token)
+```
+
+### khayal UX — per command
+
+#### khayal init
+
+Generates `~/.config/khayal/config.yaml` with 600 permissions. Generates token. Prints token once — never again.
+
+```
+khayal init
+
+creating config directory...  ~/.config/khayal/
+generating token...           a3f9c2e1d7b4f892... (save this — shown once)
+writing config...             ~/.config/khayal/config.yaml (600)
+creating log directory...     ~/.config/khayal/logs/
+
+next steps:
+  1. edit ~/.config/khayal/config.yaml
+     set vault.path to your vault location
+
+  2. khayal start
+
+  3. on client machines:
+     kl init → enter server address + token
+```
+
+#### khayal start
+
+Verbose. Every check shown. User knows exactly what happened.
+
+```
+khayal v0.1.0
+
+checking dependencies...
+  ✓ ollama        localhost:11434
+      models: qwen2.5:3b · moondream · nomic-embed-text
+  ✓ ffmpeg        /usr/local/bin/ffmpeg
+  ✗ yt-dlp        not found
+      → brew install yt-dlp
+      → pip install yt-dlp
+      → video ingestion unavailable until installed
+  ✓ easyocr       available
+
+loading config...
+  ✓ vault         ~/brain
+  ✓ token         a3f9c2e1... (redacted)
+  ✓ db            ~/.config/khayal/khayal.db
+  ✓ log           ~/.config/khayal/logs/khayal.log
+
+starting server...
+  ✓ listening     http://127.0.0.1:7766
+
+starting worker...
+  ✓ workers       1
+  ✓ queue         2 pending jobs
+
+khayal is running.
+press ctrl+c to stop
+```
+
+Rules:
+- Show every dep check — pass and fail
+- On dep failure: show install commands, say what's unavailable
+- Redact token in all output — show first 8 chars + "..."
+- End with "khayal is running" — unambiguous success signal
+- If anything critical fails (vault not found, db error) → exit with error, never start
+
+#### khayal stop
+
+```
+khayal stop
+
+stopping worker...    ✓ (waited for current job to finish)
+stopping server...    ✓
+khayal stopped.
+```
+
+Waits for current job to complete before stopping worker. Never kills mid-processing.
+
+#### khayal status — Bubble Tea TUI, refreshes every 3 seconds
+
+```
+  khayal · admin                                         v0.1.0
+
+  ┌─ server ────────────────────────────────────────────────────┐
+  │  host      http://127.0.0.1:7766                            │
+  │  uptime    3h 24m                                           │
+  │  pid       12847                                            │
+  └─────────────────────────────────────────────────────────────┘
+
+  ┌─ vault ─────────────────────────────────────────────────────┐
+  │  path      ~/brain                                          │
+  │  notes     2,847                                            │
+  │  indexed   2,203  (77%)   ████████████████░░░░             │
+  │  pending     644           → khayal reindex                 │
+  └─────────────────────────────────────────────────────────────┘
+
+  ┌─ dependencies ──────────────────────────────────────────────┐
+  │  ollama    ✓   qwen2.5:3b · moondream · nomic-embed-text    │
+  │  ffmpeg    ✓                                                │
+  │  yt-dlp    ✗   video ingestion unavailable                  │
+  └─────────────────────────────────────────────────────────────┘
+
+  ┌─ queue ─────────────────────────────────────────────────────┐
+  │  pending      2    ██░░░░░░░░░░░░░░░░░░░░                   │
+  │  processing   1    ██░░░░░░░░░░░░░░░░░░░░  image · abc123   │
+  │  done       147                                             │
+  │  failed       0                                             │
+  └─────────────────────────────────────────────────────────────┘
+
+  ┌─ system ────────────────────────────────────────────────────┐
+  │  memory    187 MB                                           │
+  │  db size    24 MB                                           │
+  │  log size   1.2 MB                                          │
+  └─────────────────────────────────────────────────────────────┘
+
+  q quit   r refresh   l logs   c config   ? help
+```
+
+Rules:
+- Refresh every 3 seconds automatically
+- `q` quits, `r` forces immediate refresh, `l` opens log tail, `c` shows config
+- Progress bar on indexed % — visual signal of vault health
+- Processing row shows job type + ID — user knows what worker is doing
+- Failed > 0 → highlight in error color — needs attention
+- Keyboard hints always visible at bottom
+
+#### khayal reindex
+
+Long operation. Must show progress and be resumable.
+
+```
+khayal reindex
+
+scanning vault...
+  2,847 notes found
+  2,203 already indexed  (skipped)
+    644 to reindex
+
+starting reindex...
+
+  [████████████████░░░░░░░░░░░░░░]  412/644  64%  ~2m 18s remaining
+
+  ✓ 2024-03-16-useeffect-cleanup.md
+  ✓ 2024-03-15-meeting-sarah.md
+  ✓ 2024-03-14-cap-theorem.md
+  ✓ 2024-03-13-rust-cli-thoughts.md
+  ...
+
+  done.
+  644 notes reindexed
+  4m 32s elapsed
+```
+
+Rules:
+- Progress bar with percentage + estimated time remaining
+- Show each note as it completes (last 4 visible, scrolls)
+- If interrupted (ctrl+c): graceful stop, show progress so far, resumable on next run
+- Never re-embed already indexed notes — check mtime
+- `khayal reindex --force` → reindex everything regardless of mtime
+
+#### khayal logs
+
+```
+khayal logs
+
+  tailing ~/.config/khayal/logs/khayal.log
+  ctrl+c to stop
+
+  2024-03-16T14:23:01 POST /v1/capture 200 47ms
+  2024-03-16T14:23:04 worker: processed text abc123 3.2s
+  2024-03-16T14:23:18 POST /v1/capture 200 52ms
+  2024-03-16T14:23:19 worker: queued image def456
+  2024-03-16T14:24:01 worker: processed image def456 11.4s
+  2024-03-16T14:25:33 GET /v1/search 200 89ms
+```
+
+Simple log tail. No flags needed. ctrl+c to exit.
+
+#### khayal version
+
+```
+khayal version
+
+  khayal v0.1.0
+  commit  a3f9c2e
+  built   2024-03-16T10:00:00Z
+  go      1.22.1
+```
+
+#### khayal config
+
+Shows current config with token redacted. Read-only view — edit the file directly.
+
+```
+khayal config
+
+  config at ~/.config/khayal/config.yaml
+
+  vault
+    path        ~/brain
+    inbox_dir   inbox
+    media
+      image     vault
+      pdf       vault
+      audio     config
+      video     config
+
+  server
+    host        127.0.0.1
+    port        7766
+    token       a3f9c2e1... (redacted)
+
+  llm
+    provider    ollama
+    embed       nomic-embed-text
+    text        qwen2.5:3b
+    vision      moondream
+    fallback    (none)
+
+  worker
+    max_workers 1
+    max_retries 3
+    backoff     exponential
+```
+
+### kl commands
+
+```bash
+kl "thought"              # capture text (default command)
+kl --url https://...      # capture URL
+kl --image ~/file.png     # capture image
+kl search "query"         # search vault
+kl recent                 # recent captures
+kl recent --days 7        # last 7 days
+kl recent --type image    # recent images only
+kl browse --tag react     # all notes tagged react
+kl browse --person "John" # all notes mentioning John
+kl browse --amount 2000   # all notes mentioning $2000
+kl stats                  # vault statistics
+kl status                 # lightweight server + queue check
+kl init                   # setup ~/.config/khayal/kl.yaml
+kl config set key value   # update single config value
+```
+
+### kl UX — per command
+
+#### kl capture (default)
+
+The most used command. Output must be instant and minimal.
+
+**Text — done immediately:**
+```
+✓ saved · #react #performance · 3ms
+```
+
+**URL — queued:**
+```
+⏳ queued · article · id: abc123
+```
+
+**Image — queued:**
+```
+⏳ queued · image · id: def456
+```
+
+**With connections (v1.1) — arrives async after capture:**
+```
+✓ saved · #react #performance · 3ms
+
+  ┌─ connections ────────────────────────────────────┐
+  │ ~ 2 years ago · you thought about this           │
+  │   "useEffect with wrong deps causes loops"       │
+  │                                                  │
+  │ ⚡ Jan 2023 · contradicts something you wrote    │
+  │   "cleanup functions are rarely needed"           │
+  └──────────────────────────────────────────────────┘
+```
+
+**Ollama down — capture still works:**
+```
+✓ saved · unprocessed
+  ollama unreachable — will tag when server is back
+```
+
+**Server unreachable:**
+```
+✗ cannot reach khayal at http://100.x.x.x:7766
+
+  → is khayal running?     ssh mac-air khayal start
+  → wrong address?         kl config set host <address>
+  → check logs             ssh mac-air khayal logs
+```
+
+Rules:
+- No spinner for text capture — returns in <100ms, spinner is jarring
+- Spinner only for image/URL capture (uploading file) if >200ms
+- Connections box: only shown if connections exist — never show empty box
+- Connections box: never blocks — shown when async job completes
+- Error messages: always actionable, never raw Go errors
+- `kl "thought" --verbose` shows full processing details
+
+#### kl search
+
+```
+$ kl search "paid john money"
+
+  3 results · hybrid · 42ms
+
+  ──────────────────────────────────────────────────────────
+  inbox/2019-03-03-designer.md                          0.94
+  March 3, 2019 · #finance #design
+
+  ...paid John Doe $2,000 for logo design work.
+  Follow-up: brand guidelines next week...
+
+  ──────────────────────────────────────────────────────────
+  inbox/2019-04-10-contractor.md                        0.81
+  April 10, 2019 · #finance
+
+  ...second payment to John, $500 for revisions...
+
+  ──────────────────────────────────────────────────────────
+  inbox/2018-12-01-branding.md                          0.68
+  December 1, 2018 · #design
+
+  ...initial quote from John was $2,500 but...
+```
+
+Rules:
+- Score shown right-aligned — user learns what scores mean over time
+- Date prominent — temporal context matters more than filename
+- Tags on second line — category at a glance
+- Excerpt shows the matched text — not random 200 chars
+- Dividers between results — scannable
+- No color on content — only on metadata (score, date, tags)
+- `kl search "query" --mode keyword` forces keyword only
+- `kl search "query" --mode semantic` forces semantic only
+- `kl search "query" --from 2024-01-01 --to 2024-03-16` date filter
+
+**No results:**
+```
+$ kl search "unicorn rainbow"
+
+  0 results · hybrid · 12ms
+
+  nothing found for "unicorn rainbow"
+  → try different keywords
+  → try: kl search "unicorn rainbow" --mode keyword
+```
+
+#### kl recent
+
+```
+$ kl recent
+
+  today
+
+  14:23  text     useEffect cleanup runs after every render    #react
+  14:18  image    whiteboard-arch.png                         #system-design
+  13:55  article  CAP theorem explained                       #distributed
+  13:02  text     thinking about rust for the cli             #go #rust
+
+  yesterday
+
+  18:44  text     meeting with Sarah re contract              #work
+  16:20  article  https://fasterthanli.me/articles/...        #rust
+  11:05  image    notebook-sketch.jpg                         #ideas
+
+  2 days ago
+
+  ...3 more  →  kl recent --days 7
+```
+
+Rules:
+- Grouped by day — "today", "yesterday", "2 days ago", then date
+- Type badge: text / image / article / url — consistent width
+- Title truncated at ~50 chars
+- Tags right-aligned
+- Truncate at 7 items per day, show "N more → kl recent --days X"
+- `kl recent --days 7` shows full last 7 days
+- `kl recent --type image` filters by type
+
+#### kl browse
+
+**By tag:**
+```
+$ kl browse --tag react
+
+  #react · 23 notes
+
+  2024-03-16  useEffect cleanup runs after every render
+  2024-03-10  React Server Components mental model
+  2024-02-28  Why I stopped using useCallback everywhere
+  2024-01-15  [article] React 19 new hooks overview
+  2023-12-03  [image] component architecture whiteboard
+
+  18 more · kl browse --tag react --all
+```
+
+**By person:**
+```
+$ kl browse --person "John Doe"
+
+  John Doe · 8 mentions
+
+  2024-03-16  paid contractor 500 for revisions
+  2024-03-02  meeting with John re new project
+  2023-11-14  [article] saved John's blog post on systems
+  2019-04-10  second payment to John, $500
+  2019-03-03  paid John Doe $2,000 for logo design
+
+  3 more · kl browse --person "John Doe" --all
+```
+
+**By amount:**
+```
+$ kl browse --amount 2000
+
+  $2,000 · 2 mentions
+
+  2019-03-03  paid John Doe $2,000 for logo design
+  2019-01-15  budget approved: $2,000 for branding work
+```
+
+Rules:
+- Show 5 results by default, `--all` flag shows everything
+- Sorted by date descending — most recent first
+- Note type badge in brackets for non-text [article] [image]
+- Amount search normalizes: 2000 matches "2k", "$2,000", "2000", "2,000"
+
+#### kl stats
+
+```
+$ kl stats
+
+  vault · ~/brain
+
+  total         2,847   notes
+  this week        23   ████░░░░░░░░░░░░░░░
+  this month       94   ████████░░░░░░░░░░░░
+
+  top tags
+  #react           142  ████████████████████
+  #go               98  ████████████████░░░░
+  #work             87  ██████████████░░░░░
+  #finance          34  ██████░░░░░░░░░░░░░░
+  #distributed      28  █████░░░░░░░░░░░░░░
+
+  top people
+  John Doe          34  mentions
+  Sarah Chen        18  mentions
+  Robert Kim         6  mentions
+
+  capture streak    12 days
+  longest streak    34 days
+```
+
+Rules:
+- ASCII bar charts — normalized to longest bar = full width
+- Top 5 tags, top 3 people — not exhaustive
+- Capture streak — motivates consistent use
+- No processing stats here — that's khayal status
+- Pure SQL, no LLM, runs in milliseconds
+
+#### kl status — lightweight, not admin
+
+```
+$ kl status
+
+  ✓ khayal v0.1.0 · http://100.x.x.x:7766
+
+  queue
+    processing   1   image
+    pending      2
+    failed       0
+
+  last capture  14:23 · useEffect cleanup runs after...
+```
+
+If server unreachable:
+```
+$ kl status
+
+  ✗ khayal unreachable · http://100.x.x.x:7766
+    → ssh mac-air khayal start
+```
+
+Rules:
+- 6 lines maximum — this is a quick check, not a dashboard
+- No memory, no db size, no pid — that's khayal's job
+- Failed > 0 → shown in error color with hint to check khayal status
+- Server version shown — helps debug version mismatch issues
+
+#### kl init — Huh wizard
+
+```
+$ kl init
+
+  kl setup
+
+  ? Server address
+  › http://127.0.0.1:7766
+    ──────────────────────────────────────────────────
+    Your khayal server address.
+    Use Tailscale IP for remote access: http://100.x.x.x:7766
+
+  ? Token
+  › ••••••••••••••••••••••••••••••••
+    ──────────────────────────────────────────────────
+    Find this in ~/.config/khayal/config.yaml on your server.
+    Or run: khayal init to regenerate.
+
+  testing connection...  ✓ khayal v0.1.0
+
+  ✓ written to ~/.config/khayal/kl.yaml
+
+  you're ready. try:
+    kl "your first thought"
+```
+
+Rules:
+- Validate connection BEFORE writing config — don't write broken config
+- If connection fails: show error + what to check, stay in wizard
+- Token input masked with bullets
+- End with first command to try — time to first successful capture
+
+#### kl config set
+
+```
+$ kl config set host http://100.x.x.x:7766
+
+  ✓ host updated
+    ~/.config/khayal/kl.yaml
+
+$ kl config set token abc123def456
+
+  ✓ token updated
+    ~/.config/khayal/kl.yaml
+```
+
+Silent success — one line. User doesn't need more than that.
+
+### Typography system — both tools
+
+All output uses Rawnaqs theme Lip Gloss styles. Never define colors inline.
+
+```
+Primary text      styles.Primary         → GoldLight #E8B86D
+Secondary/meta    styles.Muted           → GoldDark  #8B6020
+Timestamps/counts styles.Dim             → GoldDim   #3A2E18
+Success (✓)       styles.SuccessStyle    → Green     #4A7C59
+Error (✗)         styles.ErrorStyle      → Red       #8B3A3A
+Processing (⏳)   styles.ProcessingStyle → GoldDark italic
+Borders/dividers  styles.Divider()       → GoldDim
+Tags              styles.Tag             → Gold bg, dark text
+Scores            styles.Dim             → present but not dominant
+Panel borders     styles.Panel           → rounded, GoldDim border
+```
+
+Rules:
+- One color family — gold on dark. Nothing fights for attention.
+- Color on metadata (date, score, tag) — never on content text
+- Error color only for actual errors — not warnings, not muted info
+- Processing style (italic) only for in-progress states
+
+### Error message format — both tools
+
+Never show raw Go errors. Every error tells the user what to do next.
+
+Format:
+```
+✗ short description of what failed
+
+  → action to try first
+  → action to try second
+  → where to get more info
+```
+
+Examples:
+
+```
+# Server unreachable
+✗ cannot reach khayal at http://100.x.x.x:7766
+  → is khayal running?    ssh mac-air khayal start
+  → wrong address?        kl config set host <address>
+  → check logs            ssh mac-air khayal logs
+
+# Auth failed
+✗ unauthorized · invalid token
+  → get token from        ~/.config/khayal/config.yaml on server
+  → update token          kl config set token <token>
+
+# Vault write failed
+✗ cannot write to vault · ~/brain/inbox/
+  → does the path exist?  check vault.path in config
+  → permissions ok?       ls -la ~/brain/inbox/
+
+# Ollama unreachable (khayal start)
+✗ ollama not running at localhost:11434
+  → start ollama          ollama serve
+  → wrong port?           edit llm.ollama_host in config
+```
+
+### Spinner rules — both tools
+
+Never show a spinner for operations under 200ms. It appears and disappears so fast it's jarring.
+
+Show a spinner for:
+- `kl init` connection test (network, variable latency)
+- `kl --url` and `kl --image` file upload (variable size)
+- `khayal reindex` (replaced by progress bar)
+- `khayal start` dep checking (replaced by step-by-step output)
+- `kl search` with reranking enabled (potential 2-3s)
+
+Never show a spinner for:
+- `kl "thought"` text capture — always <100ms
+- `kl status` — always <200ms
+- `kl recent` — always <50ms
+- `kl stats` — always <50ms
+- `khayal stop` — always <500ms (show "stopping..." text instead)
+
+### Command structure convention — both tools
+
+Always: `tool verb [target] [--flags]`
+
+Never: `tool target verb` or `tool noun verb`
+
+```
+kl search "query"          ✓ verb then target
+kl browse --tag react      ✓ verb then flag-target
+kl config set key value    ✓ verb verb key value (set is sub-verb)
+kl "thought"               ✓ implicit capture verb
+```
+
+### Help format — both tools
+
+Examples first, flags second. Real commands not abstract syntax.
+
+```
+$ kl search --help
+
+  Search your vault using keyword and semantic search.
+
+  Usage:
+    kl search <query> [flags]
+
+  Examples:
+    kl search "paid john money"
+    kl search "react hooks" --mode keyword
+    kl search "last week finances" --from 2024-03-11 --to 2024-03-18
+    kl search "distributed systems" --limit 10
+
+  Flags:
+    --mode     hybrid | keyword | semantic  (default: hybrid)
+    --limit    number of results            (default: 5, max: 50)
+    --from     start date  YYYY-MM-DD
+    --to       end date    YYYY-MM-DD
+    --verbose  show scores and debug info
+```
+
+### Exit codes — both tools
+
+```
+0   success
+1   user error    (wrong args, note not found, config missing)
+2   server error  (unreachable, auth failed, API error)
+3   vault error   (write failed, file locked, permission denied)
+4   dep error     (Ollama unreachable, ffmpeg missing)
+```
+
+Scripts consuming kl or khayal can rely on these codes being consistent.
+
+### Progressive disclosure — both tools
+
+Default output is minimal. Verbose mode always available.
+
+```
+kl "thought"            # one line
+kl "thought" --verbose  # full processing details
+
+kl search "query"            # clean results
+kl search "query" --verbose  # scores, timing, which pipeline matched
+
+khayal start            # step by step but not overwhelming
+khayal start --verbose  # every internal detail
+
+khayal status           # dashboard (already rich)
+khayal status --json    # machine-readable for scripting
+```
+
+### What NOT to show — both tools
+
+Never show:
+- Raw Go error messages (dial tcp, unexpected EOF, etc.)
+- Internal job IDs unless user needs to poll (capture response shows ID, not kl)
+- Stack traces (log them, never print to user)
+- Redundant confirmations ("are you sure?" for non-destructive operations)
+- "No results found" with no guidance
+- Timestamps on one-line outputs like `kl "thought"` — noise
+- Version on every command — only on `kl version` and `khayal version`
 
 ---
 
@@ -50,7 +803,7 @@ Store    → plain markdown, yours forever
 - Article / web URL capture
 - Keyword + semantic hybrid search
 - Search results with relevant excerpt
-- PWA (Templ + HTMX, dark only, embedded in binary)
+- PWA (React + Vite, dark only, embedded in binary)
 - CLI (`khayal` server + `kl` client)
 - macOS + Linux
 - Single binary + Docker Compose both supported
@@ -60,6 +813,40 @@ Store    → plain markdown, yours forever
 - Installer checks dependencies and guides user
 - GitHub releases + Homebrew formula
 - AGPLv3
+
+### Search Implementation
+
+**Keyword Search:**
+- SQLite FTS5 with porter stemming
+- BM25 ranking for relevance
+- FTS5 triggers on content, title, tags
+
+**Semantic Search:**
+- sqlite-vec for vector similarity (MIT/Apache-2 licensed)
+- CGo required (using mattn/go-sqlite3)
+- Virtual table for embeddings
+- 10-20x faster than pure Go
+
+```sql
+-- sqlite-vec virtual table
+CREATE VIRTUAL TABLE vec_chunks USING vec0(
+    chunk_embedding float[768]
+);
+```
+
+**Sync Strategy:**
+- mtime check on search
+- Re-index stale files inline (on-demand)
+
+**Hybrid Merge:**
+- Reciprocal Rank Fusion (RRF, k=60)
+- Combines keyword + semantic rankings
+
+**Date Filter:**
+- Pre-filter by date range before both keyword and semantic search
+- Applies to GET /v1/search
+- Future: POST /v1/ask
+- Parameters: `from=2024-03-11&to=2024-03-16` (optional ISO date strings)
 
 ### Explicitly Out of v1
 - Voice notes
@@ -77,19 +864,415 @@ Store    → plain markdown, yours forever
 
 ---
 
+## Proactive Connections
+
+After every capture is processed, khayal automatically finds related notes from the past and surfaces them asynchronously. Never blocks capture.
+
+### Philosophy
+
+- Triggered by capture only — not ambient/background
+- Delivered asynchronously — capture response is always instant
+- Strict quality gates — max 3 connections per capture, high thresholds
+- All connection types individually toggleable in config
+- Never surface notes younger than 7 days — surprise comes from temporal distance
+
+### Six Connection Types
+
+#### Type 1 — Semantic Similar (v1.1)
+
+Find notes with high embedding similarity to the new note.
+
+```
+Detection: sqlite-vec cosine similarity
+Threshold: score > 0.85
+Filter:    note age > 7 days, exclude current note
+Max:       3 results
+Label:     "you thought about this N days/months/years ago"
+```
+
+#### Type 2 — Same Person Mentioned (v1.1)
+
+Find all past notes mentioning the same people extracted from the new note.
+
+```
+Detection: SQL query against entities table
+Filter:    note age > 7 days
+Label:     "[Name] also appears in N other notes"
+Surface:   most recent + most relevant excerpt
+```
+
+#### Type 3 — Same Amount / Financial (v1.1)
+
+Find past notes mentioning the same financial amounts. Amounts normalized to integers (2k → 2000, $2,000 → 2000).
+
+```
+Detection: SQL query against entities table (type = 'amount')
+Filter:    note age > 7 days
+Label:     "you've mentioned [amount] before"
+```
+
+#### Type 4 — Contradicting Thoughts (v1.2)
+
+Find notes that semantically conflict with the new note.
+
+```
+Detection: two-step
+  Step 1: find top-5 similar notes (score > 0.80)
+  Step 2: for each, run LLM contradiction check
+  Surface: LLM returns "yes" only
+Label:     "contradicts something you wrote [date]"
+```
+
+#### Type 5 — Follow-ups Never Completed (v1.2)
+
+Find past notes expressing follow-up intent mentioning the same people, with no subsequent record of completion.
+
+```
+Detection: three-step
+  Step 1: FTS5 query for intent keywords + same person
+  Step 2: check date of intent note
+  Step 3: check if subsequent notes mention same person
+Filter:    intent note age > 14 days
+Label:     "you planned to follow up with [name] — no record of this happening"
+```
+
+#### Type 6 — Ideas Revisited Over Time (v1.2)
+
+Detect when the new note is part of a recurring pattern — same topic appearing multiple times across months or years.
+
+```
+Detection: reuse semantic similar results
+           if 3+ similar notes found spanning > 6 months
+Label:     "you've returned to this idea [N] times since [earliest date]"
+Surface:   oldest + newest note as bookends
+```
+
+### Async Delivery
+
+Connections run as a separate job type after ingest completes:
+
+```
+POST /v1/capture
+→ note saved
+→ ingest job pushed to queue (existing)
+→ connections job pushed to queue (new, runs after ingest)
+→ capture response returned immediately
+
+Client polls GET /v1/queue/:id for connections_job_id
+```
+
+### Ranking and Deduplication
+
+```
+If more than 3 connections qualify → rank by type priority → take top 3
+
+Type priority (highest to lowest):
+  1. contradiction  — most surprising, most valuable
+  2. follow_up      — actionable
+  3. revisit        — contextual pattern
+  4. person         — contextual
+  5. amount         — contextual
+  6. similar        — most common, lowest priority
+
+Deduplication:
+  If same note qualifies for multiple types → show once, use highest priority
+```
+
+### Capture Response
+
+```json
+{
+  "id": "abc123",
+  "status": "done",
+  "note_path": "inbox/2024-03-16-thought.md",
+  "created_at": "2024-03-16T14:23:00Z",
+  "connections_job_id": "def456"
+}
+```
+
+Connections retrieved via `GET /v1/queue/def456`:
+
+```json
+{
+  "id": "def456",
+  "type": "connections",
+  "status": "done",
+  "result": {
+    "connections": [
+      {
+        "type": "similar",
+        "note_path": "inbox/2022-04-10-react-perf.md",
+        "excerpt": "useEffect with wrong deps causes infinite loops",
+        "score": 0.91,
+        "label": "you thought about this 2 years ago"
+      }
+    ]
+  }
+}
+```
+
+### Config
+
+```yaml
+connections:
+  enabled: true
+  min_age_days: 7
+  max_per_capture: 3
+  similarity_threshold: 0.85
+  contradiction_threshold: 0.80
+  types:
+    similar:      true
+    person:       true
+    amount:       true
+    contradiction: true
+    follow_up:    true
+    revisit:      true
+```
+
+### Performance
+
+```
+semantic similar:    ~5ms   (sqlite-vec)
+person + amount:    ~2ms   (SQL entity lookup)
+revisit:             ~10ms  (reuses semantic search)
+follow-up:           ~10ms  (SQL + date comparison)
+contradiction:        ~3s    (similarity + LLM check per candidate)
+
+Total v1.1 types:    ~20ms  (imperceptible async)
+Total v1.2 types:    ~3-4s  (async — never blocks capture)
+```
+
+### New Package
+
+```
+internal/connections/
+├── engine.go        ← orchestrates all types, ranking, dedup
+├── similar.go       ← semantic similarity
+├── entity.go        ← person + amount
+├── revisit.go       ← revisit detection
+├── followup.go     ← follow-up detection
+└── contradiction.go ← LLM-based contradiction detection
+```
+
+---
+
+## v1.1 Scope
+
+### 1. Chunking
+
+Replace whole-note embeddings with chunk-level embeddings for better search granularity.
+
+**Chunk Specification:**
+- Target: 150-200 words per chunk
+- Overlap: 30-50 words between consecutive chunks
+- Split on paragraph boundaries — never mid-sentence
+- Minimum chunk size: 50 words — don't embed tiny fragments
+
+**Database Changes:**
+- New `chunks` table replaces `embeddings` table
+
+```sql
+CREATE TABLE chunks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_path TEXT NOT NULL,
+    chunk_idx INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    embedding BLOB NOT NULL,
+    created_at DATETIME NOT NULL
+);
+
+CREATE INDEX idx_chunks_note ON chunks(note_path);
+```
+
+**Search Changes:**
+- Semantic search queries `chunks` table
+- Returns parent note, not the chunk
+- Deduplicate: if multiple chunks from same note match, return note once with best-scoring chunk as excerpt
+
+**New CLI Command:**
+```bash
+khayal reindex  # Rebuild all chunk embeddings from vault markdown files
+                 # Required when upgrading from v1 to v1.1
+                 # Safe to run anytime — non-destructive to vault
+```
+
+---
+
+### 2. Entity Extraction
+
+Add to ingest pipeline for all capture types. After tags/summary, extract structured entities:
+
+**Frontmatter:**
+```yaml
+entities:
+  people:  ["John Doe"]
+  amounts: ["2000", "2k"]
+  dates:   ["2019-03-03"]
+  places:  []
+  urls:    []
+  orgs:    []
+```
+
+**Database Table:**
+```sql
+CREATE TABLE entities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_path TEXT NOT NULL,
+    chunk_idx INTEGER,
+    entity_type TEXT NOT NULL, -- person, amount, date, place, org, url
+    entity_value TEXT NOT NULL,
+    created_at DATETIME NOT NULL
+);
+
+CREATE INDEX idx_entities_note ON entities(note_path);
+CREATE INDEX idx_entities_type ON entities(entity_type);
+```
+
+### 3. Proactive Connections (v1.1)
+
+Auto-discover related notes after capture. Delivered asynchronously.
+
+**v1.1 Connection Types:**
+- Semantic similar (sqlite-vec similarity > 0.85)
+- Same person mentioned (entity lookup)
+- Same amount/financial (entity lookup)
+
+**Flow:**
+```
+POST /v1/capture → capture response immediately
+                    → connections job queued
+                    → poll GET /v1/queue/:id for connections
+```
+
+**Config:**
+```yaml
+connections:
+  enabled: true
+  min_age_days: 7
+  max_per_capture: 3
+  types:
+    similar: true
+    person:  true
+    amount:  true
+```
+
+**See "Proactive Connections" section above for full details.**
+
+---
+
+### 4. Search Pipeline (v1.1)
+
+*Note: sqlite-vec is already included in v1. This section adds advanced features.*
+
+**Full pipeline in order:
+
+```
+User query
+    │
+    ▼
+1. Temporal detection    → extract date filter, clean query
+    │
+    ▼
+2. Query rewriting       → LLM expands to search-optimized terms
+    │
+    ▼
+3. HyDE                  → LLM generates hypothetical answer, embed it
+    │
+    ├──────────────────────────────┐
+    ▼                              ▼
+4a. FTS5 keyword search       4b. sqlite-vec vector search
+    (original + rewritten)          (HyDE embedding)
+    date filter applied             date filter applied
+    top-20                         top-20
+    │                              │
+    └──────────────┬───────────────┘
+                   ▼
+5. RRF merge       → combine results (k=60)
+                   → deduplicate by note_path
+                   → top-20 unique chunks
+                   │
+                   ▼
+6. Cross-encoder rerank  → score each (query, chunk) pair
+                         → sort by relevance
+                         → top-5
+                   │
+                   ▼
+7. Return results  → note_path, excerpt, score, source
+```
+
+**Temporal detection** — detect time references, auto-inject date range:
+```
+"last week"   → from: -7d,  to: now
+"last 5 days" → from: -5d,  to: now
+"yesterday"   → from: -1d,  to: -1d
+"in 2022"     → from: 2022-01-01, to: 2022-12-31
+```
+Temporal words stripped from query before search.
+
+**Query rewriting** — LLM rewrites natural language into search-optimized keywords. Both original and rewritten query searched. Results merged via RRF.
+
+**HyDE** — LLM generates a hypothetical answer, that gets embedded instead of the raw query. Falls back to direct query embedding if LLM call fails.
+
+**Cross-encoder reranking** — small reranker model (e.g. `bge-reranker-v2-m3`, 270MB) scores each (query, chunk) pair after initial retrieval. Optional — if model not configured, skip reranking.
+
+**Config:**
+```yaml
+search:
+  retrieval_top_k:  20                   # candidates before reranking
+  return_top_k:     5                    # final results returned
+  reranker_model:   bge-reranker-v2-m3 # blank = skip reranking
+  hyde_enabled:     true
+  rewrite_enabled: true
+  temporal_enabled: true
+```
+
+**Technical Changes:**
+- Uses `mattn/go-sqlite3` (CGO) from v1
+- Add gcc to goreleaser CI build environment
+- Virtual table for vectors, regular table for content/metadata
+
+```sql
+-- sqlite-vec virtual table (v1.1)
+CREATE VIRTUAL TABLE chunks_vec USING vec0(
+    embedding FLOAT[768],
+    note_id TEXT,
+    chunk_id TEXT
+);
+```
+
+**v1.1 Changes:**
+- Add sqlite-vec extension for faster similarity search
+- Switch to virtual table for embeddings
+
+---
+
 ## Phases After v1
 
 ```
-v1.1  → Voice notes + PDF ingestion
-v1.2  → YouTube / video ingestion  
-v1.3  → Browser extension (github.com/rawnaqs/khayal-browser)
-v1.4  → Raycast extension (github.com/rawnaqs/khayal-raycast)
-v1.5  → iOS Shortcuts (github.com/rawnaqs/khayal-ios)
+v1.1  → Chunking + Entity extraction + connections (similar, person, amount)
+v1.2  → connections (contradiction, follow_up, revisit) + voice notes + PDF
+v1.3  → YouTube / video ingestion
+v1.4  → Browser extension (github.com/rawnaqs/khayal-browser)
+v1.5  → Raycast extension (github.com/rawnaqs/khayal-raycast)
+v1.6  → iOS Shortcuts (github.com/rawnaqs/khayal-ios)
 v2.0  → Setup wizard UI for non-technical users
 v2.1  → Graph connections, backlinks
 v2.2  → Windows support
 v2.3  → Mobile app (github.com/rawnaqs/khayal-mobile)
 ```
+v1.4  → Browser extension (github.com/rawnaqs/khayal-browser)
+v1.5  → Raycast extension (github.com/rawnaqs/khayal-raycast)
+v1.6  → iOS Shortcuts (github.com/rawnaqs/khayal-ios)
+v2.0  → Setup wizard UI for non-technical users
+v2.1  → Graph connections, backlinks
+v2.2  → Windows support
+v2.3  → Mobile app (github.com/rawnaqs/khayal-mobile)
+```
+
+**v1.1 Details:**
+- Chunk-level embeddings (150-200 words, 30-50 overlap)
+- Entity extraction (people, amounts, dates, places, orgs, urls)
+- Advanced search: temporal detection, query rewriting, HyDE, reranking
 
 ---
 
@@ -103,7 +1286,7 @@ All capture interfaces are independent, pluggable clients. They speak HTTP to th
 ┌──────────────────────────────────────────────────────┐
 │                 Capture Interfaces                   │
 │  kl CLI  │  PWA  │  Browser  │  Raycast  │  Mobile  │
-│          │ HTMX  │  Ext(v2)  │  Ext(v2)  │  (v3)   │
+│          │ React │  Ext(v2)  │  Ext(v2)  │  (v3)   │
 └──────────┴───────┴───────────┴───────────┴──────────┘
                     │ HTTP + X-Khayal-Token
                     │ POST /v1/capture
@@ -171,13 +1354,13 @@ khayal/
 │   ├── init.go                  ← kl init (Huh wizard)
 │   └── config.go                ← kl config set key value
 ├── ui/
-│   ├── templates/               ← Templ files
-│   │   ├── layout.templ
-│   │   ├── capture.templ
-│   │   └── search.templ
-│   └── static/
-│       ├── style.css            ← imports rawnaqs/theme generated/css/variables.css
-│       └── offline.js           ← IndexedDB offline queue (~50 lines)
+│   ├── react/                      ← Vite + React source
+│   │   ├── src/
+│   │   │   ├── App.tsx
+│   │   │   ├── components/
+│   │   │   └── lib/
+│   │   └── package.json
+│   └── static/                     ← Built output (embedded in binary)
 ├── install/
 │   └── check.go                 ← dependency checker + guidance
 ├── .github/
@@ -324,6 +1507,14 @@ worker:
 db:
   path: ~/.config/khayal/khayal.db
 ```
+
+### Reserved Directories
+
+The following directories are reserved by khayal and must not be modified by users:
+- `.khayal-trash/` — soft-delete location for failed notes and media
+- `.khayal-pending/` — temporary writes before atomic rename
+
+These directories are automatically created in the vault root and should be excluded from Obsidian/graph views. See "Obsidian Integration" section for recommended settings.
 
 ### First Run
 
@@ -565,7 +1756,7 @@ Response:
 - Single goroutine per worker, jobs processed serially within each worker
 - Exponential backoff on failure
 - Max 3 retries then permanently failed
-- On permanent failure: note deleted from vault, media file deleted, job marked failed in DB
+- On permanent failure: note moved to `.khayal-trash/`, media file moved to trash, job marked failed in DB
 - On startup: reset any jobs stuck in `processing` state (crash recovery)
 
 ### Processing Times (M2 Mac Air)
@@ -593,6 +1784,16 @@ status: done
 tags:
   - react
   - performance
+entities:
+  people:  []
+  amounts: []
+  dates:   []
+  places:  []
+  urls:    []
+  orgs:    []
+related:
+  - inbox/2022-04-10-react-perf.md
+  - inbox/2023-01-05-hooks.md
 history:
   - at: 2024-03-16T14:23:04
     event: processed
@@ -622,6 +1823,13 @@ status: done
 source_url: "https://blog.example.com/post"
 tags:
   - distributed-systems
+entities:
+  people:  ["John Doe"]
+  amounts: ["2000"]
+  dates:   ["2019-03-03"]
+  places:  []
+  urls:    ["https://blog.example.com/post"]
+  orgs:    ["ACME Corp"]
 history:
   - at: 2024-03-16T14:23:18
     event: processed
@@ -692,7 +1900,7 @@ OCR output here...
 
 ### Permanent failure
 
-Note and media file deleted from vault. Failure tracked in `khayal.db` only, visible via `GET /v1/queue?status=failed`.
+Failed notes and media moved to `.khayal-trash/` (soft-delete). Failure tracked in `khayal.db` only, visible via `GET /v1/queue?status=failed`. User can restore manually if needed.
 
 ---
 
@@ -741,10 +1949,16 @@ kl --url https://...             # capture URL  → ⏳ queued · article · id:
 kl --image ~/screenshot.png      # capture image → ⏳ queued · image · id: def456
 kl search "distributed systems"  # search → Glamour renders excerpts
 kl status                        # Bubble Tea live dashboard
+kl recent                        # show recent captures
+kl browse                        # browse vault files
+kl stats                        # show vault statistics
+kl connections                   # show proactive connections for recent notes
 kl init                          # Huh wizard → writes ~/.config/khayal/kl.yaml
 kl config set token abc123       # update single config value
 kl config set host http://...
 ```
+
+**Note:** khayal is designed to work alongside Obsidian. These CLI commands complement Obsidian's reading interface — use khayal to capture and find, Obsidian to read and navigate.
 
 ### kl.yaml
 
@@ -758,7 +1972,9 @@ token: your-token-here
 
 ## PWA
 
-- Stack: Templ + HTMX, embedded in binary via `embed.FS`
+**Scope:** Capture + Search only. No timeline view, no entity browsing. Use CLI or Obsidian for those features.
+
+- Stack: React + Vite, embedded in binary via `embed.FS`
 - Theme: `rawnaqs/theme` — `generated/css/variables.css` imported in `ui/static/style.css`
 - No Node.js, no build pipeline, no npm
 - Served at `http://<host>:<port>/`
@@ -857,14 +2073,55 @@ github.com/rawnaqs/khayal           ← this repo
 
 ## Vault Compatibility
 
-Khayal writes plain markdown with YAML frontmatter. It makes no assumptions about what the user opens it with. Tested compatible with:
+khayal is designed to work alongside Obsidian. The vault is plain markdown with rich frontmatter. Obsidian reads it natively. Use khayal to capture and find. Use Obsidian to read and navigate.
+
+**Tested compatible with:**
 
 - Obsidian
 - Logseq
 - Foam
 - Any text editor
 
-Wikilinks, graph view, backlinks — user's choice, not enforced.
+**Frontmatter fields:**
+```yaml
+created: 2024-03-16T14:23:00
+updated: 2024-03-16T14:23:04
+type: text
+status: done
+tags:
+  - react
+entities:
+  people:  []
+  amounts: []
+  dates:   []
+  places:  []
+  urls:    []
+  orgs:    []
+related:
+  - inbox/2022-04-10-react-perf.md
+  - inbox/2023-01-05-hooks.md
+history:
+  - at: 2024-03-16T14:23:04
+    event: processed
+```
+
+The `related` field lists paths to semantically related notes (from proactive connections). This feeds Obsidian's graph view.
+
+---
+
+## Obsidian Integration
+
+To use khayal alongside Obsidian, add these paths to your Obsidian vault's **Settings → Files & Links → Excluded Files**:
+
+```
+.khayal-trash/
+.khayal-pending/
+```
+
+This ensures:
+- Deleted/failed notes are hidden from Obsidian's graph
+- Temporary pending files don't appear in navigation
+- Clean separation between khayal's operational files and your notes
 
 ---
 

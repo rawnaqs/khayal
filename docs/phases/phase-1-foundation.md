@@ -18,7 +18,7 @@ Add to `go.mod`:
 require (
     github.com/go-chi/chi/v5 v5.0.12
     github.com/rawnaqs/theme v0.0.0
-    modernc.org/sqlite v1.29.0
+    github.com/mattn/go-sqlite3 v1.14.19
     gopkg.in/yaml.v3 v3.0.1
     github.com/google/uuid v1.6.0
     github.com/zerologzerolog v1.31.0
@@ -217,6 +217,31 @@ CREATE TABLE IF NOT EXISTS embeddings (
 );
 
 CREATE INDEX idx_embeddings_job ON embeddings(job_id);
+
+-- Entities table (v1.1+)
+CREATE TABLE IF NOT EXISTS entities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_path TEXT NOT NULL,
+    chunk_idx INTEGER,
+    entity_type TEXT NOT NULL, -- "person" | "amount" | "date" | "place" | "org" | "url"
+    entity_value TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_entities_note ON entities(note_path);
+CREATE INDEX idx_entities_type ON entities(entity_type);
+
+-- Chunks table for chunk-level embeddings (v1.1+)
+CREATE TABLE IF NOT EXISTS chunks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_path TEXT NOT NULL,
+    chunk_idx INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    embedding BLOB NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX idx_chunks_note ON chunks(note_path);
 ```
 
 ### Job Struct

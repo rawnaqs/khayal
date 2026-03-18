@@ -23,9 +23,11 @@
 
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
-| Job Queue | SQLite (modernc.org/sqlite) | Pure Go, no CGO, embedded |
-| Full-Text Search | SQLite FTS5 | Built-in, fast enough for personal use |
+| Job Queue | SQLite (mattn/go-sqlite3) | CGO, built-in, extensions ready |
+| Full-Text Search | SQLite FTS5 | Built-in |
 | Embeddings | SQLite BLOB | Store vectors alongside metadata |
+
+**Note:** Uses `mattn/go-sqlite3` for CGO + future sqlite-vec support.
 
 ## LLM
 

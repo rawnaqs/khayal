@@ -2,6 +2,46 @@
 
 > High-level system design. Updated: 2026-03-17
 
+## Two Binaries
+
+Khayal is distributed as two separate binaries:
+
+| Binary | Purpose | Dependencies |
+|--------|---------|--------------|
+| `khayal` | Server + Worker + PWA | Ollama, SQLite |
+| `kl` | Thin HTTP client | None (just calls khayal) |
+
+### khayal
+
+Full server binary with:
+- API server
+- Worker pool (job processing)
+- Ingest pipeline (text, image, article)
+- LLM clients (Ollama, Groq, OpenAI)
+- PWA (embedded via embed.FS)
+- Vault writer
+- Queue (SQLite)
+- Config loader
+- Dependency checker
+
+```bash
+khayal init       # First-run setup
+khayal start      # Start server + worker
+```
+
+### kl
+
+Lightweight HTTP client (no server, no database):
+
+```bash
+kl init           # Setup kl.yaml with token
+kl "thought"      # Capture text
+kl --url ...     # Capture URL
+kl --image ...   # Capture image
+kl search ...    # Search
+kl status        # Show queue
+```
+
 ## System Overview
 
 ```
@@ -104,6 +144,30 @@ Query → API Server → Keyword Search (FTS5)
 - Search orchestration
 - Static file serving (PWA)
 
+### API Client (`internal/api/client/`)
+
+Shared typed Go client used by:
+- `kl` CLI
+- Future interfaces (browser extension, iOS, Android)
+
+```go
+import "github.com/rawnaqs/khayal/internal/api/client"
+
+c := client.New("http://localhost:7766", "your-token")
+
+// Capture
+resp, _ := c.Capture(ctx, client.CaptureRequest{
+    Type:    "text",
+    Content: "my thought",
+})
+
+// Search
+results, _ := c.Search(ctx, "query", client.SearchOptions{Limit: 10})
+
+// Queue
+jobs, _ := c.ListQueue(ctx, client.QueueFilter{Status: "pending"})
+```
+
 ### Worker (`internal/worker/`)
 
 - Job processing (concurrent, configurable)
@@ -128,9 +192,16 @@ Query → API Server → Keyword Search (FTS5)
 ### Vault (`internal/vault/`)
 
 - Markdown file writing
-- Frontmatter generation
+- Frontmatter generation (YAML validated before write)
 - Media file management
 - Path resolution
+- **Safety features:**
+  - Atomic writes (temp file + rename)
+  - File locking to prevent race conditions with Obsidian
+  - mtime check to detect external edits
+  - UTF-8 validation on all LLM output
+  - Wikilink verification before writing
+  - Hard caps on frontmatter list fields
 
 ### Queue (`internal/queue/`)
 
@@ -143,6 +214,35 @@ Query → API Server → Keyword Search (FTS5)
 - User interface
 - Command handling
 - Output formatting
+
+## LLM Adapter Pattern
+
+The LLM layer uses the **adapter pattern** for extensibility:
+
+```
+┌─────────────────────┐
+│   LLM Interface     │  (internal/llm/interface.go)
+│   ─────────────     │
+│ Embed()            │
+│ Generate()         │
+│ DescribeImage()    │
+│ Ping()             │
+│ Type()             │
+└──────────┬──────────┘
+           │
+  ┌────────┼────────┐
+  │        │        │
+  ▼        ▼        ▼
+Ollama   Groq    OpenAI
+(primary)(fallback)(fallback)
+```
+
+**Adding a new provider:**
+1. Create `internal/llm/<provider>.go`
+2. Implement the `LLM` interface
+3. Add to factory
+
+No other code changes required. See `docs/phases/phase-4-llm.md` for details.
 
 ## Security Model
 

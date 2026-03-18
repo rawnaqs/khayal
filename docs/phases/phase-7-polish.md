@@ -211,11 +211,10 @@ before:
     - go mod download
 
 builds:
+  # Full server binary - requires CGO for SQLite
   - id: khayal
     main: ./cmd/khayal
     binary: khayal
-    env:
-      - CGO_ENABLED=0
     goos:
       - darwin
       - linux
@@ -226,8 +225,34 @@ builds:
       - -s -w
       - -X github.com/rawnaqs/khayal/internal/config.Version={{.Version}}
 
+  # Thin HTTP client binary - no CGO needed
+  - id: kl
+    main: ./cmd/kl
+    binary: kl
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
 archives:
-  - id: default
+  - id: khayal
+    builds:
+      - khayal
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+
+  - id: kl
+    builds:
+      - kl
     format: tar.gz
     format_overrides:
       - goos: windows
@@ -253,10 +278,27 @@ release:
   draft: false
   prerelease: auto
 
+# Two Homebrew taps
 brew:
-  github:
-    owner: rawnaqs
-    name: homebrew-tap
+  # Server binary
+  - name: khayal
+    tap:
+      owner: rawnaqs
+      name: homebrew-tap
+    folder: Formula
+    commit_author:
+      name: goreleaser
+      email: noreply@rawnaqs.github.com
+
+  # Client binary
+  - name: kl
+    tap:
+      owner: rawnaqs
+      name: homebrew-tap
+    folder: Formula
+    commit_author:
+      name: goreleaser
+      email: noreply@rawnaqs.github.com
   folder: Formula
   name: khayal
 

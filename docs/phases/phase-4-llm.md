@@ -15,10 +15,11 @@
 ```
 internal/
 ├── llm/
-│   ├── interface.go
-│   ├── ollama.go
-│   ├── groq.go
-│   └── openai.go
+│   ├── interface.go       # LLM interface definition
+│   ├── ollama.go          # Ollama client (primary)
+│   ├── groq.go            # Groq fallback
+│   ├── openai.go          # OpenAI fallback
+│   └── factory.go         # LLM factory with fallback
 ```
 
 ## Step 4.1: LLM Interface
@@ -560,68 +561,540 @@ func (c *OpenAIClient) DescribeImage(imagePath string) (string, error) {
 }
 ```
 
-## Step 4.5: Factory & Fallback
+## Step 4.5: Factory (No Auto-Fallback)
 
 **File:** `internal/llm/factory.go`
 
+**Design Decision:** No automatic fallback. If primary fails, job stays in queue for user to retry.
+
 ```go
 func NewLLM(cfg config.LLMConfig) (LLM, error) {
-    // Try primary provider
-    var primary LLM
+    var client LLM
     var err error
     
     switch cfg.Provider {
     case ProviderOllama:
-        primary = NewOllamaClient(
+        client = NewOllamaClient(
             cfg.OllamaHost,
             cfg.EmbedModel,
             cfg.TextModel,
             cfg.VisionModel,
         )
     case ProviderGroq:
-        primary = NewGroqClient(cfg.FallbackAPIKey, cfg.TextModel)
+        client = NewGroqClient(cfg.FallbackAPIKey, cfg.TextModel)
     case ProviderOpenAI:
-        primary = NewOpenAIClient(cfg.FallbackAPIKey, cfg.TextModel, cfg.VisionModel)
+        client = NewOpenAIClient(cfg.FallbackAPIKey, cfg.TextModel, cfg.VisionModel)
     default:
         return nil, fmt.Errorf("unknown provider: %s", cfg.Provider)
     }
     
-    // Ping primary
-    if err := primary.Ping(); err == nil {
-        return primary, nil
+    // Verify connectivity
+    if err := client.Ping(); err != nil {
+        return nil, fmt.Errorf("LLM provider %s unavailable: %w", cfg.Provider, err)
     }
     
-    // Try fallback
-    if cfg.FallbackProvider == "" {
-        return nil, fmt.Errorf("primary provider (%s) unavailable and no fallback configured", cfg.Provider)
-    }
-    
-    var fallback LLM
-    switch cfg.FallbackProvider {
-    case ProviderOllama:
-        fallback = NewOllamaClient(cfg.OllamaHost, cfg.EmbedModel, cfg.TextModel, cfg.VisionModel)
-    case ProviderGroq:
-        fallback = NewGroqClient(cfg.FallbackAPIKey, cfg.TextModel)
-    case ProviderOpenAI:
-        fallback = NewOpenAIClient(cfg.FallbackAPIKey, cfg.TextModel, cfg.VisionModel)
-    }
-    
-    if err := fallback.Ping(); err != nil {
-        return nil, fmt.Errorf("primary and fallback providers unavailable: %w", err)
-    }
-    
-    log.Warn().Str("primary", cfg.Provider).Str("fallback", cfg.FallbackProvider).Msg("using fallback provider")
-    
-    return fallback, nil
+    return client, nil
 }
 ```
 
-### Graceful Degradation
+### Why No Auto-Fallback?
 
-If no LLM is available:
-1. Save raw note to vault
-2. Queue job for retry when LLM recovers
-3. Mark status as `pending` not `failed`
+| Reason | Explanation |
+|--------|-------------|
+| User may not have fallback configured | Don't assume fallback exists |
+| Prevent data loss | Without fallback, job stays in queue for retry |
+| Clear failure mode | User knows exactly what failed and why |
+| Simplicity | Single failure path is easier to debug |
+
+### Worker Behavior Without Fallback
+
+```
+LLM call fails → Return error → Job stays "pending" → User can retry/discard
+```
+
+This ensures:
+- No automatic silent switching
+- User is aware of failures
+- Data is preserved in queue
+- User has full control over retry/discard
+
+## Step 4.6: Adding New Providers (Adapter Pattern)
+
+The LLM package uses the **adapter pattern** — adding a new provider requires no changes to existing code.
+
+### Architecture
+
+```
+                    ┌─────────────────────┐
+                    │   LLM Interface     │  (internal/llm/interface.go)
+                    │   ─────────────     │
+                    │ Embed()             │
+                    │ Generate()          │
+                    │ DescribeImage()     │
+                    │ Ping()              │
+                    │ Type()              │
+                    └──────────┬──────────┘
+                               │
+      ┌────────────────────────┼────────────────────────┐
+      │                        │                        │
+      ▼                        ▼                        ▼
+┌─────────────┐        ┌─────────────┐         ┌─────────────┐
+│   Ollama   │        │    Groq     │         │   OpenAI    │
+│  (primary) │        │  (fallback) │         │  (fallback) │
+└─────────────┘        └─────────────┘         └─────────────┘
+```
+
+### Adding Anthropic (Claude)
+
+1. Create `internal/llm/anthropic.go`:
+
+```go
+package llm
+
+type AnthropicClient struct {
+    apiKey      string
+    textModel   string
+    visionModel string
+    httpClient  *http.Client
+}
+
+const ProviderAnthropic = "anthropic"
+
+func NewAnthropicClient(apiKey, textModel, visionModel string) *AnthropicClient {
+    return &AnthropicClient{
+        apiKey:      apiKey,
+        textModel:   textModel,
+        visionModel: visionModel,
+        httpClient:  &http.Client{Timeout: 120 * time.Second},
+    }
+}
+
+func (c *AnthropicClient) Type() string { return ProviderAnthropic }
+
+func (c *AnthropicClient) Ping() error {
+    req, _ := http.NewRequest("GET", "https://api.anthropic.com/v1/messages", nil)
+    req.Header.Set("x-api-key", c.apiKey)
+    req.Header.Set("anthropic-version", "2023-06-01")
+    
+    resp, err := c.httpClient.Do(req)
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+    
+    return nil
+}
+
+func (c *AnthropicClient) Embed(text string) ([]float32, error) {
+    // Anthropic doesn't have embeddings, use a workaround or return error
+    return nil, fmt.Errorf("embeddings not supported on Anthropic")
+}
+
+func (c *AnthropicClient) Generate(prompt string) (string, error) {
+    reqBody := map[string]interface{}{
+        "model":      c.textModel,
+        "max_tokens": 1024,
+        "messages":   []map[string]string{{"role": "user", "content": prompt}},
+    }
+    
+    body, _ := json.Marshal(reqBody)
+    
+    req, _ := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(body))
+    req.Header.Set("x-api-key", c.apiKey)
+    req.Header.Set("anthropic-version", "2023-06-01")
+    req.Header.Set("Content-Type", "application/json")
+    
+    resp, err := c.httpClient.Do(req)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+    
+    var result struct {
+        Content []struct {
+            Text string `json:"text"`
+        } `json:"content"`
+    }
+    
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return "", err
+    }
+    
+    if len(result.Content) == 0 {
+        return "", fmt.Errorf("no completion returned")
+    }
+    
+    return result.Content[0].Text, nil
+}
+
+func (c *AnthropicClient) DescribeImage(imagePath string) (string, error) {
+    // Anthropic Claude 3 supports vision
+    imgData, err := os.ReadFile(imagePath)
+    if err != nil {
+        return "", err
+    }
+    
+    base64Img := base64.StdEncoding.EncodeToString(imgData)
+    
+    reqBody := map[string]interface{}{
+        "model":      c.visionModel,
+        "max_tokens": 1024,
+        "messages": []map[string]interface{}{
+            {
+                "role": "user",
+                "content": []map[string]interface{}{
+                    {"type": "text", "text": "Describe this image in detail."},
+                    {"type": "image", "source": map[string]string{"type": "base64", "media_type": "image/png", "data": base64Img}},
+                },
+            },
+        },
+    }
+    
+    body, _ := json.Marshal(reqBody)
+    
+    req, _ := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(body))
+    req.Header.Set("x-api-key", c.apiKey)
+    req.Header.Set("anthropic-version", "2023-06-01")
+    req.Header.Set("Content-Type", "application/json")
+    
+    resp, err := c.httpClient.Do(req)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+    
+    var result struct {
+        Content []struct {
+            Text string `json:"text"`
+        } `json:"content"`
+    }
+    
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return "", err
+    }
+    
+    if len(result.Content) == 0 {
+        return "", fmt.Errorf("no completion returned")
+    }
+    
+    return result.Content[0].Text, nil
+}
+```
+
+2. Add to factory in `internal/llm/factory.go`:
+
+```go
+case ProviderAnthropic:
+    primary = NewAnthropicClient(cfg.FallbackAPIKey, cfg.TextModel, cfg.VisionModel)
+```
+
+3. Add to config in `internal/config/config.go`:
+
+```go
+type LLMConfig struct {
+    Provider         string `yaml:"provider"` // "ollama" | "groq" | "openai" | "anthropic"
+    // ... other fields
+}
+```
+
+### Summary
+
+To add a new provider:
+1. Create `internal/llm/<provider>.go`
+2. Implement the `LLM` interface
+3. Add constructor and provider constant
+4. Add case to factory switch
+5. Add to config validation
+
+**No other code changes required** — the rest of the codebase only knows about the interface.
+
+## Step 4.7: Error Handling
+
+Robust error handling is critical for unreliable models and networks.
+
+### Error Types & Responses
+
+| Error Type | Detection | User Response |
+|------------|-----------|---------------|
+| **Model not found** | API returns 404, model not in list | Warn user, suggest `ollama pull <model>` |
+| **Inference timeout** | Context deadline exceeded | Retry with backoff, then fail gracefully |
+| **OOM (out of memory)** | Process killed / API error | Fall back to lighter model or skip processing |
+| **Invalid JSON output** | Parse error on LLM response | Retry with stricter prompt, fallback to raw |
+| **Rate limiting** | HTTP 429 status | Exponential backoff, use fallback provider |
+| **Provider down** | Connection refused | Switch to fallback provider |
+| **Partial failure** | Some embeddings fail | Save partial, log affected items |
+
+### Retry Logic Implementation
+
+```go
+// internal/llm/retry.go
+
+type RetryConfig struct {
+    MaxAttempts int
+    InitialDelay time.Duration
+    MaxDelay time.Duration
+}
+
+var DefaultRetryConfig = RetryConfig{
+    MaxAttempts:  3,
+    InitialDelay: 1 * time.Second,
+    MaxDelay:     30 * time.Second,
+}
+
+func withRetry[T any](fn func() (T, error), cfg RetryConfig) (T, error) {
+    var lastErr error
+    
+    for attempt := 0; attempt < cfg.MaxAttempts; attempt++ {
+        result, err := fn()
+        if err == nil {
+            return result, nil
+        }
+        
+        lastErr = err
+        
+        // Check if retryable
+        if !isRetryable(err) {
+            return result, err
+        }
+        
+        // Calculate backoff
+        delay := cfg.InitialDelay * time.Duration(math.Pow(2, float64(attempt)))
+        if delay > cfg.MaxDelay {
+            delay = cfg.MaxDelay
+        }
+        
+        log.Warn().
+            Int("attempt", attempt+1).
+            Dur("delay", delay).
+            Err(err).
+            Msg("retrying LLM call")
+        
+        time.Sleep(delay)
+    }
+    
+    return *new(T), fmt.Errorf("all retries failed: %w", lastErr)
+}
+
+func isRetryable(err error) bool {
+    if err == nil {
+        return false
+    }
+    
+    // Timeout
+    if errors.Is(err, context.DeadlineExceeded) {
+        return true
+    }
+    
+    errStr := err.Error()
+    
+    // Rate limiting
+    if strings.Contains(errStr, "429") {
+        return true
+    }
+    
+    // Temporary unavailability
+    if strings.Contains(errStr, "connection refused") ||
+       strings.Contains(errStr, "temporary failure") ||
+       strings.Contains(errStr, "service unavailable") {
+        return true
+    }
+    
+    // OOM
+    if strings.Contains(errStr, "out of memory") ||
+       strings.Contains(errStr, "insufficient memory") {
+        return true
+    }
+    
+    return false
+}
+```
+
+### Safe JSON Parsing
+
+```go
+// Safe JSON parsing with fallback
+func extractJSONArray(response string) ([]string, error) {
+    // Try direct parse
+    var result []string
+    if err := json.Unmarshal([]byte(response), &result); err == nil {
+        return result, nil
+    }
+    
+    // Try to extract JSON from response
+    // LLM might wrap in markdown or add commentary
+    jsonStr := extractJSON(response)
+    if jsonStr == "" {
+        return nil, fmt.Errorf("no JSON found in response")
+    }
+    
+    if err := json.Unmarshal([]byte(jsonStr), &result); err == nil {
+        return result, nil
+    }
+    
+    // Fallback: extract line by line
+    lines := strings.Split(response, "\n")
+    for _, line := range lines {
+        line = strings.TrimSpace(line)
+        if line != "" && !strings.HasPrefix(line, "#") &&
+           !strings.HasPrefix(line, "```") {
+            result = append(result, strings.Trim(line, "-* "))
+        }
+    }
+    
+    if len(result) > 0 {
+        return result, nil
+    }
+    
+    return nil, fmt.Errorf("failed to parse JSON and fallback extraction")
+}
+
+func extractJSON(s string) string {
+    // Find first [ and last ]
+    start := strings.Index(s, "[")
+    end := strings.LastIndex(s, "]")
+    if start == -1 || end == -1 || end < start {
+        return ""
+    }
+    return s[start : end+1]
+}
+```
+
+### Error Handling Flow
+
+When LLM fails, the error propagates to the worker which handles it:
+
+```
+LLM call → Error → Worker catches → Job stays "pending" → User can retry/discard
+```
+
+```go
+// Worker handles LLM errors - no automatic fallback
+func (w *Worker) processJob(jobID string) {
+    job, err := w.queue.GetJob(jobID)
+    if err != nil {
+        log.Error().Err(err).Msg("failed to get job")
+        return
+    }
+    
+    // Process - don't write vault until all succeeds
+    var notePath string
+    notePath, err = w.ingestText(job) // This calls LLM
+    
+    if err != nil {
+        // LLM failed - keep job pending for user to retry/discard
+        w.handleFailure(job, err)
+        return
+    }
+    
+    // Only reached if LLM succeeded
+    job.NotePath = notePath
+    job.Status = "done"
+    w.queue.UpdateJob(job)
+}
+
+func (w *Worker) handleFailure(job *queue.Job, err error) {
+    job.Retries++
+    job.Error = err.Error()
+    job.Status = "pending" // Keep pending, not failed
+    
+    // Don't delete anything - user can retry
+    w.queue.UpdateJob(job)
+    
+    log.Warn().Str("job", job.ID).Err(err).Msg("LLM failed, job pending for retry")
+}
+```
+
+### User Flow for Failed Jobs
+
+1. **User checks queue** → `GET /v1/queue?status=failed`
+2. **See error message** → `"error": "ollama timeout after 120s"`
+3. **Fix issue** → Start Ollama, pull required model
+4. **Retry** → `POST /v1/queue/{id}/retry`
+5. **Or discard** → `POST /v1/queue/{id}/discard`
+
+This gives users full control over failed processing.
+}
+```
+
+### Error Logging Guidelines
+
+| Rule | Reason |
+|------|--------|
+| Log model name | Helps diagnose provider issues |
+| Log prompt length | Helps with token limits |
+| Log latency | Helps identify slow models |
+| Never log full prompt | Security/privacy |
+| Never log API keys | Security |
+| Include original error | Debugging |
+| Use structured logging | Searchable, parseable |
+
+### User-Facing Error Messages
+
+```go
+// Internal error (detailed)
+var internalErr = fmt.Errorf("ollama: text_model qwen2.5:3b timeout after 120s (attempt 3/3)")
+
+// User-facing error (safe)
+var userErr = "Processing failed. Try a smaller model or check Ollama is running."
+```
+
+**Never expose:**
+- API keys
+- Full prompts
+- Internal error details
+- Stack traces
+
+### Health Check Enhancement
+
+```go
+// In health.go - check model availability
+func (s *Server) checkLLMModels() []ModelStatus {
+    models, err := s.llm.ListModels()
+    if err != nil {
+        return []ModelStatus{{Name: "all", Status: "error", Error: err.Error()}}
+    }
+    
+    required := map[string]string{
+        s.config.LLM.TextModel:   "text",
+        s.config.LLM.VisionModel: "vision",
+        s.config.LLM.EmbedModel:  "embed",
+    }
+    
+    var statuses []ModelStatus
+    for model, kind := range required {
+        found := false
+        for _, m := range models {
+            if m.Name == model {
+                found = true
+                break
+            }
+        }
+        
+        status := ModelStatus{Name: model, Type: kind}
+        if found {
+            status.Status = "ok"
+        } else {
+            status.Status = "missing"
+            status.Error = fmt.Sprintf("model not found. Run: ollama pull %s", model)
+        }
+        statuses = append(statuses, status)
+    }
+    
+    return statuses
+}
+```
+
+### Implementation Checklist
+
+- [ ] Add retry logic with exponential backoff
+- [ ] Implement `isRetryable()` function
+- [ ] Add safe JSON parsing with fallback
+- [ ] Implement fallback provider switching
+- [ ] Add structured error logging
+- [ ] Create user-safe error messages
+- [ ] Enhance health endpoint with model checks
+- [ ] Add model availability check on startup
+- [ ] Document error codes for troubleshooting
 
 ## Testing
 
@@ -642,10 +1115,15 @@ go test ./internal/llm/... -v
 - [ ] LLM interface
 - [ ] Ollama client (embed, generate, vision)
 - [ ] Ollama extended operations (tags, summary, key ideas)
-- [ ] Groq fallback client
-- [ ] OpenAI fallback client
-- [ ] Factory with fallback logic
-- [ ] Graceful degradation
+- [ ] Groq client (optional provider)
+- [ ] OpenAI client (optional provider)
+- [ ] Factory (no auto-fallback - primary only)
+- [ ] Retry logic with backoff (worker keeps job pending)
+- [ ] Safe JSON parsing with fallback extraction
+- [ ] Error logging (structured, safe)
+- [ ] User-facing error messages
+- [ ] Model availability check on startup
+- [ ] Health endpoint model status
 - [ ] Tests passing
 - [ ] go vet clean
 
@@ -657,7 +1135,10 @@ go test ./internal/llm/... -v
 
 - Default models:
   - Embeddings: nomic-embed-text (274MB)
-  - Text: llama3.2:3b (2GB)
-  - Vision: moondream (1.8GB)
-- Fallback activates if Ollama unreachable
-- If no fallback and Ollama down: raw note saved, job queued for retry
+  - Text: qwen2.5:3b (structured output reliability)
+  - Vision: moondream (fits in 8GB)
+- All models configurable via config.yaml
+- **No auto-fallback** - primary provider only
+- LLM failure → job stays pending → user can retry or discard
+- Retry with exponential backoff on transient errors
+- Never expose API keys or full prompts in errors

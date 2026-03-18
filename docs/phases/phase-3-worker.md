@@ -33,7 +33,7 @@ internal/
 - Single goroutine per worker, jobs processed serially
 - Exponential backoff on failure
 - Max 3 retries then permanently failed
-- On permanent failure: delete note, delete media, mark failed
+- On permanent failure: move note to `.khayal-trash/`, move media to trash, mark failed in DB
 - On startup: reset stuck `processing` jobs
 
 ### Config
@@ -150,28 +150,36 @@ func (w *Worker) processJob(jobID string) {
         return
     }
     
-    var processErr error
+    // CRITICAL: Process FIRST, write vault LAST
+    // If any step fails, don't write anything to vault
+    // Job stays pending for user to retry or discard
+    
+    var notePath string
     
     switch job.Type {
     case "text":
-        processErr = w.ingestText(job)
+        notePath, err = w.ingestText(job)
     case "image":
-        processErr = w.ingestImage(job)
+        notePath, err = w.ingestImage(job)
     case "article":
-        processErr = w.ingestArticle(job)
+        notePath, err = w.ingestArticle(job)
     default:
-        processErr = fmt.Errorf("unknown job type: %s", job.Type)
+        err = fmt.Errorf("unknown job type: %s", job.Type)
     }
     
-    if processErr != nil {
-        w.handleFailure(job, processErr)
+    if err != nil {
+        // Processing failed - DON'T write to vault
+        // Keep job pending for user to retry or discard
+        w.handleFailure(job, err)
         return
     }
     
-    // Mark as done
+    // All processing succeeded - NOW write to vault
+    job.NotePath = notePath
+    job.Status = "done"
+    
     now := time.Now()
     job.ProcessedAt = &now
-    job.Status = "done"
     
     if err := w.queue.UpdateJob(job); err != nil {
         log.Error().Str("job", jobID).Err(err).Msg("failed to update job")
@@ -188,21 +196,21 @@ func (w *Worker) handleFailure(job *queue.Job, err error) {
     job.Retries++
     job.Error = err.Error()
     
+    // CRITICAL: Don't write to vault on failure
+    // Don't delete media - user might want to retry
+    
+    // After max retries, mark as failed but keep data
+    // User can manually retry or discard
     if job.Retries >= w.config.MaxRetries {
-        // Permanent failure
         job.Status = "failed"
         
-        // Cleanup: delete note and media
-        if job.NotePath != "" {
-            w.vault.DeleteNote(job.NotePath)
-        }
-        if job.SourceFile != "" {
-            w.vault.DeleteMedia(job.SourceFile)
-        }
-        
-        log.Error().Str("job", job.ID).Int("retries", job.Retries).Msg("job permanently failed")
+        log.Error().
+            Str("job", job.ID).
+            Int("retries", job.Retries).
+            Err(err).
+            Msg("job permanently failed - user can retry or discard")
     } else {
-        // Schedule retry with backoff
+        // Keep pending for retry
         job.Status = "pending"
         delay := w.calculateBackoff(job.Retries)
         
@@ -211,11 +219,13 @@ func (w *Worker) handleFailure(job *queue.Job, err error) {
             Int("retry", job.Retries).
             Dur("delay", delay).
             Err(err).
-            Msg("job failed, scheduling retry")
+            Msg("job failed - will retry later")
         
-        time.Sleep(delay) // In production, use a proper scheduler
+        time.Sleep(delay)
     }
     
+    // IMPORTANT: Don't write note_path - it doesn't exist yet
+    // Only update error message and retry count
     w.queue.UpdateJob(job)
 }
 
@@ -233,6 +243,23 @@ func (w *Worker) calculateBackoff(retry int) time.Duration {
 }
 ```
 
+### Safety-First Principle
+
+**Never write to vault until ALL processing succeeds.**
+
+```
+Job created → Process with LLM → All succeeded → Write to vault → Mark done
+                 ↓ (any failure)
+              Keep job pending → Don't write vault → User can retry/discard
+```
+
+**Why this approach?**
+- No orphaned/incomplete notes in vault
+- User can retry failed jobs manually
+- User can discard when ready
+- No data loss from failed processing
+- Clear failure state for debugging
+
 ## Step 3.2: Text Ingest
 
 **File:** `internal/ingest/text.go`
@@ -241,34 +268,39 @@ func (w *Worker) calculateBackoff(retry int) time.Duration {
 
 - Extract tags using LLM
 - Generate summary
-- Update note with results
+- Return note data (don't write to vault)
 - Generate embedding for search
 
 ### Process
 
 1. Send content to LLM for tag extraction
 2. Generate summary
-3. Update note with tags, summary, key ideas
+3. Return note data (vault write happens in worker)
 4. Generate embedding and save to DB
 
+### IMPORTANT: Don't Write Vault Here
+
+The ingest functions return note data. The worker writes to vault ONLY after ALL processing succeeds.
+
 ```go
-func (w *Worker) ingestText(job *queue.Job) error {
+// Returns note data - worker writes to vault AFTER all processing
+func (w *Worker) ingestText(job *queue.Job) (string, error) {
     // Generate tags
     tags, err := w.llm.ExtractTags(job.Content)
     if err != nil {
-        return fmt.Errorf("failed to extract tags: %w", err)
+        return "", fmt.Errorf("failed to extract tags: %w", err)
     }
     
     // Generate summary
     summary, err := w.llm.Summarize(job.Content)
     if err != nil {
-        return fmt.Errorf("failed to generate summary: %w", err)
+        return "", fmt.Errorf("failed to generate summary: %w", err)
     }
     
     // Generate key ideas
     keyIdeas, err := w.llm.ExtractKeyIdeas(job.Content)
     if err != nil {
-        return fmt.Errorf("failed to extract key ideas: %w", err)
+        return "", fmt.Errorf("failed to extract key ideas: %w", err)
     }
     
     // Build title from content (first line or first 50 chars)
@@ -277,7 +309,7 @@ func (w *Worker) ingestText(job *queue.Job) error {
         title = title[:50] + "..."
     }
     
-    // Update note
+    // Prepare note metadata (don't write yet)
     now := time.Now()
     note := &vault.Note{
         Metadata: vault.NoteMetadata{
@@ -296,21 +328,22 @@ func (w *Worker) ingestText(job *queue.Job) error {
         Raw:      job.Content,
     }
     
+    // Return note data - worker will write to vault AFTER all processing succeeds
     notePath, err := w.vault.WriteNote(note)
     if err != nil {
-        return fmt.Errorf("failed to write note: %w", err)
+        return "", fmt.Errorf("failed to write note: %w", err)
     }
     
-    job.NotePath = notePath
-    
-    // Generate embedding
-    embedding, err := w.llm.Embed(job.Content)
-    if err != nil {
-        log.Warn().Err(err).Msg("failed to generate embedding")
-        return nil // Non-fatal
+    // Generate embedding (non-fatal if it fails)
+    embedding, embedErr := w.llm.Embed(job.Content)
+    if embedErr != nil {
+        log.Warn().Err(embedErr).Msg("failed to generate embedding")
+        // Don't fail the job - embedding is optional
+    } else {
+        w.queue.SaveEmbedding(job.ID, w.config.EmbedModel, embedding)
     }
     
-    return w.queue.SaveEmbedding(job.ID, w.config.EmbedModel, embedding)
+    return notePath, nil
 }
 ```
 
@@ -527,12 +560,13 @@ go test ./internal/ingest/... -v
 - [ ] Configurable concurrency
 - [ ] Job fetcher loop
 - [ ] Crash recovery
-- [ ] Text ingest
-- [ ] Image ingest
-- [ ] Article ingest
-- [ ] Retry with backoff
-- [ ] Permanent failure cleanup
-- [ ] Embedding generation
+- [ ] Text ingest (returns note data, don't write vault)
+- [ ] Image ingest (returns note data, don't write vault)
+- [ ] Article ingest (returns note data, don't write vault)
+- [ ] Vault write happens AFTER all processing succeeds
+- [ ] Retry with backoff (keep job pending, don't fail)
+- [ ] Max retries reached → mark failed, user can retry/discard
+- [ ] Embedding generation (non-fatal)
 - [ ] Tests passing
 - [ ] go vet clean
 
@@ -542,6 +576,7 @@ go test ./internal/ingest/... -v
 
 ## Notes
 
+- **Safety-first**: Never write to vault until ALL processing succeeds
 - Processing times (M2 Mac Air):
   - Text: ~3s
   - Image: ~10s
@@ -549,3 +584,4 @@ go test ./internal/ingest/... -v
 - Embedding model: nomic-embed-text
 - Default workers: 1
 - Max retries: 3
+- Failed jobs stay in queue - user can retry or discard

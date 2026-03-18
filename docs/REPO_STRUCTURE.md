@@ -2,48 +2,73 @@
 
 > Complete file tree for Khayal v1. Updated: 2026-03-17
 
+## Two Binaries
+
+| Binary | Command | Description |
+|--------|---------|-------------|
+| `khayal` | `khayal init`, `khayal start` | Server + Worker + PWA |
+| `kl` | `kl "thought"`, `kl search` | Thin HTTP client |
+
+## File Tree
+
 ```
 khayal/
 ├── cmd/
-│   └── khayal/
-│       └── main.go                    # Single binary entry point
+│   ├── khayal/                      # Full server binary
+│   │   └── main.go                  # Entry point: khayal
+│   │
+│   └── kl/                          # Thin HTTP client binary
+│       └── main.go                  # Entry point: kl
 │
 ├── internal/
 │   ├── api/
-│   │   ├── server.go                   # HTTP server, router, middleware
-│   │   ├── capture.go                  # POST /v1/capture
-│   │   ├── search.go                   # GET /v1/search
-│   │   ├── health.go                   # GET /v1/health
-│   │   ├── queue.go                    # GET /v1/queue, GET /v1/queue/:id
-│   │   ├── static.go                   # SPA static file serving
+│   │   ├── server.go                # HTTP server, router, middleware
+│   │   ├── capture.go               # POST /v1/capture
+│   │   ├── search.go               # GET /v1/search
+│   │   ├── health.go               # GET /v1/health
+│   │   ├── queue.go                # GET /v1/queue, queue operations
+│   │   ├── static.go               # SPA static file serving
+│   │   ├── client/                 # SHARED HTTP CLIENT
+│   │   │   └── client.go           # Typed Go client for API
 │   │   └── middleware/
-│   │       ├── auth.go                 # Token authentication
-│   │       └── log.go                  # Request logging
+│   │       ├── auth.go             # Token authentication
+│   │       └── log.go              # Request logging
 │   │
 │   ├── worker/
-│   │   └── worker.go                   # Job processor, concurrency, retry
+│   │   └── worker.go               # Job processor, concurrency, retry
 │   │
 │   ├── ingest/
-│   │   ├── text.go                     # Text processing (tags, summary)
-│   │   ├── image.go                    # Image processing (description, OCR)
-│   │   └── article.go                  # Article scraping, summarization
+│   │   ├── text.go                 # Text processing (tags, summary)
+│   │   ├── image.go                # Image processing (description, OCR)
+│   │   └── article.go             # Article scraping, summarization
 │   │
 │   ├── llm/
-│   │   ├── interface.go                # LLM interface definition
-│   │   ├── ollama.go                   # Ollama client (primary)
-│   │   ├── groq.go                     # Groq fallback
-│   │   ├── openai.go                   # OpenAI fallback
-│   │   └── factory.go                  # LLM factory with fallback
+│   │   ├── interface.go            # LLM interface definition
+│   │   ├── ollama.go              # Ollama client
+│   │   ├── groq.go                # Groq client
+│   │   ├── openai.go              # OpenAI client
+│   │   └── factory.go             # LLM factory
 │   │
 │   ├── vault/
-│   │   └── writer.go                   # Markdown writer, frontmatter
+│   │   └── writer.go               # Markdown writer, frontmatter
 │   │
 │   ├── queue/
 │   │   └── queue.go                    # SQLite job queue, FTS5, embeddings
 │   │
 │   ├── search/
-│   │   ├── keyword.go                  # FTS5 keyword search
-│   │   └── semantic.go                 # Vector similarity search
+│   │   ├── keyword.go                  # FTS5 + porter stemming + BM25
+│   │   ├── semantic.go                 # Vector similarity search
+│   │   ├── hybrid.go                  # RRF merge (k=60)
+│   │   ├── date.go                     # Date range filtering
+│   │   └── sync.go                     # mtime check + re-index stale
+│   │
+│   ├── connections/                    # Proactive connections (v1.1+)
+│   │   ├── engine.go                  # Orchestrates all types
+│   │   ├── similar.go                 # Semantic similarity
+│   │   ├── entity.go                  # Person + amount lookup
+│   │   ├── revisit.go                  # Revisit detection
+│   │   ├── followup.go                 # Follow-up detection
+│   │   └── contradiction.go            # LLM contradiction check
 │   │
 │   ├── config/
 │   │   └── config.go                   # Config loader, validation
@@ -219,6 +244,33 @@ type Writer interface {
 }
 ```
 
+### API Client (internal/api/client/client.go)
+
+```go
+type Client struct {
+    // opaque
+}
+
+func New(baseURL, token string) *Client
+
+// Capture
+func (c *Client) CaptureText(ctx context.Context, content string) (*CaptureResponse, error)
+func (c *Client) CaptureURL(ctx context.Context, url string) (*CaptureResponse, error)
+func (c *Client) CaptureImage(ctx context.Context, path, note string) (*CaptureResponse, error)
+
+// Search
+func (c *Client) Search(ctx context.Context, query string, opts ...SearchOptions) (*SearchResponse, error)
+
+// Queue
+func (c *Client) ListQueue(ctx context.Context, filter QueueFilter) (*QueueListResponse, error)
+func (c *Client) GetJob(ctx context.Context, id string) (*Job, error)
+func (c *Client) RetryJob(ctx context.Context, id string) (*Job, error)
+func (c *Client) DiscardJob(ctx context.Context, id string) error
+
+// Health
+func (c *Client) Health(ctx context.Context) (*HealthResponse, error)
+```
+
 ---
 
 ## API Endpoints
@@ -308,4 +360,5 @@ khayal_linux_arm64  # Linux ARM
 
 - Go: 1.22+
 - Node: 18+ (for PWA build)
-- SQLite: modernc.org/sqlite (pure Go)
+- GCC: Required (for CGO SQLite)
+- SQLite: mattn/go-sqlite3 (CGO)

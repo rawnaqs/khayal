@@ -1,10 +1,10 @@
 # Khayal Implementation Plan
 
-> Master implementation guide. Updated: 2026-03-17
+> Master implementation guide. Updated: 2026-03-18
 
 ## Overview
 
-Khayal is a local-first, privacy-focused second brain. This plan guides implementation through 7 phases.
+Khayal is a local-first, privacy-focused second brain. This plan guides implementation.
 
 **Philosophy:**
 ```
@@ -12,19 +12,34 @@ Capture  → zero friction, any device
 Process  → immediate, local, private
 Search   → fast, semantic + keyword
 Store    → plain markdown, yours forever
+Connect  → proactive discovery of related thoughts
 ```
+
+## Two Binaries
+
+| Binary | Command | Purpose |
+|--------|---------|---------|
+| `khayal` | `khayal init`, `khayal start` | Server + Worker + PWA |
+| `kl` | `kl "thought"`, `kl search` | Thin HTTP client |
+
+**Distribution:**
+- `brew install rawnaqs/tap/khayal` → Full server
+- `brew install rawnaqs/tap/kl` → Client only
+
+**Shared Package:**
+- `internal/api/client/` → Typed Go client for all interfaces
 
 ## Quick Reference
 
-| Phase | Name | Duration | Key Files |
-|-------|------|----------|-----------|
-| 1 | Foundation | Week 1 | config, db, vault |
-| 2 | Core API | Week 1-2 | server, endpoints |
-| 3 | Worker | Week 2 | worker, ingest |
-| 4 | LLM | Week 3 | ollama, fallbacks |
-| 5 | CLI | Week 3-4 | kl commands |
-| 6 | PWA | Week 4 | React app |
-| 7 | Polish | Week 5 | ci, release |
+| Phase | Name | Key Deliverables |
+|-------|------|------------------|
+| 1 | Foundation | config, db, vault |
+| 2 | Core API | server, endpoints, search |
+| 3 | Worker | worker, ingest |
+| 4 | LLM | ollama, groq, openai |
+| 5 | CLI + Client | kl commands, api/client |
+| 6 | PWA | React app |
+| 7 | Polish | ci, release |
 
 ## Phase Summary
 
@@ -35,14 +50,14 @@ Project setup, config, database, vault writer.
 - [ ] Initialize Go module
 - [ ] Create directory structure
 - [ ] Config loader with validation
-- [ ] SQLite job queue
+- [ ] SQLite job queue (mattn/go-sqlite3)
 - [ ] Markdown frontmatter writer
 
 **Files Created:** ~5
 **Tests:** Unit tests for config, vault
 
 ### Phase 2: Core API
-HTTP server, auth, logging, endpoints.
+HTTP server, auth, logging, endpoints, search.
 
 **Goals:**
 - [ ] Chi router setup
@@ -50,10 +65,14 @@ HTTP server, auth, logging, endpoints.
 - [ ] Logging middleware
 - [ ] Health endpoint
 - [ ] Capture endpoint (text sync, image/url queued)
-- [ ] Queue endpoints
-- [ ] Search endpoint (keyword only initially)
+- [ ] Queue endpoints (list, get, retry, discard)
+- [ ] Search endpoint with:
+  - [ ] FTS5 keyword search (porter stemming + BM25)
+  - [ ] sqlite-vec semantic search
+  - [ ] RRF hybrid merge (k=60)
+  - [ ] Date filtering (from/to params)
 
-**Files Created:** ~8
+**Files Created:** ~10
 **Tests:** Integration tests for endpoints
 
 ### Phase 3: Worker
@@ -66,37 +85,45 @@ Background job processing, ingest pipeline.
 - [ ] Image ingest (LLM description, OCR)
 - [ ] Article ingest (scrape, summarize)
 - [ ] Retry logic (exponential backoff)
+- [ ] Safety-first: vault write only after ALL processing succeeds
 
 **Files Created:** ~5
 **Tests:** Worker pool tests
 
 ### Phase 4: LLM
-Local AI integration, fallbacks.
+Local AI integration.
 
 **Goals:**
 - [ ] LLM interface
 - [ ] Ollama client (embed, generate, vision)
-- [ ] Groq fallback
-- [ ] OpenAI fallback
-- [ ] Graceful degradation
+- [ ] Groq client (optional)
+- [ ] OpenAI client (optional)
+- [ ] No auto-fallback (job stays pending for user retry)
 
 **Files Created:** ~5
 **Tests:** Mock LLM tests
 
-### Phase 5: CLI
-User-facing command line.
+### Phase 5: CLI + Client
+`kl` command and shared API client.
 
 **Goals:**
-- [ ] Cobra root
-- [ ] Capture command (`kl "text"`)
-- [ ] URL capture (`kl --url`)
-- [ ] Image capture (`kl --image`)
-- [ ] Search command (Glamour output)
-- [ ] Status command (Bubble Tea)
-- [ ] Init wizard (Huh)
-- [ ] Config commands
+- [ ] `cmd/kl/main.go` entry point
+- [ ] `internal/api/client/` package
+  - [ ] Capture methods
+  - [ ] Search methods
+  - [ ] Queue methods
+  - [ ] Health methods
+  - [ ] Types
+- [ ] kl commands:
+  - [ ] `kl "text"` - capture text
+  - [ ] `kl --url` - capture URL
+  - [ ] `kl --image` - capture image
+  - [ ] `kl search` - search with Glamour
+  - [ ] `kl status` - Bubble Tea dashboard
+  - [ ] `kl init` - Huh wizard
+  - [ ] `kl config` - config management
 
-**Files Created:** ~7
+**Files Created:** ~13
 **Tests:** CLI integration
 
 ### Phase 6: PWA
@@ -119,13 +146,35 @@ Release preparation.
 **Goals:**
 - [ ] Dependency checker
 - [ ] CI workflow
-- [ ] GoReleaser config
+- [ ] GoReleaser config (two binaries)
 - [ ] Docker Compose
 - [ ] README, CONTRIBUTING
 - [ ] Example config
 
 **Files Created:** ~5
 **Tests:** Full integration
+
+## v1.1 Scope (Post-Release)
+
+See [SPEC.md](./SPEC.md) for full details.
+
+### Chunking
+- 150-200 words per chunk
+- 30-50 word overlap
+- Paragraph boundary splits only
+- Minimum 50 words per chunk
+
+### Entity Extraction
+- People, amounts, dates, places, orgs, URLs
+- Name normalization
+- Frontmatter + entities table
+
+### Proactive Connections
+- Async delivery after capture
+- Types: similar, person, amount (v1.1)
+- Types: contradiction, follow_up, revisit (v1.2)
+
+---
 
 ## Getting Started
 
@@ -142,6 +191,7 @@ go test ./...
 
 # Build
 go build -o khayal ./cmd/khayal
+go build -o kl ./cmd/kl
 ```
 
 ## Per-Phase Instructions
@@ -199,12 +249,7 @@ See CONTRIBUTING.md after Phase 7 setup.
 
 ## Version
 
-This plan is for **Khayal v1**.
+This plan covers **Khayal v1** and **v1.1**.
 
-Post-v1 phases are defined in SPEC.md:
-- v1.1: Voice notes + PDF
-- v1.2: YouTube/video
-- v1.3: Browser extension
-- v1.4: Raycast extension
-- v1.5: iOS Shortcuts
-- v2.0+: Setup wizard, graph, Windows, mobile
+- **v1**: Core capture, search (FTS5 + sqlite-vec), CLI, PWA
+- **v1.1**: Chunking, entity extraction, proactive connections

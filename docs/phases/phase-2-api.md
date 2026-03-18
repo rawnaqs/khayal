@@ -88,6 +88,8 @@ func (s *Server) setupRouter() {
         r.Get("/search", s.searchHandler)
         r.Get("/queue", s.queueListHandler)
         r.Get("/queue/{id}", s.queueGetHandler)
+        r.Post("/queue/{id}/retry", s.queueRetryHandler)
+        r.Post("/queue/{id}/discard", s.queueDiscardHandler)
     })
     
     // Static files (Phase 6)
@@ -438,10 +440,10 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
 **Route:** `GET /v1/queue`
 
 **Query Params:**
-| Param | Default | Max |
-|-------|---------|-----|
-| status | all | - |
-| limit | 20 | 100 |
+| Param | Default | Options |
+|-------|---------|---------|
+| status | all | all, pending, processing, done, failed |
+| limit | 20 | max 100 |
 | offset | 0 | - |
 
 **Response:**
@@ -473,13 +475,119 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
 {
   "id": "abc123",
   "type": "image",
-  "status": "done",
-  "note_path": "inbox/2024-03-16-image.md",
+  "status": "failed",
+  "note_path": null,
   "created_at": "2024-03-16T14:23:00Z",
-  "processed_at": "2024-03-16T14:23:12Z",
-  "error": null
+  "processed_at": null,
+  "error": "failed to describe image: ollama timeout",
+  "retries": 3
 }
 ```
+
+### Retry Failed Job
+
+**Route:** `POST /v1/queue/:id/retry`
+
+Retry a failed or pending job. Resets retry count and sets status to pending.
+
+**Response:**
+```json
+{
+  "id": "abc123",
+  "type": "image",
+  "status": "pending",
+  "note_path": null,
+  "created_at": "2024-03-16T14:23:00Z",
+  "processed_at": null,
+  "error": null,
+  "retries": 0
+}
+```
+
+### Discard Job
+
+**Route:** `POST /v1/queue/:id/discard`
+
+Permanently delete a failed or pending job. Also deletes associated media file if exists.
+
+**Response:**
+```json
+{
+  "success": true,
+  "id": "abc123",
+  "message": "job discarded"
+}
+```
+
+### Queue Handler Implementation
+
+```go
+func (s *Server) queueRetryHandler(w http.ResponseWriter, r *http.Request) {
+    jobID := chi.URLParam(r, "id")
+    
+    job, err := s.queue.GetJob(jobID)
+    if err != nil {
+        writeError(w, "job not found", "NOT_FOUND", http.StatusNotFound)
+        return
+    }
+    
+    // Can only retry pending or failed jobs
+    if job.Status != "pending" && job.Status != "failed" {
+        writeError(w, "can only retry pending or failed jobs", "INVALID_STATE", http.StatusBadRequest)
+        return
+    }
+    
+    // Reset for retry
+    job.Status = "pending"
+    job.Error = ""
+    job.Retries = 0
+    
+    if err := s.queue.UpdateJob(job); err != nil {
+        writeError(w, "failed to update job", "QUEUE_ERROR", http.StatusInternalServerError)
+        return
+    }
+    
+    writeJSON(w, job)
+}
+
+func (s *Server) queueDiscardHandler(w http.ResponseWriter, r *http.Request) {
+    jobID := chi.URLParam(r, "id")
+    
+    job, err := s.queue.GetJob(jobID)
+    if err != nil {
+        writeError(w, "job not found", "NOT_FOUND", http.StatusNotFound)
+        return
+    }
+    
+    // Can only discard pending or failed jobs
+    if job.Status == "done" {
+        writeError(w, "cannot discard completed jobs", "INVALID_STATE", http.StatusBadRequest)
+        return
+    }
+    
+    // Delete media file if exists
+    if job.SourceFile != "" {
+        s.vault.DeleteMedia(job.SourceFile)
+    }
+    
+    // Delete job from queue
+    if err := s.queue.DeleteJob(jobID); err != nil {
+        writeError(w, "failed to delete job", "QUEUE_ERROR", http.StatusInternalServerError)
+        return
+    }
+    
+    writeJSON(w, map[string]interface{}{
+        "success": true,
+        "id":      jobID,
+        "message": "job discarded",
+    })
+}
+```
+
+**Note:** Failed jobs are NOT automatically deleted. User must explicitly discard them to:
+- Prevent accidental data loss
+- Allow debugging why it failed
+- Keep source media for re-processing
 
 ## Step 2.7: Search Endpoint
 
@@ -618,6 +726,8 @@ go test ./internal/api/... -v
 - [ ] Capture image handler
 - [ ] Queue list endpoint
 - [ ] Queue get endpoint
+- [ ] Queue retry endpoint
+- [ ] Queue discard endpoint
 - [ ] Search keyword endpoint
 - [ ] Search semantic stub
 - [ ] Error responses standardized
@@ -634,5 +744,6 @@ go test ./internal/api/... -v
 - All times in RFC3339 format
 - Job IDs: UUID v4
 - Note paths: relative to vault root
+- Failed jobs stay in queue - user can retry or discard
 - Excerpts: max 500 chars
 - Limit max: 50 for search, 100 for queue

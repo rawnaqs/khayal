@@ -1,0 +1,580 @@
+openapi: 3.0.0
+info:
+  title: Khayal API
+  description: |
+    Your private second brain API.
+    
+    All requests require authentication via `X-Khayal-Token` header.
+  version: 1.0.0
+  contact:
+    name: Khayal Support
+    url: https://github.com/rawnaqs/khayal
+
+servers:
+  - url: http://localhost:7766/v1
+    description: Local development server
+  - url: http://{host}:{port}/v1
+    description: Custom server
+    variables:
+      host:
+        default: localhost
+      port:
+        default: "7766"
+
+security:
+  - ApiToken: []
+
+tags:
+  - name: Capture
+    description: Capture content (text, URL, image)
+  - name: Search
+    description: Search knowledge base
+  - name: Queue
+    description: Job queue management
+  - name: Health
+    description: System health and status
+
+paths:
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Get system health status
+      description: |
+        Returns system status, dependency health, and queue statistics.
+        
+        Checks:
+        - Ollama connectivity
+        - Vault directory existence
+        - Database connectivity
+        - Job queue counts
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /capture:
+    post:
+      tags:
+        - Capture
+      summary: Capture content
+      description: |
+        Capture text, URL, or image for processing.
+        
+        - **Text**: Processed synchronously (~3s)
+        - **URL**: Queued for async processing (~15s)
+        - **Image**: Queued for async processing (~10s)
+        
+        Text returns immediately with `status: done`.
+        URL/Image returns with `status: processing` - poll `/queue/{id}` for status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CaptureRequest'
+            example:
+              type: text
+              content: "useEffect cleanup runs after every render"
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [image]
+                file:
+                  type: string
+                  format: binary
+                note:
+                  type: string
+                  description: Optional context for the image
+      responses:
+        '200':
+          description: Capture successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CaptureResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /search:
+    get:
+      tags:
+        - Search
+      summary: Search knowledge base
+      description: |
+        Search captured content using keyword, semantic, or hybrid search.
+        
+        - **keyword**: Full-text search using SQLite FTS5
+        - **semantic**: Vector similarity search using embeddings
+        - **hybrid**: Combined keyword + semantic results
+        
+        Returns results with relevant excerpts.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query
+          schema:
+            type: string
+          example: "distributed systems"
+        - name: limit
+          in: query
+          required: false
+          description: Maximum results to return
+          schema:
+            type: integer
+            default: 10
+            maximum: 50
+          example: 10
+        - name: mode
+          in: query
+          required: false
+          description: Search mode
+          schema:
+            type: string
+            enum: [keyword, semantic, hybrid]
+            default: hybrid
+          example: hybrid
+        - name: excerpt_length
+          in: query
+          required: false
+          description: Maximum excerpt characters
+          schema:
+            type: integer
+            default: 200
+            maximum: 500
+          example: 200
+        - name: from
+          in: query
+          required: false
+          description: Filter notes created after this date (ISO format, e.g. 2024-01-01)
+          schema:
+            type: string
+          example: "2024-01-01"
+        - name: to
+          in: query
+          required: false
+          description: Filter notes created before this date (ISO format, e.g. 2024-12-31)
+          schema:
+            type: string
+          example: "2024-12-31"
+        - name: connections
+          in: query
+          required: false
+          description: Include related connections in results (v1.1+)
+          schema:
+            type: boolean
+            default: false
+          example: false
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /queue:
+    get:
+      tags:
+        - Queue
+      summary: List jobs
+      description: |
+        Get list of jobs in the queue with optional filtering.
+        
+        Jobs have statuses:
+        - **pending**: Waiting to be processed
+        - **processing**: Currently being processed
+        - **done**: Successfully processed
+        - **failed**: Failed after max retries (can retry/discard)
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: Filter by job status
+          schema:
+            type: string
+            enum: [all, pending, processing, done, failed]
+            default: all
+          example: pending
+        - name: limit
+          in: query
+          required: false
+          description: Maximum jobs to return
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+          example: 20
+        - name: offset
+          in: query
+          required: false
+          description: Pagination offset
+          schema:
+            type: integer
+            default: 0
+          example: 0
+      responses:
+        '200':
+          description: Job list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueueListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /queue/{id}:
+    get:
+      tags:
+        - Queue
+      summary: Get job by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Job ID
+          schema:
+            type: string
+          example: "abc123"
+      responses:
+        '200':
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /queue/{id}/retry:
+    post:
+      tags:
+        - Queue
+      summary: Retry a failed or pending job
+      description: |
+        Reset a failed or pending job for retry.
+        
+        Resets retry count to 0 and sets status to pending.
+        The worker will pick up and process the job again.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Job ID to retry
+          schema:
+            type: string
+          example: "abc123"
+      responses:
+        '200':
+          description: Job restarted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Job'
+        '400':
+          description: Job cannot be retried (already done or processing)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /queue/{id}/discard:
+    post:
+      tags:
+        - Queue
+      summary: Discard a pending or failed job
+      description: |
+        Permanently delete a pending or failed job.
+        
+        Also deletes associated media file if exists.
+        Only pending or failed jobs can be discarded.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Job ID to discard
+          schema:
+            type: string
+          example: "abc123"
+      responses:
+        '200':
+          description: Job discarded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  id:
+                    type: string
+                  message:
+                    type: string
+                example:
+                  success: true
+                  id: "abc123"
+                  message: "job discarded"
+        '400':
+          description: Job cannot be discarded (already done)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    ApiToken:
+      type: apiKey
+      in: header
+      name: X-Khayal-Token
+      description: |
+        Authentication token. 
+        
+        Generated on first run via `khayal init` or `kl init`.
+        Pass in header: `X-Khayal-Token: your-token-here`
+      schema:
+        type: string
+        format: hex
+
+  schemas:
+    # Health
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        version:
+          type: string
+        dependencies:
+          type: object
+          properties:
+            ollama:
+              $ref: '#/components/schemas/DependencyStatus'
+            vault:
+              $ref: '#/components/schemas/DependencyStatus'
+            db:
+              $ref: '#/components/schemas/DependencyStatus'
+        queue:
+          $ref: '#/components/schemas/QueueStats'
+    
+    DependencyStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        host:
+          type: string
+        path:
+          type: string
+
+    QueueStats:
+      type: object
+      properties:
+        pending:
+          type: integer
+        processing:
+          type: integer
+        done:
+          type: integer
+        failed:
+          type: integer
+
+    # Capture
+    CaptureRequest:
+      type: object
+      required:
+        - type
+        - content
+      properties:
+        type:
+          type: string
+          enum: [text, url]
+        content:
+          type: string
+          description: Text content or URL
+
+    CaptureResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Job ID
+        type:
+          type: string
+          enum: [text, image, article]
+        status:
+          type: string
+          enum: [pending, processing, done]
+        note_path:
+          type: string
+          nullable: true
+          description: Path to note in vault (null if still processing)
+        created_at:
+          type: string
+          format: date-time
+
+    # Search
+    SearchResponse:
+      type: object
+      properties:
+        query:
+          type: string
+        mode:
+          type: string
+          enum: [keyword, semantic, hybrid]
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+        total:
+          type: integer
+        took_ms:
+          type: integer
+
+    SearchResult:
+      type: object
+      properties:
+        id:
+          type: string
+        note_path:
+          type: string
+        title:
+          type: string
+        excerpt:
+          type: string
+        score:
+          type: number
+          format: double
+        type:
+          type: string
+          enum: [text, image, article]
+        created_at:
+          type: string
+          format: date-time
+
+    # Queue
+    QueueListResponse:
+      type: object
+      properties:
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Job'
+
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [text, image, article]
+        status:
+          type: string
+          enum: [pending, processing, done, failed]
+        note_path:
+          type: string
+          nullable: true
+        source_url:
+          type: string
+          nullable: true
+        source_file:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        processed_at:
+          type: string
+          nullable: true
+          format: date-time
+        error:
+          type: string
+          nullable: true
+        retries:
+          type: integer
+
+    # Errors
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: Invalid or missing token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "invalid or missing token"
+            code: "UNAUTHORIZED"
+
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "missing required field: content"
+            code: "INVALID_REQUEST"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "job not found"
+            code: "NOT_FOUND"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "failed to write note to vault"
+            code: "VAULT_ERROR"
