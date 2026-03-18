@@ -1,0 +1,33 @@
+vault:
+  path: testdata/vault
+  inbox_dir: inbox
+  media:
+    default_dir: inbox/media
+    strategy:
+      image: vault
+      pdf: vault
+      audio: config
+      video: config
+
+server:
+  host: 127.0.0.1
+  port: 7766
+  token: ""
+  log_file: ~/.config/khayal/logs/khayal.log
+
+llm:
+  provider: ollama
+  ollama_host: http://localhost:11434
+  embed_model: nomic-embed-text
+  text_model: llama3.2:3b
+  vision_model: moondream
+  fallback_provider: ""
+  fallback_api_key: ""
+
+worker:
+  max_workers: 1
+  max_retries: 3
+  retry_backoff: exponential
+
+db:
+  path: testdata/khayal.db

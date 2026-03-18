@@ -16,14 +16,13 @@ Add to `go.mod`:
 
 ```go
 require (
-    github.com/go-chi/chi/v5 v5.0.12
-    github.com/rawnaqs/theme v0.0.0
-    github.com/mattn/go-sqlite3 v1.14.19
-    gopkg.in/yaml.v3 v3.0.1
     github.com/google/uuid v1.6.0
-    github.com/zerologzerolog v1.31.0
+    gopkg.in/yaml.v3 v3.0.1
+    modernc.org/sqlite v1.45.0
 )
 ```
+
+**Note:** Using `modernc.org/sqlite` (pure Go, no CGO) - not `mattn/go-sqlite3`.
 
 ## Directory Structure
 
@@ -525,3 +524,63 @@ go test ./internal/vault/...
 - Vault: User-defined, separate from config dir
 - Default bind: `127.0.0.1:7766`
 - Token: 32-byte hex, shown once on init
+
+---
+
+## Learnings & Retrospectives
+
+### SQLite Driver Decision (2026-03-17)
+
+**Initial choice:** `mattn/go-sqlite3` (CGO-based)
+
+**Problem discovered:**
+- Requires CGO compilation
+- `sqlite3_auto_extension` deprecated on macOS (causes warnings)
+- Incompatible with pure Go deployment goals
+
+**Solution:** `modernc.org/sqlite`
+
+**Benefits:**
+- 100% pure Go, no CGO
+- No system dependencies
+- FTS5 included by default
+- Works out of the box on all platforms
+
+**Trade-offs:**
+- Slightly larger binary (includes SQLite implementation)
+- No access to SQLite C extensions
+
+### Vector Search Investigation (2026-03-18)
+
+**Attempted:** `viant/sqlite-vec` (pure Go vector search)
+
+**Problem discovered:**
+- Requires `SetMaxOpenConns(1)` for module registration
+- Internally calls `db.Exec()` during query execution (for index building)
+- Causes deadlock when combined with single connection limit
+- WAL mode doesn't resolve the issue
+- Separate databases required for reliable operation
+
+**Root cause:**
+```
+database/sql.(*DB).exec → vec.(*Table).ensureShadow → vec.(*Table).ensureIndex
+```
+The virtual table holds a connection while trying to execute more SQL on the same connection.
+
+**Solution:** Pure Go cosine similarity
+
+**Implementation:**
+- Batch processing (1000 chunks per query)
+- In-memory computation with deduplication
+- `cosine(a, b) = dot(a, b)` for normalized vectors
+- Results deduplicated by `note_path` (best score per note)
+
+**Performance characteristics:**
+- Memory: O(batch_size)
+- CPU: O(n * d) where n=chunks, d=dimensions
+- Suitable for <100K chunks
+
+**Future optimizations (if needed):**
+- Precomputed norms stored in column
+- HNSW or IVF index in Go
+- Separate worker for async indexing

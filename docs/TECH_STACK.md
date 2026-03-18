@@ -22,12 +22,16 @@
 ## Database
 
 | Component | Choice | Rationale |
-|-----------|--------|-----------|
-| Job Queue | SQLite (mattn/go-sqlite3) | CGO, built-in, extensions ready |
+|-----------|--------|------------|
+| SQLite Driver | modernc.org/sqlite | Pure Go, no CGO, no system dependencies |
+| Job Queue | SQLite | Built-in, reliable |
 | Full-Text Search | SQLite FTS5 | Built-in |
-| Embeddings | SQLite BLOB | Store vectors alongside metadata |
+| Vector Search | Pure Go cosine similarity | No external dependencies, batch processing |
 
-**Note:** Uses `mattn/go-sqlite3` for CGO + future sqlite-vec support.
+**Notes:**
+- Uses `modernc.org/sqlite` for pure Go SQLite (no CGO, no system dependencies)
+- Vector search implemented in Go with batch processing (1000 chunks/batch) and cosine similarity
+- Results deduplicated by note_path (best scoring chunk per note)
 
 ## LLM
 
