@@ -119,7 +119,7 @@ Local AI integration.
   - [ ] `kl --url` - capture URL
   - [ ] `kl --image` - capture image
   - [ ] `kl search` - search with Glamour
-  - [ ] `kl status` - Bubble Tea dashboard
+  - [ ] `kl status` - lightweight, read-only
   - [ ] `kl init` - Huh wizard
   - [ ] `kl config` - config management
 
@@ -176,6 +176,18 @@ See [SPEC.md](./SPEC.md) for full details.
 
 ---
 
+## Build Tags
+
+**Important:** This project requires build tags for SQLite features. See [BUILD.md](BUILD.md) for details.
+
+```bash
+# All commands require -tags "fts5" for full-text search
+go build -tags "fts5" ./...
+go test -tags "fts5" ./...
+```
+
+---
+
 ## Getting Started
 
 ```bash
@@ -185,13 +197,14 @@ cd khayal
 
 # Initialize Go module
 go mod init github.com/rawnaqs/khayal
+go mod tidy
 
-# Run tests
-go test ./...
+# Run tests (requires FTS5 build tag)
+go test -tags "fts5" ./...
 
-# Build
-go build -o khayal ./cmd/khayal
-go build -o kl ./cmd/kl
+# Build (requires FTS5 build tag)
+go build -tags "fts5" -o khayal ./cmd/khayal
+go build -tags "fts5" -o kl ./cmd/kl
 ```
 
 ## Per-Phase Instructions
@@ -242,10 +255,12 @@ See CONTRIBUTING.md after Phase 7 setup.
 1. **Always check SPEC.md first** - It's the source of truth
 2. **Use TECH_STACK.md** - For dependency/import questions
 3. **Check ARCHITECTURE.md** - For system design context
-4. **Phase files are checklists** - Follow them in order
-5. **Tests are required** - Don't skip testing
-6. **Run lint before commit** - `golangci-lint run`
-7. **Never log tokens** - Security requirement
+4. **Check BUILD.md** - Build tags required: `-tags "fts5"` for all commands
+5. **Phase files are checklists** - Follow them in order
+6. **Tests are required** - Don't skip testing
+7. **Run lint before commit** - `golangci-lint run`
+8. **Never log tokens** - Security requirement
+9. **All go build/test/run commands** - Must include `-tags "fts5"`
 
 ## Version
 

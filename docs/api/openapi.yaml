@@ -546,8 +546,8 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
           example:
-            error: "invalid or missing token"
-            code: "UNAUTHORIZED"
+            error: "invalid token"
+            code: "AUTH_001"
 
     BadRequest:
       description: Invalid request
@@ -557,7 +557,7 @@ components:
             $ref: '#/components/schemas/Error'
           example:
             error: "missing required field: content"
-            code: "INVALID_REQUEST"
+            code: "CAPTURE_004"
 
     NotFound:
       description: Resource not found
@@ -567,7 +567,7 @@ components:
             $ref: '#/components/schemas/Error'
           example:
             error: "job not found"
-            code: "NOT_FOUND"
+            code: "QUEUE_002"
 
     InternalError:
       description: Internal server error
@@ -577,4 +577,4 @@ components:
             $ref: '#/components/schemas/Error'
           example:
             error: "failed to write note to vault"
-            code: "VAULT_ERROR"
+            code: "VAULT_002"

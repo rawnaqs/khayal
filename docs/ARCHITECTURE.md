@@ -308,13 +308,15 @@ No interface implements capture logic - that lives exclusively in the server.
 
 ## Error Handling
 
+See SPEC.md Error Taxonomy for full list. Common codes:
+
 | Error | Code | HTTP Status |
 |-------|------|-------------|
-| Missing/invalid token | UNAUTHORIZED | 401 |
-| Invalid request | INVALID_REQUEST | 400 |
-| Vault write failed | VAULT_ERROR | 500 |
-| LLM unavailable | LLM_ERROR | 503 |
-| Job not found | NOT_FOUND | 404 |
+| Missing/invalid token | AUTH_001 / AUTH_002 | 401 |
+| Invalid request | CAPTURE_004 / SEARCH_003 | 400 |
+| Vault write failed | VAULT_002 | 500 |
+| Ollama unavailable | LLM_001 | 500 |
+| Job not found | QUEUE_002 | 404 |
 
 ## Dependencies
 

@@ -81,7 +81,10 @@ khayal/
 │   ├── root.go                         # Cobra root command
 │   ├── capture.go                      # kl "text", --url, --image
 │   ├── search.go                       # kl search (Glamour)
-│   ├── status.go                       # kl status (Bubble Tea)
+│   ├── recent.go                       # kl recent
+│   ├── browse.go                       # kl browse
+│   ├── stats.go                        # kl stats
+│   ├── status.go                       # kl status (lightweight, read-only)
 │   ├── init.go                         # kl init (Huh wizard)
 │   └── config.go                       # kl config set/get/view
 │
@@ -123,6 +126,7 @@ khayal/
 │       └── release.yml                  # GoReleaser
 │
 ├── docs/
+│   ├── BUILD.md                       # Build tags and requirements
 │   ├── khayal-spec.md                  # Master specification
 │   ├── TECH_STACK.md                    # Technology decisions
 │   ├── ARCHITECTURE.md                  # System design

@@ -72,6 +72,12 @@ Two distinct CLI tools with distinct audiences, jobs, and UX philosophies.
 **Feel:** Sysadmin tool. Dense, verbose, operational. You run it when something needs attention.
 **When used:** Setup, troubleshooting, reindexing, checking server health.
 
+**Mental model — khayal thinks about:**
+```
+the server · the vault health · the worker · the database · the backups
+dependencies · logs · media · wikilinks · duplicates
+```
+
 #### kl — capture and retrieval CLI
 
 **Audience:** You, on any machine, capturing and finding thoughts.
@@ -79,7 +85,38 @@ Two distinct CLI tools with distinct audiences, jobs, and UX philosophies.
 **Feel:** Personal tool. Minimal, fast, warm. Used dozens of times per day.
 **When used:** Every time you have a thought, find something, check what you captured.
 
-### khayal commands
+**Mental model — kl thinks about:**
+```
+my thoughts · finding things · what I captured recently
+my tags and people · is my capture landing
+```
+
+**Rule:** If a command requires SSH access to the Mac Air to be useful — it belongs in khayal. If a command is useful from a laptop or phone — it belongs in kl.
+
+### kl commands — user actions only
+
+```bash
+kl "thought"              # capture text (default command)
+kl --url https://...      # capture URL
+kl --image ~/file.png     # capture image
+kl search "query"         # search vault
+kl recent                 # recent captures
+kl recent --days 7        # last 7 days
+kl recent --type image    # recent images only
+kl browse --tag react     # all notes tagged react
+kl browse --person "John" # all notes mentioning John
+kl browse --amount 2000   # all notes mentioning $2000
+kl stats                  # vault statistics (read-only)
+kl status                 # lightweight — server reachable, queue health
+kl init                   # setup ~/.config/khayal/kl.yaml (client config only)
+kl config                 # view/set client config (host, token)
+kl completion             # generate shell completion scripts
+kl version               # kl version + connected khayal server version
+```
+
+**Removed from kl:** vault maintenance, reindex, logs — these require server access and belong in khayal.
+
+### khayal commands — server administration only
 
 ```bash
 khayal init         # first-run setup — generates config.yaml + token
@@ -88,9 +125,17 @@ khayal stop         # graceful shutdown
 khayal restart      # stop + start
 khayal status       # full admin dashboard (Bubble Tea TUI)
 khayal reindex      # rebuild all chunk embeddings from vault
+khayal backup      # backup vault, db + config (v1.1)
+khayal restore      # restore from backup (v1.1)
+khayal logs         # tail server logs
+khayal config       # view current config (token redacted)
 khayal version      # version + build info
-khayal logs         # tail ~/.config/khayal/logs/khayal.log
-khayal config       # view current config (redacts token)
+khayal completion   # generate shell completion scripts
+khayal vault        # vault maintenance subcommands
+  khayal vault health          # vault health report
+  khayal vault fix-links       # remove broken wikilinks
+  khayal vault clean-media     # delete orphaned media files
+  khayal vault show-duplicates # show potential duplicate notes
 ```
 
 ### khayal UX — per command
@@ -147,8 +192,24 @@ starting worker...
   ✓ workers       1
   ✓ queue         2 pending jobs
 
+scanning vault...
+  2,847 notes found
+  all notes indexed ✓
+
 khayal is running.
 press ctrl+c to stop
+```
+
+**Vault auto-scan on start:**
+
+```
+scanning vault...
+  2,847 notes found
+    644 not yet indexed → queuing for processing
+    147 modified since last index → re-queuing
+
+khayal is running.
+processing 791 notes in background — kl status to track
 ```
 
 Rules:
@@ -157,6 +218,8 @@ Rules:
 - Redact token in all output — show first 8 chars + "..."
 - End with "khayal is running" — unambiguous success signal
 - If anything critical fails (vault not found, db error) → exit with error, never start
+- Auto-scan vault on every start: queue new/modified notes, skip unchanged indexed notes
+- Works with any existing markdown folder — no import command needed
 
 #### khayal stop
 
@@ -317,24 +380,196 @@ khayal config
     backoff     exponential
 ```
 
-### kl commands
+#### khayal vault — vault maintenance subcommands
 
 ```bash
-kl "thought"              # capture text (default command)
-kl --url https://...      # capture URL
-kl --image ~/file.png     # capture image
-kl search "query"         # search vault
-kl recent                 # recent captures
-kl recent --days 7        # last 7 days
-kl recent --type image    # recent images only
-kl browse --tag react     # all notes tagged react
-kl browse --person "John" # all notes mentioning John
-kl browse --amount 2000   # all notes mentioning $2000
-kl stats                  # vault statistics
-kl status                 # lightweight server + queue check
-kl init                   # setup ~/.config/khayal/kl.yaml
-kl config set key value   # update single config value
+khayal vault health          # show vault health report
+khayal vault fix-links       # remove broken wikilinks
+khayal vault clean-media     # delete orphaned media files
+khayal vault show-duplicates # show potential duplicate notes
 ```
+
+##### khayal vault health
+
+```
+khayal vault health
+
+  vault · ~/brain
+  notes     2,847
+  indexed   2,203  (77%)
+  orphans   12 media files not referenced
+  links     4 broken wikilinks found
+
+  health    ⚠ needs attention
+  → fix links:      khayal vault fix-links
+  → clean media:   khayal vault clean-media
+  → reindex:       khayal reindex
+```
+
+##### khayal vault fix-links
+
+```
+khayal vault fix-links
+
+  scanning for broken wikilinks...
+  4 broken links found in 3 files
+
+  inbox/2024-03-10-project.md
+    → inbox/old-note.md (deleted)
+    → inbox/renamed-note.md (exists, will update)
+
+  [dry run — use --fix to apply]
+```
+
+With `--fix`: rewrites wikilinks to point to existing files or removes broken links.
+
+##### khayal vault clean-media
+
+```
+khayal vault clean-media
+
+  scanning for orphaned media...
+  12 orphaned files found · 34 MB
+
+  inbox/media/unused-1.png    2.1 MB
+  inbox/media/unused-2.jpg    1.8 MB
+  ...
+
+  [dry run — use --fix to apply]
+```
+
+With `--fix`: moves orphaned files to `.khayal-trash/`.
+
+##### khayal vault show-duplicates
+
+```
+khayal vault show-duplicates
+
+  checking for duplicates...
+  potential duplicates found:
+
+  inbox/2024-03-15-rust-thoughts.md
+  inbox/2024-03-10-rust-notes.md
+    similarity: 0.87 · 234 shared words
+
+  inbox/2024-02-20-meeting-notes.md
+  inbox/2024-02-19-meeting.md
+    similarity: 0.91 · 189 shared words
+
+  3 pairs total
+  → review manually to merge or delete
+```
+
+#### khayal backup (v1.1)
+
+Backup vault, database, and config.
+
+```bash
+khayal backup --dest /Volumes/BackupDrive/khayal
+khayal backup --dest /Volumes/BackupDrive/khayal --encrypt  # encrypt db + config
+```
+
+**What gets backed up:**
+
+| Item | Method | Encryption |
+|------|--------|------------|
+| vault/ | rsync | Plain (user's choice) |
+| khayal.db | snapshot | Optional with `--encrypt` |
+| config.yaml | copy | Optional with `--encrypt` |
+
+Vault is plain markdown — no encryption needed. DB and config contain the token — encrypt with `--encrypt`.
+
+**Encryption:** Uses `age` (https://github.com/FiloSottile/age) — simple, modern, no GPG complexity.
+
+```bash
+# First run: generate key
+khayal backup --init-key
+→ key saved to ~/.config/khayal/backup.key
+
+# Backup with encryption
+khayal backup --dest /Volumes/Backup --encrypt
+→ encrypts db + config with backup.key
+```
+
+**Output:**
+
+```
+khayal backup --dest /Volumes/BackupDrive/khayal
+
+  backing up vault...
+    ~/brain → /Volumes/BackupDrive/khayal/vault/
+    2,847 files · 124 MB · 8s
+
+  backing up database...
+    khayal.db → /Volumes/BackupDrive/khayal/khayal-2024-03-16.db
+    24 MB · encrypted ✓
+
+  backing up config...
+    config.yaml → /Volumes/BackupDrive/khayal/config-2024-03-16.yaml
+    encrypted ✓
+
+  backup complete · 148 MB · 14s
+  dest: /Volumes/BackupDrive/khayal/
+```
+
+**Scheduled backups:** `khayal init` optionally sets up a weekly launchd job.
+
+#### khayal restore (v1.1)
+
+Restore from backup.
+
+```bash
+khayal restore --from /Volumes/BackupDrive/khayal
+khayal restore --from /Volumes/BackupDrive/khayal --date 2024-03-10
+```
+
+**Behavior:**
+
+```
+khayal restore --from /Volumes/BackupDrive/khayal
+
+  available backups
+    2024-03-16  vault: 2,847 notes · db: 24MB  ← latest
+    2024-03-09  vault: 2,801 notes · db: 23MB
+    2024-03-02  vault: 2,756 notes · db: 21MB
+
+  restoring latest backup...
+
+  ! khayal must be stopped before restore
+    → run: khayal stop
+    → then: khayal restore --from /Volumes/BackupDrive/khayal
+```
+
+If khayal is stopped:
+
+```
+  restoring vault...
+    /Volumes/BackupDrive/khayal/vault/ → ~/brain
+    2,847 files · 124 MB · 9s
+
+  restoring database...
+    khayal-2024-03-16.db → ~/.config/khayal/khayal.db
+    decrypting... ✓
+    24 MB · 2s
+
+  restoring config...
+    config-2024-03-16.yaml → ~/.config/khayal/config.yaml
+    decrypting... ✓
+
+  restore complete.
+  run: khayal start
+```
+
+**Rules:**
+- Refuses to run if khayal server is running
+- `--date` selects specific backup (default: latest)
+- Decrypts automatically if backup.key exists
+- Vault restore: additive by default — never overwrites newer files
+- `--overwrite` forces full vault overwrite — explicit user intent
+- DB + config: always fully replaced
+- `--dry-run` shows what would be restored
+
+---
 
 ### kl UX — per command
 
@@ -780,6 +1015,46 @@ khayal start --verbose  # every internal detail
 
 khayal status           # dashboard (already rich)
 khayal status --json    # machine-readable for scripting
+```
+
+### Shell completion — both tools
+
+Cobra generates shell completion scripts automatically from the command tree.
+
+```bash
+# kl
+kl completion zsh   # prints zsh completion script
+kl completion bash  # prints bash completion script
+kl completion fish  # prints fish completion script
+
+# khayal
+khayal completion zsh
+khayal completion bash
+khayal completion fish
+```
+
+**Install instructions:**
+
+```bash
+# zsh
+kl completion zsh >> ~/.zshrc && source ~/.zshrc
+
+# bash
+kl completion bash >> ~/.bashrc && source ~/.bashrc
+
+# fish
+kl completion fish > ~/.config/fish/completions/kl.fish
+```
+
+**What gets completed:**
+
+```
+kl se<tab>              → kl search
+kl search --m<tab>      → --mode
+kl search --mode <tab>  → hybrid  keyword  semantic
+kl browse --<tab>       → --tag  --person  --amount  --all
+kl config set <tab>     → host  token
+khayal <tab>            → init  start  stop  restart  status  reindex  version  logs  config  completion
 ```
 
 ### What NOT to show — both tools
@@ -1249,7 +1524,7 @@ CREATE VIRTUAL TABLE chunks_vec USING vec0(
 ## Phases After v1
 
 ```
-v1.1  → Chunking + Entity extraction + connections (similar, person, amount)
+v1.1  → Chunking + Entity extraction + connections (similar, person, amount) + backup
 v1.2  → connections (contradiction, follow_up, revisit) + voice notes + PDF
 v1.3  → YouTube / video ingestion
 v1.4  → Browser extension (github.com/rawnaqs/khayal-browser)
@@ -1350,9 +1625,16 @@ khayal/
 │   ├── root.go                  ← Cobra root command
 │   ├── capture.go               ← kl "thought", --url, --image
 │   ├── search.go                ← kl search (Glamour rendering)
-│   ├── status.go                ← kl status (Bubble Tea TUI)
+│   ├── recent.go                ← kl recent
+│   ├── browse.go                ← kl browse
+│   ├── stats.go                 ← kl stats
+│   ├── status.go                ← kl status (lightweight, read-only)
 │   ├── init.go                  ← kl init (Huh wizard)
-│   └── config.go                ← kl config set key value
+│   └── config.go                ← kl config
+├── cmd/
+│   └── khayal/                ← khayal server admin commands
+│       ├── main.go
+│       └── vault.go             ← khayal vault subcommands
 ├── ui/
 │   ├── react/                      ← Vite + React source
 │   │   ├── src/
@@ -1488,6 +1770,7 @@ server:
   host: 127.0.0.1                      # never 0.0.0.0 by default
   port: 7766
   token: ""                            # auto-generated on first run if empty
+  log_format: text                     # text | json
   log_file: ~/.config/khayal/logs/khayal.log
 
 llm:
@@ -1555,6 +1838,78 @@ $ khayal start
 | `.gitignore` | `config.yaml`, `khayal.db`, `*.log` auto-ignored |
 | Tailscale | User's responsibility — documented in README |
 | Media outside vault | Raw audio/video stored in `~/.config/khayal/media/` — never in vault |
+
+---
+
+## Logging
+
+Uses Go stdlib `log/slog` (Go 1.21+). Two formats, configured via `log_format` in config:
+
+```yaml
+server:
+  log_format: text   # text (default) | json (machine readable)
+  log_file: ~/.config/khayal/logs/khayal.log
+```
+
+**Text format (default) — human readable:**
+
+```
+2024-03-16T14:23:01Z INFO  POST /v1/capture 200 47ms type=text job=abc123
+2024-03-16T14:23:04Z INFO  worker: processed text abc123 3.2s
+2024-03-16T14:23:18Z ERROR vault write failed path=inbox/note.md err=permission denied code=VAULT_002
+```
+
+**JSON format — machine readable, for jq:**
+
+```json
+{"time":"2024-03-16T14:23:01Z","level":"INFO","method":"POST","path":"/v1/capture","status":200,"latency_ms":47,"type":"text","job_id":"abc123"}
+{"time":"2024-03-16T14:23:04Z","level":"INFO","msg":"worker processed","type":"text","job_id":"abc123","duration_ms":3200}
+{"time":"2024-03-16T14:23:18Z","level":"ERROR","msg":"vault write failed","path":"inbox/note.md","error":"permission denied","code":"VAULT_002"}
+```
+
+**Fields logged:**
+
+| Field | Always | Notes |
+|-------|--------|-------|
+| time | ✓ | ISO 8601 |
+| level | ✓ | INFO, WARN, ERROR |
+| method | ✓ (requests) | HTTP method |
+| path | ✓ (requests) | endpoint path |
+| status | ✓ (requests) | HTTP status |
+| latency_ms | ✓ (requests) | request duration |
+| type | capture | text, image, article |
+| job_id | capture | job identifier |
+| query | search | truncated 50 chars |
+| results_count | search | number of results |
+| code | errors | error code from taxonomy |
+
+**Never logged:**
+
+- Token (X-Khayal-Token header)
+- Request body (capture content)
+- Note content
+
+**khayal logs command:**
+
+```bash
+khayal logs           # tail human readable log
+khayal logs --json    # tail JSON log, pipe to jq
+khayal logs --level error  # only show errors
+khayal logs --since 1h     # last hour only
+```
+
+**jq examples:**
+
+```bash
+# average search latency
+khayal logs --json | jq 'select(.path=="/v1/search") | .latency_ms' | awk '{sum+=$1; n++} END {print sum/n}'
+
+# all errors in last hour
+khayal logs --json --since 1h | jq 'select(.level=="ERROR")'
+
+# capture count by type today
+khayal logs --json | jq 'select(.path=="/v1/capture") | .type' | sort | uniq -c
+```
 
 ---
 
@@ -1743,9 +2098,101 @@ Response:
 ### Error Responses
 
 ```json
-400 { "error": "missing required field: content", "code": "INVALID_REQUEST" }
-401 { "error": "invalid or missing token",        "code": "UNAUTHORIZED" }
-500 { "error": "failed to write note to vault",   "code": "VAULT_ERROR" }
+400 { "error": "missing required field: content", "code": "CAPTURE_004" }
+401 { "error": "invalid token",                    "code": "AUTH_001" }
+500 { "error": "failed to write note to vault",   "code": "VAULT_002" }
+```
+
+See Error Taxonomy section for full code list.
+
+---
+
+## Error Taxonomy
+
+All API errors return consistent JSON with `code` for machine parsing and `hint` for actionable guidance:
+
+```json
+{
+  "error": "human readable message",
+  "code": "VAULT_002",
+  "hint": "check permissions: ls -la ~/brain/inbox/"
+}
+```
+
+`hint` is optional — present only when a specific action is obvious. Codes are stable across versions — never change existing codes, only add new ones.
+
+### Capture errors
+
+| Code | Meaning | Hint |
+|------|---------|------|
+| `CAPTURE_001` | content too long (>50,000 chars) | — |
+| `CAPTURE_002` | file too large (>20MB) | — |
+| `CAPTURE_003` | unsupported file type | — |
+| `CAPTURE_004` | missing required field | — |
+
+### Vault errors
+
+| Code | Meaning | Hint |
+|------|---------|------|
+| `VAULT_001` | vault path not found | check vault.path in config |
+| `VAULT_002` | vault write failed | check permissions: `ls -la <vault>/inbox/` |
+| `VAULT_003` | file modified externally | mtime check failed, user edits protected |
+| `VAULT_004` | filename collision | could not generate unique filename |
+
+### LLM errors
+
+| Code | Meaning | Hint |
+|------|---------|------|
+| `LLM_001` | ollama unreachable | start ollama: `ollama serve` |
+| `LLM_002` | model not found | run: `ollama pull <model>` |
+| `LLM_003` | context length exceeded | content too long for model |
+| `LLM_004` | fallback exhausted | ollama down, no fallback configured |
+
+### Queue errors
+
+| Code | Meaning | Hint |
+|------|---------|------|
+| `QUEUE_001` | queue full | backpressure limit reached |
+| `QUEUE_002` | job not found | invalid job ID |
+
+### Auth errors
+
+| Code | Meaning | Hint |
+|------|---------|------|
+| `AUTH_001` | invalid token | get from: `~/.config/khayal/config.yaml` |
+| `AUTH_002` | token missing | include X-Khayal-Token header |
+
+### Search errors
+
+| Code | Meaning | Hint |
+|------|---------|------|
+| `SEARCH_001` | query too short | minimum 2 characters |
+| `SEARCH_002` | invalid date range | `from` must be before `to` |
+| `SEARCH_003` | invalid mode | must be hybrid, keyword, or semantic |
+
+### System errors
+
+| Code | Meaning | Hint |
+|------|---------|------|
+| `SYS_001` | database error | khayal.db unreachable or corrupted |
+| `SYS_002` | config error | config.yaml missing or malformed |
+| `SYS_003` | dep missing | required dependency not installed |
+
+### CLI error mapping
+
+```go
+switch apiErr.Code {
+case "LLM_001":
+    fmt.Println("✗ ollama not running")
+    fmt.Println("  → start ollama: ollama serve")
+case "AUTH_001":
+    fmt.Println("✗ invalid token")
+    fmt.Println("  → get token: cat ~/.config/khayal/config.yaml")
+case "VAULT_002":
+    fmt.Println("✗ cannot write to vault")
+    fmt.Println("  → check permissions: ls -la " + vaultPath)
+// ... etc
+}
 ```
 
 ---
@@ -1938,7 +2385,6 @@ Fallback activates if Ollama is unreachable. If no fallback configured and Ollam
 | Lip Gloss | Output styling — **use `rawnaqs/theme/custom/go/styles.go`, never define colors directly** |
 | Glamour | Markdown rendering in terminal |
 | Huh | `kl init` wizard, `kl config set` prompts |
-| Bubble Tea | `kl status` live dashboard |
 | rawnaqs/theme | Shared design system — colors, typography, pre-built styles |
 
 ### Commands
@@ -1948,11 +2394,10 @@ kl "thought"                     # capture text → ✓ saved · #tag · 3ms
 kl --url https://...             # capture URL  → ⏳ queued · article · id: abc123
 kl --image ~/screenshot.png      # capture image → ⏳ queued · image · id: def456
 kl search "distributed systems"  # search → Glamour renders excerpts
-kl status                        # Bubble Tea live dashboard
+kl status                        # lightweight — server reachable, queue health
 kl recent                        # show recent captures
-kl browse                        # browse vault files
+kl browse                        # browse by tag, person, amount
 kl stats                        # show vault statistics
-kl connections                   # show proactive connections for recent notes
 kl init                          # Huh wizard → writes ~/.config/khayal/kl.yaml
 kl config set token abc123       # update single config value
 kl config set host http://...

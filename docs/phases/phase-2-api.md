@@ -124,8 +124,12 @@ func AuthMiddleware(token string) func(http.Handler) http.Handler {
     return func(next http.Handler) http.Handler {
         return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
             clientToken := r.Header.Get("X-Khayal-Token")
-            if clientToken == "" || clientToken != token {
-                writeError(w, "invalid or missing token", "UNAUTHORIZED", http.StatusUnauthorized)
+            if clientToken == "" {
+                writeError(w, "token missing", "AUTH_002", http.StatusUnauthorized)
+                return
+            }
+            if clientToken != token {
+                writeError(w, "invalid token", "AUTH_001", http.StatusUnauthorized)
                 return
             }
             next.ServeHTTP(w, r)
@@ -331,12 +335,12 @@ func (s *Server) captureHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTextCapture(w http.ResponseWriter, r *http.Request) {
     var req CaptureRequest
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        writeError(w, "invalid request body", "INVALID_REQUEST", http.StatusBadRequest)
+        writeError(w, "invalid request body", "CAPTURE_004", http.StatusBadRequest)
         return
     }
     
     if req.Content == "" {
-        writeError(w, "missing required field: content", "INVALID_REQUEST", http.StatusBadRequest)
+        writeError(w, "missing required field: content", "CAPTURE_004", http.StatusBadRequest)
         return
     }
     
@@ -353,7 +357,7 @@ func (s *Server) handleTextCapture(w http.ResponseWriter, r *http.Request) {
         job.Status = "done"
         notePath, err := s.processTextJob(job)
         if err != nil {
-            writeError(w, "failed to write note", "VAULT_ERROR", http.StatusInternalServerError)
+            writeError(w, "failed to write note", "VAULT_002", http.StatusInternalServerError)
             return
         }
         job.NotePath = notePath
@@ -383,13 +387,13 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
     // Parse multipart form
     err := r.ParseMultipartForm(10 << 20) // 10MB
     if err != nil {
-        writeError(w, "invalid multipart form", "INVALID_REQUEST", http.StatusBadRequest)
+        writeError(w, "invalid multipart form", "CAPTURE_004", http.StatusBadRequest)
         return
     }
     
     file, header, err := r.FormFile("file")
     if err != nil {
-        writeError(w, "missing file", "INVALID_REQUEST", http.StatusBadRequest)
+        writeError(w, "missing file", "CAPTURE_004", http.StatusBadRequest)
         return
     }
     defer file.Close()
@@ -399,7 +403,7 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
     // Copy to media directory
     mediaPath, err := s.vault.CopyMediaFile(file, header.Filename)
     if err != nil {
-        writeError(w, "failed to save media", "VAULT_ERROR", http.StatusInternalServerError)
+        writeError(w, "failed to save media", "VAULT_002", http.StatusInternalServerError)
         return
     }
     
@@ -630,7 +634,7 @@ func (s *Server) queueDiscardHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
     query := r.URL.Query().Get("q")
     if query == "" {
-        writeError(w, "missing required parameter: q", "INVALID_REQUEST", http.StatusBadRequest)
+        writeError(w, "missing required parameter: q", "SEARCH_001", http.StatusBadRequest)
         return
     }
     

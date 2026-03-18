@@ -299,23 +299,28 @@ All errors follow this format:
 
 ### Error Codes
 
+All errors return `{"error": "...", "code": "...", "hint": "..."}`. See SPEC.md Error Taxonomy for full list.
+
 | Code | HTTP Status | Description |
 |------|-------------|-------------|
-| UNAUTHORIZED | 401 | Invalid or missing token |
-| INVALID_REQUEST | 400 | Malformed request |
-| NOT_FOUND | 404 | Job not found |
-| INVALID_STATE | 400 | Invalid job state for operation |
-| VAULT_ERROR | 500 | Failed to write note |
-| QUEUE_ERROR | 500 | Queue operation failed |
-| SEARCH_ERROR | 500 | Search operation failed |
+| AUTH_001 | 401 | Invalid token |
+| AUTH_002 | 401 | Token missing |
+| CAPTURE_004 | 400 | Missing required field |
+| SEARCH_001 | 400 | Query too short |
+| SEARCH_003 | 400 | Invalid mode |
+| VAULT_001 | 500 | Vault path not found |
+| VAULT_002 | 500 | Vault write failed |
+| LLM_001 | 500 | Ollama unreachable |
+| LLM_002 | 500 | Model not found |
+| QUEUE_002 | 404 | Job not found |
+| SYS_001 | 500 | Database error |
 
 ### Examples
 
 ```json
-400 { "error": "missing required field: content", "code": "INVALID_REQUEST" }
-401 { "error": "invalid or missing token", "code": "UNAUTHORIZED" }
-404 { "error": "job not found", "code": "NOT_FOUND" }
-500 { "error": "failed to write note to vault", "code": "VAULT_ERROR" }
+400 { "error": "missing required field: content", "code": "CAPTURE_004" }
+401 { "error": "invalid token", "code": "AUTH_001" }
+500 { "error": "failed to write note to vault", "code": "VAULT_002" }
 ```
 
 ---

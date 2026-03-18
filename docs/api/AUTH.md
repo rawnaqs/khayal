@@ -162,7 +162,7 @@ server:
 ### 401 Unauthorized
 
 ```json
-{ "error": "invalid or missing token", "code": "UNAUTHORIZED" }
+{ "error": "invalid token", "code": "AUTH_001" }
 ```
 
 **Solutions:**
