@@ -26,8 +26,8 @@ const (
 var (
 	ErrVaultPathNotAbsolute  = errors.New("vault: path must be absolute")
 	ErrVaultPathOutsideVault = errors.New("vault: path must be within vault")
-	ErrVaultPathOutsideInbox = errors.New("vault: path must be within inbox")
-	ErrVaultNoteNotFound     = errors.New("vault: note not found in inbox")
+	ErrVaultPathOutsideInbox = errors.New("vault: path must be within inbox directory")
+	ErrVaultNoteNotFound     = errors.New("vault: note not found in inbox directory")
 )
 
 type Writer struct {

@@ -143,7 +143,7 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	notePath := fmt.Sprintf("inbox/%s-image.md", now.Format("2006-01-02-")+job.ID[:8])
+	notePath := fmt.Sprintf("%s/%s-image.md", s.config.Vault.InboxDir, now.Format("2006-01-02-")+job.ID[:8])
 
 	WriteCreated(w, CaptureResponse{
 		ID:        job.ID,
