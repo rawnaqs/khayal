@@ -1,0 +1,33 @@
+# Binaries
+khayal
+kl
+*.exe
+
+# Test artifacts
+testdata/khayal.db
+testdata/logs/
+*.test
+testdata/vault/khayal/*.md
+testdata/vault/khayal/media/*
+testdata/vault/khayal/.khayal-trash/
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+vendor/
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
