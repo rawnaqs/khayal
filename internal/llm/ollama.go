@@ -285,6 +285,92 @@ Key Ideas:`, truncated)
 	return ideas, nil
 }
 
+func (c *OllamaClient) EmbedBatch(texts []string) ([][]float32, error) {
+	if len(texts) == 0 {
+		return nil, nil
+	}
+
+	prompts := make([]map[string]string, len(texts))
+	for i, text := range texts {
+		prompts[i] = map[string]string{"prompt": text}
+	}
+
+	reqBody := map[string]any{
+		"model":   c.embedModel,
+		"prompts": prompts,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Post(c.baseURL+"/api/embeddings", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("embed batch request failed with status %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Embeddings [][]float32 `json:"embeddings"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	if len(result.Embeddings) == 0 {
+		return nil, fmt.Errorf("empty embeddings returned")
+	}
+
+	return result.Embeddings, nil
+}
+
+func (c *OllamaClient) EmbedBatchWithModel(model string, texts []string) ([][]float32, error) {
+	if len(texts) == 0 {
+		return nil, nil
+	}
+
+	prompts := make([]map[string]string, len(texts))
+	for i, text := range texts {
+		prompts[i] = map[string]string{"prompt": text}
+	}
+
+	reqBody := map[string]any{
+		"model":   model,
+		"prompts": prompts,
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.httpClient.Post(c.baseURL+"/api/embeddings", "application/json", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("embed batch request failed with status %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Embeddings [][]float32 `json:"embeddings"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return result.Embeddings, nil
+}
+
 func truncateForLLM(content string, maxTokens int) string {
 	maxChars := maxTokens * 4
 

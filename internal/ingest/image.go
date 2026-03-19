@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
@@ -22,8 +24,21 @@ func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.
 		contextText = job.UserContext + "\n\n" + description
 	}
 
-	tags, err := llmClient.ExtractTags(contextText)
-	if err != nil {
+	g, _ := errgroup.WithContext(ctx)
+
+	var tags []string
+
+	g.Go(func() error {
+		var err error
+		tags, err = llmClient.ExtractTags(contextText)
+		return err
+	})
+
+	if err := g.Wait(); err != nil {
+		return "", fmt.Errorf("failed to extract tags: %w", err)
+	}
+
+	if tags == nil {
 		tags = []string{"image"}
 	}
 

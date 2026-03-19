@@ -71,6 +71,15 @@ type LLMExt interface {
 }
 ```
 
+### Batch Embedding
+
+For cases where multiple embeddings are needed (e.g., chunking):
+
+```go
+// EmbedBatch generates embeddings for multiple texts in a single API call
+EmbedBatch(texts []string) ([][]float32, error)
+```
+
 ### Options
 
 ```go
@@ -164,6 +173,92 @@ func (c *OllamaClient) Embed(text string) ([]float32, error) {
     }
     
     return result.Embedding, nil
+}
+
+func (c *OllamaClient) EmbedBatch(texts []string) ([][]float32, error) {
+    if len(texts) == 0 {
+        return nil, nil
+    }
+
+    prompts := make([]map[string]string, len(texts))
+    for i, text := range texts {
+        prompts[i] = map[string]string{"prompt": text}
+    }
+
+    reqBody := map[string]any{
+        "model":   c.embedModel,
+        "prompts": prompts,
+    }
+
+    body, err := json.Marshal(reqBody)
+    if err != nil {
+        return nil, err
+    }
+
+    resp, err := c.httpClient.Post(c.baseURL+"/api/embeddings", "application/json", bytes.NewReader(body))
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        return nil, fmt.Errorf("embed batch request failed with status %d", resp.StatusCode)
+    }
+
+    var result struct {
+        Embeddings [][]float32 `json:"embeddings"`
+    }
+
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return nil, err
+    }
+
+    if len(result.Embeddings) == 0 {
+        return nil, fmt.Errorf("empty embeddings returned")
+    }
+
+    return result.Embeddings, nil
+}
+
+func (c *OllamaClient) EmbedBatchWithModel(model string, texts []string) ([][]float32, error) {
+    if len(texts) == 0 {
+        return nil, nil
+    }
+
+    prompts := make([]map[string]string, len(texts))
+    for i, text := range texts {
+        prompts[i] = map[string]string{"prompt": text}
+    }
+
+    reqBody := map[string]any{
+        "model":   model,
+        "prompts": prompts,
+    }
+
+    body, err := json.Marshal(reqBody)
+    if err != nil {
+        return nil, err
+    }
+
+    resp, err := c.httpClient.Post(c.baseURL+"/api/embeddings", "application/json", bytes.NewReader(body))
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        return nil, fmt.Errorf("embed batch request failed with status %d", resp.StatusCode)
+    }
+
+    var result struct {
+        Embeddings [][]float32 `json:"embeddings"`
+    }
+
+    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+        return nil, err
+    }
+
+    return result.Embeddings, nil
 }
 
 func (c *OllamaClient) Generate(prompt string) (string, error) {
@@ -1112,20 +1207,21 @@ go test ./internal/llm/... -v
 
 ## Checklist
 
-- [ ] LLM interface
-- [ ] Ollama client (embed, generate, vision)
-- [ ] Ollama extended operations (tags, summary, key ideas)
-- [ ] Groq client (optional provider)
-- [ ] OpenAI client (optional provider)
-- [ ] Factory (no auto-fallback - primary only)
-- [ ] Retry logic with backoff (worker keeps job pending)
-- [ ] Safe JSON parsing with fallback extraction
-- [ ] Error logging (structured, safe)
-- [ ] User-facing error messages
-- [ ] Model availability check on startup
-- [ ] Health endpoint model status
-- [ ] Tests passing
-- [ ] go vet clean
+- [x] LLM interface
+- [x] Ollama client (embed, generate, vision)
+- [x] Ollama batch embeddings (EmbedBatch, EmbedBatchWithModel)
+- [x] Ollama extended operations (tags, summary, key ideas)
+- [x] Groq client (optional provider)
+- [x] OpenAI client (optional provider)
+- [x] Factory (no auto-fallback - primary only)
+- [x] Retry logic with backoff (worker keeps job pending)
+- [x] Safe JSON parsing with fallback extraction
+- [x] Error logging (structured, safe)
+- [x] User-facing error messages
+- [x] Model availability check on startup
+- [x] Health endpoint model status
+- [x] Tests passing
+- [x] go vet clean
 
 ## Next Phase
 

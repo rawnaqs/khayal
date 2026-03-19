@@ -2,6 +2,7 @@ package llm
 
 type LLM interface {
 	Embed(text string) ([]float32, error)
+	EmbedBatch(texts []string) ([][]float32, error)
 	Generate(prompt string) (string, error)
 	DescribeImage(imagePath string) (string, error)
 	Ping() error

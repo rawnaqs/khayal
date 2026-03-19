@@ -22,6 +22,14 @@ func (m *mockLLM) Embed(text string) ([]float32, error) {
 	return make([]float32, 384), nil
 }
 
+func (m *mockLLM) EmbedBatch(texts []string) ([][]float32, error) {
+	result := make([][]float32, len(texts))
+	for i := range texts {
+		result[i] = make([]float32, 384)
+	}
+	return result, nil
+}
+
 func (m *mockLLM) Generate(prompt string) (string, error) {
 	return "mock response", nil
 }

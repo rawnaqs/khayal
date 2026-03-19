@@ -6,25 +6,40 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 )
 
 func IngestText(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt) (string, error) {
-	tags, err := llmClient.ExtractTags(job.Content)
-	if err != nil {
-		return "", fmt.Errorf("failed to extract tags: %w", err)
-	}
+	var tags []string
+	var summary string
+	var keyIdeas []string
 
-	summary, err := llmClient.Summarize(job.Content)
-	if err != nil {
-		return "", fmt.Errorf("failed to summarize: %w", err)
-	}
+	g, _ := errgroup.WithContext(ctx)
 
-	keyIdeas, err := llmClient.ExtractKeyIdeas(job.Content)
-	if err != nil {
-		keyIdeas = []string{}
+	g.Go(func() error {
+		var err error
+		tags, err = llmClient.ExtractTags(job.Content)
+		return err
+	})
+
+	g.Go(func() error {
+		var err error
+		summary, err = llmClient.Summarize(job.Content)
+		return err
+	})
+
+	g.Go(func() error {
+		var err error
+		keyIdeas, err = llmClient.ExtractKeyIdeas(job.Content)
+		return err
+	})
+
+	if err := g.Wait(); err != nil {
+		return "", fmt.Errorf("llm extraction failed: %w", err)
 	}
 
 	title := extractTitle(job.Content)

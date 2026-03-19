@@ -1,32 +1,32 @@
 ---
-created: 2026-03-19T05:31:56+05:30
-updated: 2026-03-19T05:32:03+05:30
+created: 2026-03-19T17:18:58+05:30
+updated: 2026-03-19T17:19:03+05:30
 type: text
 status: done
 tags:
   - programming
   - language
-  - golang
   - software-development
-  - open-source
+  - golang
+  - type-system
 history:
-  - at: 2026-03-19T05:32:03+05:30
+  - at: 2026-03-19T17:19:03+05:30
     event: processed
-  - at: 2026-03-19T05:32:03+05:30
+  - at: 2026-03-19T17:19:03+05:30
     event: created
 ---
 
 # Go is a programming language
 
 ## Summary
-Go is a programming language designed for building reliable and efficient software applications.
+Go is a programming language known for its simplicity and efficiency.
 
 ## Key Ideas
 - Go is a programming language
-- It was created by Google in 2007
-- Its design focuses on simplicity and reliability
-- It emphasizes performance optimization
-- It has gained popularity for its concurrency features
+- It was created by Google
+- It emphasizes simplicity and efficiency
+- It has a garbage collector for automatic memory management
+- It supports concurrency through goroutines
 
 ## Raw
 Go is a programming language

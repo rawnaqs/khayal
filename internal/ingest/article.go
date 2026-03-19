@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/PuerkitoBio/goquery"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
@@ -23,18 +25,35 @@ func IngestArticle(ctx context.Context, job *queue.Job, v *vault.Writer, q *queu
 
 	combinedContent := title + "\n\n" + content
 
-	summary, err := llmClient.Summarize(combinedContent)
-	if err != nil {
-		return "", fmt.Errorf("failed to summarize: %w", err)
+	g, _ := errgroup.WithContext(ctx)
+
+	var summary string
+	var keyIdeas []string
+	var tags []string
+
+	g.Go(func() error {
+		var err error
+		summary, err = llmClient.Summarize(combinedContent)
+		return err
+	})
+
+	g.Go(func() error {
+		var err error
+		keyIdeas, err = llmClient.ExtractKeyIdeas(combinedContent)
+		return err
+	})
+
+	g.Go(func() error {
+		var err error
+		tags, err = llmClient.ExtractTags(combinedContent)
+		return err
+	})
+
+	if err := g.Wait(); err != nil {
+		return "", fmt.Errorf("llm extraction failed: %w", err)
 	}
 
-	keyIdeas, err := llmClient.ExtractKeyIdeas(combinedContent)
-	if err != nil {
-		keyIdeas = []string{}
-	}
-
-	tags, err := llmClient.ExtractTags(combinedContent)
-	if err != nil {
+	if tags == nil {
 		tags = []string{"article"}
 	}
 

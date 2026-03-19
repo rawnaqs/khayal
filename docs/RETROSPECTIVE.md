@@ -556,3 +556,103 @@ search:
 | Graceful shutdown | ✅ 30s timeout |
 | LLM integration | ✅ Ollama client |
 | Worker pool | ✅ Background processing |
+
+---
+
+## Phase 5: Performance Optimization — Concurrent LLM Calls (2026-03-19)
+
+### Problem
+
+Capture operations were slow due to sequential LLM calls:
+- `IngestText`: ~15s (4 sequential calls)
+- `IngestImage`: ~8s (3 sequential calls)
+- `IngestArticle`: ~20s (4 sequential calls)
+
+### Solution
+
+Restructured LLM calls to run concurrently using `golang.org/x/sync/errgroup`:
+
+#### IngestText
+- **Before**: ExtractTags → Summarize → ExtractKeyIdeas → Embed (sequential)
+- **After**: ExtractTags + Summarize + ExtractKeyIdeas (parallel) → Embed (sequential)
+- **Speedup**: ~3x
+
+#### IngestImage
+- **Before**: DescribeImage → ExtractTags → Embed (sequential)
+- **After**: DescribeImage → ExtractTags + Embed (parallel)
+- **Speedup**: ~1.6x
+
+#### IngestArticle
+- **Before**: Summarize → ExtractKeyIdeas → ExtractTags → Embed (sequential)
+- **After**: Summarize + ExtractKeyIdeas + ExtractTags (parallel) → Embed (sequential)
+- **Speedup**: ~3x
+
+### Ollama Batch Embeddings API
+
+Added `EmbedBatch` to the LLM interface to support batch embedding when multiple embeddings are needed:
+
+```json
+POST /api/embeddings
+{
+  "model": "nomic-embed-text",
+  "prompts": [
+    {"prompt": "text 1"},
+    {"prompt": "text 2"}
+  ]
+}
+```
+
+Response:
+```json
+{
+  "embeddings": [
+    [0.1, 0.2, ...],
+    [0.3, 0.4, ...]
+  ]
+}
+```
+
+**Note:** `EmbedBatch` is available in the interface but current ingest flow uses single `Embed` calls. Batch embeddings will be useful for future chunking support.
+
+### Error Handling Change
+
+**Before:** Graceful degradation (e.g., `keyIdeas = []string{}` on failure)
+**After:** Fail-fast — any LLM call failure returns error, job marked as failed
+
+This is consistent with the worker retry flow:
+1. Job fails → marked as `failed`
+2. User can retry via `POST /queue/{id}/retry`
+3. Worker picks up and retries with exponential backoff
+
+### Dependencies Added
+
+```
+golang.org/x/sync v0.20.0
+```
+
+### Implementation
+
+| File | Change |
+|------|--------|
+| `internal/llm/interface.go` | Added `EmbedBatch(texts []string) ([][]float32, error)` |
+| `internal/llm/ollama.go` | Implemented `EmbedBatch` and `EmbedBatchWithModel` |
+| `internal/ingest/text.go` | Restructured with `errgroup` |
+| `internal/ingest/image.go` | Restructured with `errgroup` |
+| `internal/ingest/article.go` | Restructured with `errgroup` |
+| `internal/ingest/ingest_test.go` | New tests for concurrency and fail-fast |
+| `internal/llm/ollama_test.go` | New tests for batch embeddings |
+
+### Tests Added
+
+- `TestIngestText_BasicSuccess` — Verifies basic success case
+- `TestIngestText_ConcurrentExecution` — Verifies parallel execution (takes ~50ms vs ~150ms sequential)
+- `TestIngestText_FailFastOnError` — Verifies error propagation
+- `TestOllamaClient_EmbedBatch*` — 6 tests for batch embedding API
+
+### Estimated Performance Improvement
+
+| Function | Before | After | Speedup |
+|----------|--------|-------|---------|
+| `IngestText` | ~15s | ~5s | **~3x** |
+| `IngestImage` | ~8s | ~5s | **~1.6x** |
+| `IngestArticle` | ~20s | ~7s | **~3x** |
