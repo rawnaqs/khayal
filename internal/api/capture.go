@@ -12,7 +12,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rawnaqs/khayal/internal/queue"
-	"github.com/rawnaqs/khayal/internal/vault"
 )
 
 type CaptureRequest struct {
@@ -72,33 +71,6 @@ func (s *Server) handleTextCapture(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: now,
 	}
 
-	if jobType == "text" {
-		note := &vault.Note{
-			Metadata: vault.NoteMetadata{
-				Created: now,
-				Type:    "text",
-				Status:  "done",
-			},
-			Title: extractTitle(req.Content),
-			Raw:   req.Content,
-		}
-
-		notePath, err := s.vault.WriteNote(note)
-		if err != nil {
-			WriteError(w, "failed to write note", "VAULT_WRITE_FAILED", http.StatusInternalServerError)
-			return
-		}
-
-		if err := s.queue.IndexNote(ctx, notePath, note.Title, req.Content, ""); err != nil {
-			WriteError(w, "failed to index note", "INDEX_FAILED", http.StatusInternalServerError)
-			return
-		}
-
-		job.Status = "done"
-		job.NotePath = notePath
-		job.ProcessedAt = &now
-	}
-
 	if err := s.queue.CreateJob(ctx, job); err != nil {
 		WriteError(w, "failed to create job", "QUEUE_CREATE_FAILED", http.StatusInternalServerError)
 		return
@@ -108,18 +80,9 @@ func (s *Server) handleTextCapture(w http.ResponseWriter, r *http.Request) {
 		ID:        job.ID,
 		Type:      job.Type,
 		Status:    job.Status,
-		NotePath:  job.NotePath,
+		NotePath:  "",
 		CreatedAt: job.CreatedAt.Format(time.RFC3339),
 	})
-}
-
-func extractTitle(content string) string {
-	lines := strings.Split(content, "\n")
-	firstLine := strings.TrimSpace(lines[0])
-	if len(firstLine) > 100 {
-		firstLine = firstLine[:100]
-	}
-	return firstLine
 }
 
 func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {

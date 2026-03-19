@@ -328,14 +328,231 @@ func (w *Writer) renderNote(note *Note) string {
 
 ---
 
-## Code Quality Checklist
+## Phase 3 + Phase 4: LLM + Worker (2026-03-19)
+
+### Implementation Summary
+
+| Component | File | Status |
+|-----------|------|--------|
+| LLM Interface | `internal/llm/interface.go` | ✅ |
+| Ollama Client | `internal/llm/ollama.go` | ✅ |
+| LLM Factory | `internal/llm/factory.go` | ✅ |
+| Worker Pool | `internal/worker/worker.go` | ✅ |
+| Text Ingest | `internal/ingest/text.go` | ✅ |
+| Image Ingest | `internal/ingest/image.go` | ✅ |
+| Article Ingest | `internal/ingest/article.go` | ✅ |
+| HTML Parsing | `github.com/PuerkitoBio/goquery` | ✅ Added |
+
+### Architecture Changes
+
+**New Flow: Text Capture (Async)**
+```
+Before (Phase 2): Capture → Write vault → Index → Create job (done) → Return
+After (Phase 3):   Capture → Create job (pending) → Return immediately
+                               ↓
+Worker picks up → Process with LLM → Write vault → Index → Update job (done)
+```
+
+### LLM Interface
+
+```go
+type LLM interface {
+    Embed(text string) ([]float32, error)
+    Generate(prompt string) (string, error)
+    DescribeImage(imagePath string) (string, error)
+    Ping() error
+    Type() string
+}
+
+type LLMExt interface {
+    LLM
+    ExtractTags(content string) ([]string, error)
+    Summarize(content string) (string, error)
+    ExtractKeyIdeas(content string) ([]string, error)
+}
+```
+
+### Ollama Client Features
+
+| Method | Description |
+|--------|-------------|
+| `Ping()` | Check Ollama availability |
+| `Embed()` | Generate vector embeddings |
+| `Generate()` | Text generation |
+| `DescribeImage()` | Vision with base64 image |
+| `ExtractTags()` | 3-5 relevant tags |
+| `Summarize()` | 2-3 sentence summary |
+| `ExtractKeyIdeas()` | Key ideas as bullet points |
+
+### Smart Truncation
+
+```go
+func truncateForLLM(content string, maxTokens int) string {
+    maxChars := maxTokens * 4
+    // Truncate at sentence boundary
+}
+```
+
+### Bug Fix: Mock Embeddings in Production Code
+
+**Problem:** `search.go` was using `mockEmbeddings()` instead of real LLM embeddings.
+
+**Impact:** Hybrid search returned wrong results - all queries matched all documents.
+
+**Fix:** Replaced `mockEmbeddings()` with `s.llm.Embed()`:
+```go
+// Before (wrong)
+embedding := mockEmbeddings(query)
+
+// After (correct)
+embedding, err := s.llm.Embed(query)
+```
+
+### Bug Fix: Empty Embedding Panic
+
+**Problem:** `cosine()` and `normalize()` panicked on empty slices.
+
+**Fix:** Added length checks:
+```go
+func normalize(v []float32) float64 {
+    if len(v) == 0 {
+        return 0
+    }
+    // ...
+}
+
+func cosine(a, b []float32) float64 {
+    if len(a) == 0 || len(b) == 0 || len(a) != len(b) {
+        return 0
+    }
+    // ...
+}
+```
+
+### Bug Fix: RRF Merge Logic Error
+
+**Problem:** Hybrid search returned unrelated queries matched notes.
+
+**Root Cause:** In `mergeResultsRRF()`, the semantic results loop was adding RRF rank-based scores instead of keeping cosine similarity.
+
+**Fix:** Simplified merge - keyword takes priority, semantic only fills gaps:
+```go
+for _, r := range keywordResults {
+    r.Score = 1.0
+    scoreMap[r.NotePath] = scoredResult{result: r, score: 1.0}
+}
+
+for _, r := range semanticResults {
+    if _, exists := scoreMap[r.NotePath]; exists {
+        continue  // Skip if already in keyword results
+    }
+    // Keep r.Score (cosine similarity), don't overwrite
+    scoreMap[r.NotePath] = scoredResult{result: r, score: r.Score}
+}
+```
+
+### Bug Fix: Semantic Search Threshold
+
+**Problem:** Semantic search returned unrelated results even when cosine similarity was near zero.
+
+**Root Cause:** All chunks with any non-zero similarity were returned, including random matches.
+
+**Fix:** Added configurable minimum similarity threshold (default: 0.5):
+```go
+// In SearchSemantic():
+if score < minScore {
+    continue  // Skip results below threshold
+}
+```
+
+**Config:**
+```yaml
+search:
+  min_semantic_score: 0.5  # Minimum cosine similarity
+```
+
+**Result:** Semantic search only returns results with meaningful similarity (>50%).
+
+### Bug Fix: Cosine Similarity Not Normalized
+
+**Problem:** Cosine similarity scores were extremely high (215+) instead of -1 to 1 range.
+
+**Root Cause:** `cosine()` returned raw dot product without dividing by vector norms.
+
+**Fix:** Added proper normalization:
+```go
+func cosine(a, b []float32) float64 {
+    // ...
+    dot := float64(0)
+    for i := range a {
+        dot += float64(a[i]) * float64(b[i])
+    }
+    
+    normA := normalize(a)
+    normB := normalize(b)
+    
+    if normA == 0 || normB == 0 {
+        return 0
+    }
+    
+    return dot / (normA * normB)  // Proper cosine similarity
+}
+```
+
+**Result:** Scores now in valid range (-1 to 1), threshold filtering works correctly.
+
+### Bug Fix: RRF Merge Overwrote Semantic Scores
+
+**Problem:** Hybrid search showed same score (0.016) for all results regardless of relevance.
+
+**Root Cause:** `mergeResultsRRF()` overwrote semantic cosine similarity scores with RRF rank-based scores.
+
+**Fix:** Semantic results now keep their original cosine similarity score:
+```go
+for _, r := range semanticResults {
+    if _, exists := scoreMap[r.NotePath]; exists {
+        continue
+    }
+    // r.Score is already cosine similarity - keep it
+    scoreMap[r.NotePath] = scoredResult{result: r, score: r.Score}
+}
+```
+
+**Result:** Hybrid search now shows meaningful similarity scores (0.0-1.0).
+
+### Configurable Semantic Threshold
+
+**Added:** `search.min_semantic_score` config option (default: 0.5)
+
+```yaml
+search:
+  max_results: 50
+  max_excerpt: 500
+  rrf_k: 60
+  min_semantic_score: 0.5  # Minimum cosine similarity to return semantic results
+```
+
+**Behavior:**
+- Threshold 0.1: Returns more results, includes borderline matches
+- Threshold 0.5: Stricter filtering, only high-similarity matches
+
+### Worker Pool
+
+- Configurable concurrency (`worker.max_workers`)
+- Exponential backoff retry (2^retry seconds)
+- Max retries: 3 (then job marked "failed")
+- Crash recovery: Reset stuck "processing" jobs
+
+### Code Quality Checklist
 
 | Check | Status |
 |-------|--------|
 | `go vet` | ✅ Pass |
-| Tests | ✅ 24 passing (Phase 1) + 16 passing (Phase 2) = 40 total |
+| Tests | ✅ All passing (Phase 1-4) |
 | Context support | ✅ All DB operations |
 | Error handling | ✅ No ignored errors |
 | Named constants | ✅ No magic numbers |
 | Interface defined | ✅ `JobStore` |
 | Graceful shutdown | ✅ 30s timeout |
+| LLM integration | ✅ Ollama client |
+| Worker pool | ✅ Background processing |

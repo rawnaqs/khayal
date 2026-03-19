@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/rawnaqs/khayal/internal/api/middleware"
 	"github.com/rawnaqs/khayal/internal/config"
+	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 )
@@ -22,14 +23,16 @@ type Server struct {
 	config *config.Config
 	queue  *queue.Queue
 	vault  *vault.Writer
+	llm    llm.LLMExt
 	logger *slog.Logger
 }
 
-func NewServer(cfg *config.Config, q *queue.Queue, v *vault.Writer) *Server {
+func NewServer(cfg *config.Config, q *queue.Queue, v *vault.Writer, l llm.LLMExt) *Server {
 	s := &Server{
 		config: cfg,
 		queue:  q,
 		vault:  v,
+		llm:    l,
 		logger: slog.Default(),
 	}
 	s.setupRouter()

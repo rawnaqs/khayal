@@ -3,7 +3,7 @@
 > Step-by-step verification commands for Khayal implementation.
 > Update after completing each phase.
 
-**Current Phase:** Phase 1 (Foundation) + Phase 2 (Core API)
+**Current Phase:** Phase 1 (Foundation) + Phase 2 (Core API) + Phase 3 (Worker) + Phase 4 (LLM)
 **Last Updated:** 2026-03-19
 
 ---
@@ -18,6 +18,10 @@ server.token: "abc"
 server.port: 7766
 vault.path: testdata/vault
 db.path: testdata/khayal.db
+
+# Ollama (for Phase 3+)
+# Run: ollama list
+# Required models: nomic-embed-text, qwen2.5:3b, moondream
 ```
 
 ---
@@ -40,6 +44,8 @@ go run ./cmd/khayal
 # All directories ready.
 # Database ready.
 # Vault ready.
+# LLM ready.
+# Worker started.
 # Server listening on 127.0.0.1:7766
 # Press Ctrl+C to stop
 ```
@@ -67,7 +73,7 @@ go vet ./...
 
 ---
 
-## Phase 2: Core API Endpoints
+## Phase 2 + Phase 3: Core API Endpoints
 
 All endpoints require header: `X-Khayal-Token: abc`
 
@@ -80,10 +86,16 @@ All endpoints require header: `X-Khayal-Token: abc`
 curl -s http://127.0.0.1:7766/v1/health \
   -H "X-Khayal-Token: abc" | jq
 
-# Expected response:
+# Expected response (includes LLM status):
 {
   "status": "ok",
-  "version": "0.1.0"
+  "version": "0.1.0",
+  "dependencies": {
+    "db": { "status": "ok" },
+    "vault": { "status": "ok" },
+    "llm": { "status": "ok", "host": "http://localhost:11434" }
+  },
+  "queue": { "pending": 0, "processing": 0, "done": 0, "failed": 0 }
 }
 ```
 
@@ -104,21 +116,23 @@ curl -s http://127.0.0.1:7766/v1/health
 
 ---
 
-### 2. Capture Text
+### 2. Capture Text (Async - Phase 3)
+
+Text capture is now **async** - the job is queued and processed by the worker.
 
 ```bash
 # Capture text note
 curl -s -X POST http://127.0.0.1:7766/v1/capture \
   -H "X-Khayal-Token: abc" \
   -H "Content-Type: application/json" \
-  -d '{"type": "text", "content": "Test note for manual verification"}' | jq
+  -d '{"type": "text", "content": "Go is a programming language"}' | jq
 
-# Expected response:
+# Expected response (immediate - job queued):
 {
   "id": "uuid-here",
   "type": "text",
-  "status": "done",
-  "note_path": "inbox/2026-03-19-test-note-for-manual-verification.md",
+  "status": "pending",
+  "note_path": "",
   "created_at": "2026-03-19T..."
 }
 ```
@@ -131,6 +145,27 @@ curl -s -X POST http://127.0.0.1:7766/v1/capture \
   -d '{"type": "text"}'
 
 # Expected: 400 Bad Request
+```
+
+```bash
+# Check queue status
+curl -s http://127.0.0.1:7766/v1/queue \
+  -H "X-Khayal-Token: abc" | jq
+
+# After worker processes (5-10 seconds):
+# - status changes from "pending" → "processing" → "done"
+# - note_path is populated
+```
+
+```bash
+# Check note was saved (after processing)
+cat testdata/vault/inbox/*.md | head -30
+
+# Note will have:
+# - LLM-generated tags
+# - LLM-generated summary
+# - history entry
+```
 ```
 
 ```bash
@@ -186,19 +221,14 @@ Test note for manual verification
 
 ### 4. Search
 
+Search uses hybrid mode (keyword + semantic) with real Ollama embeddings.
+
 ```bash
-# Keyword search
-curl -s "http://127.0.0.1:7766/v1/search?q=test" \
+# Default: hybrid search (keyword + semantic)
+curl -s "http://127.0.0.1:7766/v1/search?q=golang" \
   -H "X-Khayal-Token: abc" | jq
 
-# Expected response:
-{
-  "query": "test",
-  "mode": "hybrid",
-  "results": [...],
-  "total": 1,
-  "took_ms": ...
-}
+# Expected: matches notes containing "golang" or semantically similar
 ```
 
 ```bash
@@ -368,16 +398,30 @@ go clean -testcache
 
 ---
 
-## Known Limitations (Phase 3+ Required)
+## Known Limitations
 
-- URL capture creates job but doesn't process (no worker)
-- Image capture creates job but doesn't process (no worker)
-- Semantic search uses mock embeddings (no LLM integration)
-- Queue retry/discard limited to pending/failed jobs (no worker to create them)
+- Image capture (multipart form - not fully implemented)
+- Queue retry/discard limited to pending/failed jobs
 
 ---
 
 ## Troubleshooting
+
+### Ollama not running or models missing
+```bash
+# Check Ollama status
+ollama list
+
+# Required models:
+# - nomic-embed-text (for embeddings)
+# - qwen2.5:3b (for text processing)
+# - moondream (for image description)
+
+# Pull missing models
+ollama pull qwen2.5:3b
+ollama pull nomic-embed-text
+ollama pull moondream
+```
 
 ### Server won't start
 ```bash
@@ -398,4 +442,13 @@ rm -f testdata/khayal.db
 ```bash
 # Clean vault
 rm -f testdata/vault/inbox/*.md
+```
+
+### Job processing fails (404 error)
+```bash
+# Check config matches installed models
+grep text_model testdata/config.yaml
+ollama list
+
+# If mismatch, update config.yaml or pull the model
 ```

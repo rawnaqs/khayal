@@ -70,8 +70,11 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) searchSemantic(ctx context.Context, query string, limit int) ([]queue.SearchResult, error) {
-	embedding := mockEmbeddings(query)
-	return s.queue.SearchSemantic(ctx, embedding, limit)
+	embedding, err := s.llm.Embed(query)
+	if err != nil {
+		return nil, err
+	}
+	return s.queue.SearchSemantic(ctx, embedding, limit, s.config.Search.MinSemanticScore)
 }
 
 func (s *Server) searchHybrid(ctx context.Context, query string, limit int) ([]queue.SearchResult, error) {
@@ -80,8 +83,12 @@ func (s *Server) searchHybrid(ctx context.Context, query string, limit int) ([]q
 		return nil, err
 	}
 
-	embedding := mockEmbeddings(query)
-	semanticResults, err := s.queue.SearchSemantic(ctx, embedding, limit*2)
+	embedding, err := s.llm.Embed(query)
+	if err != nil {
+		return nil, err
+	}
+
+	semanticResults, err := s.queue.SearchSemantic(ctx, embedding, limit*2, s.config.Search.MinSemanticScore)
 	if err != nil {
 		return nil, err
 	}
@@ -97,27 +104,20 @@ func mergeResultsRRF(keywordResults, semanticResults []queue.SearchResult, k, li
 
 	scoreMap := make(map[string]scoredResult)
 
-	for i, r := range keywordResults {
-		rrfScore := 1.0 / (float64(k) + float64(i+1))
-		if existing, ok := scoreMap[r.NotePath]; !ok || rrfScore > existing.score {
-			scoreMap[r.NotePath] = scoredResult{result: r, score: rrfScore}
-		}
+	for _, r := range keywordResults {
+		r.Score = 1.0
+		scoreMap[r.NotePath] = scoredResult{result: r, score: 1.0}
 	}
 
-	for i, r := range semanticResults {
-		rrfScore := 1.0 / (float64(k) + float64(i+1))
-		if existing, ok := scoreMap[r.NotePath]; !ok || existing.score+rrfScore > existing.score {
-			existing.score += rrfScore
-			if existing.result.NotePath == "" {
-				existing.result = r
-			}
-			scoreMap[r.NotePath] = existing
+	for _, r := range semanticResults {
+		if _, exists := scoreMap[r.NotePath]; exists {
+			continue
 		}
+		scoreMap[r.NotePath] = scoredResult{result: r, score: r.Score}
 	}
 
 	results := make([]queue.SearchResult, 0, len(scoreMap))
 	for _, sr := range scoreMap {
-		sr.result.Score = sr.score
 		results = append(results, sr.result)
 	}
 
@@ -130,29 +130,4 @@ func mergeResultsRRF(keywordResults, semanticResults []queue.SearchResult, k, li
 	}
 
 	return results
-}
-
-func mockEmbeddings(text string) []float32 {
-	embedding := make([]float32, 384)
-
-	hash := uint64(0)
-	for i, c := range text {
-		hash = hash*31 + uint64(c) + uint64(i)
-	}
-
-	for i := range embedding {
-		embedding[i] = float32((hash>>uint(i%64))&0xFF) / 255.0
-	}
-
-	norm := float64(0)
-	for _, v := range embedding {
-		norm += float64(v) * float64(v)
-	}
-	norm = 1.0
-
-	for i := range embedding {
-		embedding[i] = float32(float64(embedding[i]) / norm)
-	}
-
-	return embedding
 }

@@ -16,6 +16,40 @@ import (
 	"github.com/rawnaqs/khayal/internal/vault"
 )
 
+type mockLLM struct{}
+
+func (m *mockLLM) Embed(text string) ([]float32, error) {
+	return make([]float32, 384), nil
+}
+
+func (m *mockLLM) Generate(prompt string) (string, error) {
+	return "mock response", nil
+}
+
+func (m *mockLLM) DescribeImage(imagePath string) (string, error) {
+	return "mock image description", nil
+}
+
+func (m *mockLLM) Ping() error {
+	return nil
+}
+
+func (m *mockLLM) Type() string {
+	return "mock"
+}
+
+func (m *mockLLM) ExtractTags(content string) ([]string, error) {
+	return []string{"test", "mock"}, nil
+}
+
+func (m *mockLLM) Summarize(content string) (string, error) {
+	return "mock summary", nil
+}
+
+func (m *mockLLM) ExtractKeyIdeas(content string) ([]string, error) {
+	return []string{"key idea 1", "key idea 2"}, nil
+}
+
 type testServer struct {
 	Server *Server
 	Queue  *queue.Queue
@@ -50,6 +84,10 @@ func setupTestServer(t *testing.T) *testServer {
 			MaxExcerpt: 500,
 			RRFK:       60,
 		},
+		LLM: config.LLMConfig{
+			Provider:   "mock",
+			OllamaHost: "http://localhost:11434",
+		},
 	}
 
 	v, err := vault.NewWriter(cfg)
@@ -57,7 +95,8 @@ func setupTestServer(t *testing.T) *testServer {
 		t.Fatalf("failed to create vault: %v", err)
 	}
 
-	srv := NewServer(cfg, q, v)
+	llm := &mockLLM{}
+	srv := NewServer(cfg, q, v, llm)
 
 	return &testServer{
 		Server: srv,
@@ -121,15 +160,11 @@ func TestCaptureText(t *testing.T) {
 	if resp.Type != "text" {
 		t.Errorf("expected type 'text', got '%s'", resp.Type)
 	}
-	if resp.Status != "done" {
-		t.Errorf("expected status 'done', got '%s'", resp.Status)
+	if resp.Status != "pending" {
+		t.Errorf("expected status 'pending', got '%s'", resp.Status)
 	}
-	if resp.NotePath == "" {
-		t.Error("expected note_path to be set")
-	}
-
-	if !ts.Vault.NoteExists(resp.NotePath) {
-		t.Errorf("expected note to exist at %s", resp.NotePath)
+	if resp.NotePath != "" {
+		t.Errorf("expected note_path to be empty for async capture, got '%s'", resp.NotePath)
 	}
 }
 

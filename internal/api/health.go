@@ -17,6 +17,7 @@ type HealthResponse struct {
 type Dependencies struct {
 	DB    Dependency `json:"db"`
 	Vault Dependency `json:"vault"`
+	LLM   Dependency `json:"llm"`
 }
 
 type Dependency struct {
@@ -40,6 +41,16 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 		vaultStatus = "error"
 	}
 
+	llmStatus := "ok"
+	llmHost := s.config.LLM.OllamaHost
+	if s.llm != nil {
+		if err := s.llm.Ping(); err != nil {
+			llmStatus = "error"
+		}
+	} else {
+		llmStatus = "not configured"
+	}
+
 	pending, _ := s.queue.CountByStatus(ctx, "pending")
 	processing, _ := s.queue.CountByStatus(ctx, "processing")
 	done, _ := s.queue.CountByStatus(ctx, "done")
@@ -56,6 +67,10 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 			Vault: Dependency{
 				Status: vaultStatus,
 				Path:   s.config.Vault.Path,
+			},
+			LLM: Dependency{
+				Status: llmStatus,
+				Host:   llmHost,
 			},
 		},
 		Queue: QueueStats{

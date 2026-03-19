@@ -10,9 +10,11 @@ import (
 
 	"github.com/rawnaqs/khayal/internal/api"
 	"github.com/rawnaqs/khayal/internal/config"
+	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 	"github.com/rawnaqs/khayal/internal/version"
+	"github.com/rawnaqs/khayal/internal/worker"
 )
 
 func main() {
@@ -67,7 +69,18 @@ func main() {
 	}
 	fmt.Println("Vault ready.")
 
-	srv := api.NewServer(cfg, q, v)
+	llmClient, err := llm.NewLLM(cfg.LLM)
+	if err != nil {
+		log.Fatalf("Failed to initialize LLM: %v", err)
+	}
+	fmt.Println("LLM ready.")
+
+	w := worker.NewWorker(cfg.Worker, q, v, llmClient)
+	w.Start()
+	defer w.Stop()
+	fmt.Println("Worker started.")
+
+	srv := api.NewServer(cfg, q, v, llmClient)
 
 	go func() {
 		if err := srv.Start(); err != nil {

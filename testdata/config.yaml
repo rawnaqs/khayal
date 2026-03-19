@@ -19,7 +19,7 @@ llm:
   provider: ollama
   ollama_host: http://localhost:11434
   embed_model: nomic-embed-text
-  text_model: llama3.2:3b
+  text_model: qwen2.5:3b
   vision_model: moondream
   fallback_provider: ""
   fallback_api_key: ""
@@ -28,6 +28,12 @@ worker:
   max_workers: 1
   max_retries: 3
   retry_backoff: exponential
+
+search:
+  max_results: 50
+  max_excerpt: 500
+  rrf_k: 60
+  min_semantic_score: 0.5
 
 db:
   path: testdata/khayal.db

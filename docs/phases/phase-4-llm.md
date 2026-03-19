@@ -141,7 +141,7 @@ func (c *OllamaClient) Ping() error {
 func (c *OllamaClient) Embed(text string) ([]float32, error) {
     reqBody := map[string]interface{}{
         "model":   c.embedModel,
-        "input":   text,
+        "prompt":   text,
     }
     
     body, err := json.Marshal(reqBody)

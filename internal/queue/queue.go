@@ -30,7 +30,7 @@ type JobStore interface {
 	DeleteJob(ctx context.Context, id string) error
 	SaveEmbedding(ctx context.Context, jobID, model string, embedding []float32) error
 	SearchKeyword(ctx context.Context, query string, limit int) ([]SearchResult, error)
-	SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int) ([]SearchResult, error)
+	SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int, minScore float64) ([]SearchResult, error)
 	SaveChunk(ctx context.Context, notePath string, chunkIdx int, content string, embedding []float32) error
 	IndexNote(ctx context.Context, notePath, title, content, tags string) error
 	UpdateNoteIndex(ctx context.Context, notePath, title, content, tags string) error
@@ -367,7 +367,7 @@ func (q *Queue) SearchKeyword(ctx context.Context, query string, limit int) ([]S
 	return results, rows.Err()
 }
 
-func (q *Queue) SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int) ([]SearchResult, error) {
+func (q *Queue) SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int, minScore float64) ([]SearchResult, error) {
 	type scoredChunk struct {
 		notePath  string
 		chunkIdx  int
@@ -376,6 +376,10 @@ func (q *Queue) SearchSemantic(ctx context.Context, queryEmbedding []float32, li
 		jobType   string
 		createdAt string
 		jobID     string
+	}
+
+	if len(queryEmbedding) == 0 {
+		return []SearchResult{}, nil
 	}
 
 	queryNorm := normalize(queryEmbedding)
@@ -413,6 +417,10 @@ func (q *Queue) SearchSemantic(ctx context.Context, queryEmbedding []float32, li
 
 			embedding := decodeEmbedding(blob)
 			score := cosine(queryEmbedding, embedding)
+
+			if score < minScore {
+				continue
+			}
 
 			best, exists := noteBest[notePath]
 			if !exists || score > best.score {
@@ -546,6 +554,9 @@ func decodeEmbedding(blob []byte) []float32 {
 }
 
 func normalize(v []float32) float64 {
+	if len(v) == 0 {
+		return 0
+	}
 	sum := float64(0)
 	for _, f := range v {
 		sum += float64(f) * float64(f)
@@ -554,9 +565,21 @@ func normalize(v []float32) float64 {
 }
 
 func cosine(a, b []float32) float64 {
+	if len(a) == 0 || len(b) == 0 || len(a) != len(b) {
+		return 0
+	}
+
 	dot := float64(0)
 	for i := range a {
 		dot += float64(a[i]) * float64(b[i])
 	}
-	return dot
+
+	normA := normalize(a)
+	normB := normalize(b)
+
+	if normA == 0 || normB == 0 {
+		return 0
+	}
+
+	return dot / (normA * normB)
 }

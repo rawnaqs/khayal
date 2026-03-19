@@ -74,9 +74,10 @@ type DBConfig struct {
 }
 
 type SearchConfig struct {
-	MaxResults int `yaml:"max_results"`
-	MaxExcerpt int `yaml:"max_excerpt"`
-	RRFK       int `yaml:"rrf_k"`
+	MaxResults       int     `yaml:"max_results"`
+	MaxExcerpt       int     `yaml:"max_excerpt"`
+	RRFK             int     `yaml:"rrf_k"`
+	MinSemanticScore float64 `yaml:"min_semantic_score"`
 }
 
 func DefaultConfig() *Config {
@@ -174,6 +175,9 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.Search.RRFK == 0 {
 		c.Search.RRFK = 60
+	}
+	if c.Search.MinSemanticScore == 0 {
+		c.Search.MinSemanticScore = 0.5
 	}
 }
 
