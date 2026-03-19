@@ -3,8 +3,8 @@
 > Step-by-step verification commands for Khayal implementation.
 > Update after completing each phase.
 
-**Current Phase:** Phase 1 (Foundation) + Phase 2 (Core API) + Phase 3 (Worker) + Phase 4 (LLM)
-**Last Updated:** 2026-03-19
+**Current Phase:** Phase 1-4 (Foundation + API + Worker + LLM) — Logging + path handling implemented
+**Last Updated:** 2026-03-20
 
 ---
 
@@ -15,9 +15,19 @@ cd /Users/armedev/Developer/Rawnaqs/khayal
 
 # Config (testdata/config.yaml)
 server.token: "abc"
-server.port: 7766
+server.port: 1133
 vault.path: testdata/vault
+vault.inbox_dir: khayal  # optional, defaults to "khayal"
 db.path: testdata/khayal.db
+
+# Logging config
+logging:
+  level: "info"
+  worker_level: "debug"
+  file: "logs/khayal.log"
+  max_size_mb: 10
+  max_backups: 5
+  compress: true
 
 # Ollama (for Phase 3+)
 # Run: ollama list
@@ -30,7 +40,7 @@ db.path: testdata/khayal.db
 
 ```bash
 # Terminal 1: Start server
-go run ./cmd/khayal
+KHAYAL_CONFIG=./testdata/config.yaml go run ./cmd/khayal
 
 # Expected output:
 # Khayal v0.1.0
@@ -38,7 +48,7 @@ go run ./cmd/khayal
 # Config:       testdata/config.yaml
 # Vault path:   testdata/vault
 # DB path:      testdata/khayal.db
-# Server:       127.0.0.1:7766
+# Server:       127.0.0.1:1133
 # LLM provider: ollama
 #
 # All directories ready.
@@ -46,8 +56,54 @@ go run ./cmd/khayal
 # Vault ready.
 # LLM ready.
 # Worker started.
-# Server listening on 127.0.0.1:7766
+# Server listening on 127.0.0.1:1133
 # Press Ctrl+C to stop
+```
+
+---
+
+## Logging Verification
+
+```bash
+# Check log file was created
+ls -la testdata/logs/
+
+# Expected: khayal.log exists
+
+# View log file
+cat testdata/logs/khayal.log
+
+# Expected: JSON formatted logs
+# {"time":"2026-03-19T...","level":"INFO","msg":"server started",...}
+# {"time":"2026-03-19T...","level":"DEBUG","msg":"worker processing",...}
+
+# Check for rotation (after hitting max_size_mb)
+ls -la testdata/logs/
+# Expected: khayal.log.1.gz, khayal.log.2.gz, etc.
+
+# Stdout also shows logs
+# (visible in terminal when running)
+```
+
+---
+
+## Path Handling Verification
+
+```bash
+# Create a note (trash goes to inbox/.khayal-trash, not vault/.khayal-trash)
+curl -s -X POST http://127.0.0.1:1133/v1/capture \
+  -H "X-Khayal-Token: abc" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "text", "content": "Test path handling"}' | jq
+
+# Wait for processing...
+sleep 5
+
+# Check trash location (should be in inbox, not vault root)
+ls -la testdata/vault/khayal/.khayal-trash/
+
+# Verify NOT in vault root
+ls testdata/vault/.khayal-trash/ 2>/dev/null || echo "Correct: No trash at vault root"
 ```
 
 ---
@@ -83,7 +139,7 @@ All endpoints require header: `X-Khayal-Token: abc`
 
 ```bash
 # Valid request
-curl -s http://127.0.0.1:7766/v1/health \
+curl -s http://127.0.0.1:1133/v1/health \
   -H "X-Khayal-Token: abc" | jq
 
 # Expected response (includes LLM status):
@@ -101,7 +157,7 @@ curl -s http://127.0.0.1:7766/v1/health \
 
 ```bash
 # Invalid token (should fail)
-curl -s http://127.0.0.1:7766/v1/health \
+curl -s http://127.0.0.1:1133/v1/health \
   -H "X-Khayal-Token: wrong"
 
 # Expected: 401 Unauthorized
@@ -109,7 +165,7 @@ curl -s http://127.0.0.1:7766/v1/health \
 
 ```bash
 # Missing token (should fail)
-curl -s http://127.0.0.1:7766/v1/health
+curl -s http://127.0.0.1:1133/v1/health
 
 # Expected: 401 Unauthorized
 ```
@@ -122,7 +178,7 @@ Text capture is now **async** - the job is queued and processed by the worker.
 
 ```bash
 # Capture text note
-curl -s -X POST http://127.0.0.1:7766/v1/capture \
+curl -s -X POST http://127.0.0.1:1133/v1/capture \
   -H "X-Khayal-Token: abc" \
   -H "Content-Type: application/json" \
   -d '{"type": "text", "content": "Go is a programming language"}' | jq
@@ -139,7 +195,7 @@ curl -s -X POST http://127.0.0.1:7766/v1/capture \
 
 ```bash
 # Missing content (should fail)
-curl -s -X POST http://127.0.0.1:7766/v1/capture \
+curl -s -X POST http://127.0.0.1:1133/v1/capture \
   -H "X-Khayal-Token: abc" \
   -H "Content-Type: application/json" \
   -d '{"type": "text"}'
@@ -149,7 +205,7 @@ curl -s -X POST http://127.0.0.1:7766/v1/capture \
 
 ```bash
 # Check queue status
-curl -s http://127.0.0.1:7766/v1/queue \
+curl -s http://127.0.0.1:1133/v1/queue \
   -H "X-Khayal-Token: abc" | jq
 
 # After worker processes (5-10 seconds):
@@ -159,7 +215,7 @@ curl -s http://127.0.0.1:7766/v1/queue \
 
 ```bash
 # Check note was saved (after processing)
-cat testdata/vault/inbox/*.md | head -30
+cat testdata/vault/khayal/*.md | head -30
 
 # Note will have:
 # - LLM-generated tags
@@ -170,7 +226,7 @@ cat testdata/vault/inbox/*.md | head -30
 
 ```bash
 # Invalid JSON (should fail)
-curl -s -X POST http://127.0.0.1:7766/v1/capture \
+curl -s -X POST http://127.0.0.1:1133/v1/capture \
   -H "X-Khayal-Token: abc" \
   -H "Content-Type: application/json" \
   -d 'not valid json'
@@ -180,14 +236,76 @@ curl -s -X POST http://127.0.0.1:7766/v1/capture \
 
 ---
 
+### 2b. Capture URL
+
+URLs are queued as articles and processed by the worker.
+
+```bash
+# Capture URL (becomes article job)
+curl -s -X POST http://127.0.0.1:1133/v1/capture \
+  -H "X-Khayal-Token: abc" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "url", "content": "https://example.com/article"}' | jq
+
+# Expected response:
+{
+  "id": "uuid-here",
+  "type": "article",
+  "status": "pending",
+  "note_path": "",
+  "created_at": "2026-03-19T..."
+}
+```
+
+```bash
+# Check queue - job should have source_url set
+curl -s http://127.0.0.1:1133/v1/queue \
+  -H "X-Khayal-Token: abc" | jq '.jobs[] | select(.type=="article")'
+```
+
+---
+
+### 2c. Capture Image
+
+Images are saved to media directory and processed by the worker.
+
+```bash
+# Capture image (multipart form)
+curl -s -X POST http://127.0.0.1:1133/v1/capture \
+  -H "X-Khayal-Token: abc" \
+  -F "type=image" \
+  -F "file=@testdata/vault/khayal/media/test.png" \
+  -F "note=optional context" | jq
+
+# Expected response:
+{
+  "id": "uuid-here",
+  "type": "image",
+  "status": "pending",
+  "note_path": "khayal/2026-03-19-*.md",
+  "created_at": "2026-03-19T..."
+}
+```
+
+```bash
+# Check media was saved
+ls -la testdata/vault/khayal/media/
+
+# Check queue - job should have source_file set
+curl -s http://127.0.0.1:1133/v1/queue \
+  -H "X-Khayal-Token: abc" | jq '.jobs[] | select(.type=="image")'
+```
+
+---
+
 ### 3. Verify Note Saved
 
 ```bash
 # Check note exists in vault
-ls -la testdata/vault/inbox/
+ls -la testdata/vault/khayal/
 
 # View note content
-cat testdata/vault/inbox/*test-note*.md
+cat testdata/vault/khayal/*test-note*.md
 ```
 
 **Expected frontmatter format:**
@@ -225,7 +343,7 @@ Search uses hybrid mode (keyword + semantic) with real Ollama embeddings.
 
 ```bash
 # Default: hybrid search (keyword + semantic)
-curl -s "http://127.0.0.1:7766/v1/search?q=golang" \
+curl -s "http://127.0.0.1:1133/v1/search?q=golang" \
   -H "X-Khayal-Token: abc" | jq
 
 # Expected: matches notes containing "golang" or semantically similar
@@ -233,13 +351,13 @@ curl -s "http://127.0.0.1:7766/v1/search?q=golang" \
 
 ```bash
 # Search with mode=keyword only
-curl -s "http://127.0.0.1:7766/v1/search?q=test&mode=keyword" \
+curl -s "http://127.0.0.1:1133/v1/search?q=test&mode=keyword" \
   -H "X-Khayal-Token: abc" | jq
 ```
 
 ```bash
 # Missing query (should fail)
-curl -s "http://127.0.0.1:7766/v1/search" \
+curl -s "http://127.0.0.1:1133/v1/search" \
   -H "X-Khayal-Token: abc"
 
 # Expected: 400 Bad Request
@@ -251,7 +369,7 @@ curl -s "http://127.0.0.1:7766/v1/search" \
 
 ```bash
 # List all jobs
-curl -s http://127.0.0.1:7766/v1/queue \
+curl -s http://127.0.0.1:1133/v1/queue \
   -H "X-Khayal-Token: abc" | jq
 
 # Expected response:
@@ -264,7 +382,7 @@ curl -s http://127.0.0.1:7766/v1/queue \
       "id": "...",
       "type": "text",
       "status": "done",
-      "note_path": "inbox/...",
+      "note_path": "khayal/...",
       "created_at": "2026-03-19T...",
       "processed_at": "2026-03-19T...",
       "error": null,
@@ -276,19 +394,19 @@ curl -s http://127.0.0.1:7766/v1/queue \
 
 ```bash
 # List by status
-curl -s "http://127.0.0.1:7766/v1/queue?status=done" \
+curl -s "http://127.0.0.1:1133/v1/queue?status=done" \
   -H "X-Khayal-Token: abc" | jq
 ```
 
 ```bash
 # Get single job (use ID from previous response)
-curl -s http://127.0.0.1:7766/v1/queue/{job_id} \
+curl -s http://127.0.0.1:1133/v1/queue/{job_id} \
   -H "X-Khayal-Token: abc" | jq
 ```
 
 ```bash
 # Get non-existent job (should fail)
-curl -s http://127.0.0.1:7766/v1/queue/nonexistent \
+curl -s http://127.0.0.1:1133/v1/queue/nonexistent \
   -H "X-Khayal-Token: abc"
 
 # Expected: 404 Not Found
@@ -300,7 +418,7 @@ curl -s http://127.0.0.1:7766/v1/queue/nonexistent \
 
 ```bash
 # Create a job to test retry
-curl -s -X POST http://127.0.0.1:7766/v1/capture \
+curl -s -X POST http://127.0.0.1:1133/v1/capture \
   -H "X-Khayal-Token: abc" \
   -H "Content-Type: application/json" \
   -d '{"type": "text", "content": "Job for retry test"}' | jq
@@ -358,15 +476,17 @@ sqlite3 testdata/khayal.db "SELECT * FROM notes_fts"
 
 | Feature | Test | Expected |
 |---------|------|----------|
-| Server starts | `go run ./cmd/khayal` | Listens on 7766 |
+| Server starts | `go run ./cmd/khayal` | Listens on 1133 |
 | Health endpoint | `curl /v1/health` | 200 + status ok |
 | Auth - valid token | `curl -H "Token: abc" ...` | 200 |
 | Auth - invalid token | `curl -H "Token: x" ...` | 401 |
 | Auth - missing token | `curl ...` | 401 |
 | Capture text | `curl -X POST /v1/capture ...` | 201 + job |
+| Capture URL | `curl ... '{"type":"url"...}'` | 201 + type=article |
+| Capture image | `curl -F "file=@..." ...` | 201 + note_path |
 | Capture - missing content | `curl ... -d '{"type":"text"}'` | 400 |
 | Capture - invalid JSON | `curl ... -d 'invalid'` | 400 |
-| Note saved to vault | `cat testdata/vault/inbox/*.md` | File exists |
+| Note saved to vault | `cat testdata/vault/khayal/*.md` | File exists |
 | Note format valid | Check frontmatter | Valid YAML |
 | Note - single history | Search for `history:` | Exactly 1 |
 | Search keyword | `curl /v1/search?q=test` | Returns results |
@@ -390,7 +510,7 @@ sqlite3 testdata/khayal.db "SELECT * FROM notes_fts"
 ```bash
 # Remove test data
 rm -f testdata/khayal.db
-rm -f testdata/vault/inbox/*.md
+rm -f testdata/vault/khayal/*.md
 
 # Reset test state
 go clean -testcache
@@ -400,7 +520,6 @@ go clean -testcache
 
 ## Known Limitations
 
-- Image capture (multipart form - not fully implemented)
 - Queue retry/discard limited to pending/failed jobs
 
 ---
@@ -426,10 +545,10 @@ ollama pull moondream
 ### Server won't start
 ```bash
 # Check port in use
-lsof -i :7766
+lsof -i :1133
 
 # Kill existing process
-kill $(lsof -t -i :7766)
+kill $(lsof -t -i :1133)
 ```
 
 ### Database locked
@@ -441,7 +560,7 @@ rm -f testdata/khayal.db
 ### Test notes accumulate
 ```bash
 # Clean vault
-rm -f testdata/vault/inbox/*.md
+rm -f testdata/vault/khayal/*.md
 ```
 
 ### Job processing fails (404 error)

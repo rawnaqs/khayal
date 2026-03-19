@@ -270,7 +270,7 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
   "id": "abc123",
   "type": "text",
   "status": "done",
-  "note_path": "inbox/2024-03-16-thought.md",
+  "note_path": "khayal/2024-03-16-thought.md",
   "created_at": "2024-03-16T14:23:00Z"
 }
 ```
@@ -291,7 +291,7 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
   "id": "def456",
   "type": "article",
   "status": "processing",
-  "note_path": "inbox/2024-03-16-url.md",
+  "note_path": "khayal/2024-03-16-url.md",
   "created_at": "2024-03-16T14:23:00Z"
 }
 ```
@@ -314,7 +314,7 @@ note="optional context"
   "id": "ghi789",
   "type": "image",
   "status": "processing",
-  "note_path": "inbox/2024-03-16-image.md",
+  "note_path": "khayal/2024-03-16-image.md",
   "created_at": "2024-03-16T14:23:00Z"
 }
 ```
@@ -422,7 +422,7 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
     }
     
     // Write initial note
-    notePath := s.vault.InboxPath(fmt.Sprintf("inbox/%s-image.md", job.ID[:8]))
+    notePath := s.vault.InboxPath(fmt.Sprintf("khayal/%s-image.md", job.ID[:8]))
     // Write processing note...
     
     writeJSON(w, CaptureResponse{
@@ -461,7 +461,7 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
       "id": "abc123",
       "type": "image",
       "status": "processing",
-      "note_path": "inbox/2024-03-16-image.md",
+      "note_path": "khayal/2024-03-16-image.md",
       "created_at": "2024-03-16T14:23:00Z",
       "processed_at": null,
       "error": null
@@ -615,7 +615,7 @@ func (s *Server) queueDiscardHandler(w http.ResponseWriter, r *http.Request) {
   "results": [
     {
       "id": "abc123",
-      "note_path": "inbox/2024-03-10-cap-theorem.md",
+      "note_path": "khayal/2024-03-10-cap-theorem.md",
       "title": "CAP Theorem Notes",
       "excerpt": "...consistency and availability cannot both be guaranteed...",
       "score": 0.94,
@@ -726,8 +726,8 @@ go test ./internal/api/... -v
 - [x] Logging middleware
 - [x] Health endpoint
 - [x] Capture text handler
-- [ ] Capture URL handler (handled by generic capture)
-- [ ] Capture image handler (multipart stub - future)
+- [x] Capture URL handler (converts to article, sets SourceURL)
+- [x] Capture image handler (saves media, sets SourceFile)
 - [x] Queue list endpoint
 - [x] Queue get endpoint
 - [x] Queue retry endpoint

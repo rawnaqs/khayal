@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -46,15 +47,15 @@ func (m *mockLLM) Type() string {
 	return "mock"
 }
 
-func (m *mockLLM) ExtractTags(content string) ([]string, error) {
+func (m *mockLLM) ExtractTags(content string, bucket string) ([]string, error) {
 	return []string{"test", "mock"}, nil
 }
 
-func (m *mockLLM) Summarize(content string) (string, error) {
+func (m *mockLLM) Summarize(content string, bucket string) (string, error) {
 	return "mock summary", nil
 }
 
-func (m *mockLLM) ExtractKeyIdeas(content string) ([]string, error) {
+func (m *mockLLM) ExtractKeyIdeas(content string, bucket string) ([]string, error) {
 	return []string{"key idea 1", "key idea 2"}, nil
 }
 
@@ -98,13 +99,13 @@ func setupTestServer(t *testing.T) *testServer {
 		},
 	}
 
-	v, err := vault.NewWriter(cfg)
+	v, err := vault.NewWriter(cfg, filepath.Join(tmpDir, "config.yaml"))
 	if err != nil {
 		t.Fatalf("failed to create vault: %v", err)
 	}
 
 	llm := &mockLLM{}
-	srv := NewServer(cfg, q, v, llm)
+	srv := NewServer(cfg, q, v, llm, nil)
 
 	return &testServer{
 		Server: srv,
@@ -398,5 +399,97 @@ func TestSearchMissingQuery(t *testing.T) {
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", rec.Code)
+	}
+}
+
+func TestCaptureURL(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.close()
+
+	body := `{"type": "url", "content": "https://example.com/article"}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/capture", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Khayal-Token", "test-token")
+	rec := httptest.NewRecorder()
+
+	ts.Server.captureHandler(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d", rec.Code)
+	}
+
+	var resp CaptureResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.Type != "article" {
+		t.Errorf("expected type 'article', got '%s'", resp.Type)
+	}
+	if resp.Status != "pending" {
+		t.Errorf("expected status 'pending', got '%s'", resp.Status)
+	}
+
+	ctx := context.Background()
+	job, err := ts.Queue.GetJob(ctx, resp.ID)
+	if err != nil {
+		t.Fatalf("failed to get job: %v", err)
+	}
+
+	if job.SourceURL != "https://example.com/article" {
+		t.Errorf("expected SourceURL to be set, got '%s'", job.SourceURL)
+	}
+	if job.Content != "" {
+		t.Errorf("expected Content to be empty for URL capture, got '%s'", job.Content)
+	}
+}
+
+func TestCaptureImage(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.close()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("file", "test.png")
+	if err != nil {
+		t.Fatalf("failed to create form file: %v", err)
+	}
+	part.Write([]byte("fake png image data"))
+	writer.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/capture", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-Khayal-Token", "test-token")
+	rec := httptest.NewRecorder()
+
+	ts.Server.captureHandler(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Errorf("expected status 201, got %d", rec.Code)
+	}
+
+	var resp CaptureResponse
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp.Type != "image" {
+		t.Errorf("expected type 'image', got '%s'", resp.Type)
+	}
+	if resp.Status != "pending" {
+		t.Errorf("expected status 'pending', got '%s'", resp.Status)
+	}
+
+	ctx := context.Background()
+	job, err := ts.Queue.GetJob(ctx, resp.ID)
+	if err != nil {
+		t.Fatalf("failed to get job: %v", err)
+	}
+
+	if job.SourceFile == "" {
+		t.Error("expected SourceFile to be set")
+	}
+	if job.SourceFile == "" || job.SourceFile == "inbox/media/" {
+		t.Errorf("expected SourceFile to have filename, got '%s'", job.SourceFile)
 	}
 }

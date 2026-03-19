@@ -11,10 +11,16 @@ type LLM interface {
 
 type LLMExt interface {
 	LLM
-	ExtractTags(content string) ([]string, error)
-	Summarize(content string) (string, error)
-	ExtractKeyIdeas(content string) ([]string, error)
+	ExtractTags(content string, bucket string) ([]string, error)
+	Summarize(content string, bucket string) (string, error)
+	ExtractKeyIdeas(content string, bucket string) ([]string, error)
 }
+
+const (
+	BucketText    = "text"
+	BucketImage   = "image"
+	BucketArticle = "article"
+)
 
 const (
 	ProviderOllama = "ollama"

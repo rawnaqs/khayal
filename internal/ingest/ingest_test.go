@@ -46,15 +46,15 @@ func (m *mockLLMForIngest) Type() string {
 	return "mock"
 }
 
-func (m *mockLLMForIngest) ExtractTags(content string) ([]string, error) {
+func (m *mockLLMForIngest) ExtractTags(content string, bucket string) ([]string, error) {
 	return []string{"test", "mock"}, nil
 }
 
-func (m *mockLLMForIngest) Summarize(content string) (string, error) {
+func (m *mockLLMForIngest) Summarize(content string, bucket string) (string, error) {
 	return "mock summary", nil
 }
 
-func (m *mockLLMForIngest) ExtractKeyIdeas(content string) ([]string, error) {
+func (m *mockLLMForIngest) ExtractKeyIdeas(content string, bucket string) ([]string, error) {
 	return []string{"key idea 1", "key idea 2"}, nil
 }
 
@@ -93,17 +93,17 @@ func (m *mockLLMWithDelay) Type() string {
 	return "mock"
 }
 
-func (m *mockLLMWithDelay) ExtractTags(content string) ([]string, error) {
+func (m *mockLLMWithDelay) ExtractTags(content string, bucket string) ([]string, error) {
 	time.Sleep(m.delay)
 	return []string{"test"}, nil
 }
 
-func (m *mockLLMWithDelay) Summarize(content string) (string, error) {
+func (m *mockLLMWithDelay) Summarize(content string, bucket string) (string, error) {
 	time.Sleep(m.delay)
 	return "mock summary", nil
 }
 
-func (m *mockLLMWithDelay) ExtractKeyIdeas(content string) ([]string, error) {
+func (m *mockLLMWithDelay) ExtractKeyIdeas(content string, bucket string) ([]string, error) {
 	time.Sleep(m.delay)
 	return []string{"key idea 1"}, nil
 }
@@ -142,21 +142,21 @@ func (m *mockLLMFail) Type() string {
 	return "mock"
 }
 
-func (m *mockLLMFail) ExtractTags(content string) ([]string, error) {
+func (m *mockLLMFail) ExtractTags(content string, bucket string) ([]string, error) {
 	if m.failExtractTags {
 		return nil, errors.New("extract tags failed")
 	}
 	return []string{"test"}, nil
 }
 
-func (m *mockLLMFail) Summarize(content string) (string, error) {
+func (m *mockLLMFail) Summarize(content string, bucket string) (string, error) {
 	if m.failSummarize {
 		return "", errors.New("summarize failed")
 	}
 	return "mock summary", nil
 }
 
-func (m *mockLLMFail) ExtractKeyIdeas(content string) ([]string, error) {
+func (m *mockLLMFail) ExtractKeyIdeas(content string, bucket string) ([]string, error) {
 	if m.failKeyIdeas {
 		return nil, errors.New("extract key ideas failed")
 	}
@@ -183,7 +183,7 @@ func setupTestIngest(t *testing.T) (*queue.Queue, *vault.Writer, func()) {
 		},
 	}
 
-	v, err := vault.NewWriter(cfg)
+	v, err := vault.NewWriter(cfg, filepath.Join(tmpDir, "config.yaml"))
 	if err != nil {
 		t.Fatalf("failed to create vault: %v", err)
 	}

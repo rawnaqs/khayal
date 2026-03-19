@@ -33,19 +33,19 @@ func IngestArticle(ctx context.Context, job *queue.Job, v *vault.Writer, q *queu
 
 	g.Go(func() error {
 		var err error
-		summary, err = llmClient.Summarize(combinedContent)
+		summary, err = llmClient.Summarize(combinedContent, llm.BucketArticle)
 		return err
 	})
 
 	g.Go(func() error {
 		var err error
-		keyIdeas, err = llmClient.ExtractKeyIdeas(combinedContent)
+		keyIdeas, err = llmClient.ExtractKeyIdeas(combinedContent, llm.BucketArticle)
 		return err
 	})
 
 	g.Go(func() error {
 		var err error
-		tags, err = llmClient.ExtractTags(combinedContent)
+		tags, err = llmClient.ExtractTags(combinedContent, llm.BucketArticle)
 		return err
 	})
 
@@ -73,10 +73,10 @@ func IngestArticle(ctx context.Context, job *queue.Job, v *vault.Writer, q *queu
 		Title:    title,
 		Summary:  summary,
 		KeyIdeas: keyIdeas,
-		Raw:      content,
+		Raw:      combinedContent,
 	}
 
-	notePath, err := v.WriteNote(note)
+	notePath, err := v.WriteNote(note, job.ID)
 	if err != nil {
 		return "", fmt.Errorf("failed to write note: %w", err)
 	}
@@ -127,10 +127,10 @@ func scrapeArticle(url string) (title, content string, err error) {
 	})
 
 	var paragraphs []string
-	doc.Find("article, main, .content, .post, .entry").Each(func(i int, s *goquery.Selection) {
-		s.Find("p, h2, h3, h4, li").Each(func(j int, p *goquery.Selection) {
+	doc.Find("article, main, .content, .post, .entry, .article-content, .post-content, .story-body").Each(func(i int, s *goquery.Selection) {
+		s.Find("p, h2, h3, h4, h5, h6, li, blockquote, pre, code, figure, figcaption").Each(func(j int, p *goquery.Selection) {
 			text := strings.TrimSpace(p.Text())
-			if text != "" && len(text) > 20 {
+			if text != "" && len(text) > 10 {
 				paragraphs = append(paragraphs, text)
 			}
 		})
@@ -139,14 +139,10 @@ func scrapeArticle(url string) (title, content string, err error) {
 	if len(paragraphs) == 0 {
 		doc.Find("p").Each(func(i int, p *goquery.Selection) {
 			text := strings.TrimSpace(p.Text())
-			if text != "" && len(text) > 20 {
+			if text != "" && len(text) > 10 {
 				paragraphs = append(paragraphs, text)
 			}
 		})
-	}
-
-	if len(paragraphs) > 20 {
-		paragraphs = paragraphs[:20]
 	}
 
 	content = strings.Join(paragraphs, "\n\n")
@@ -154,12 +150,28 @@ func scrapeArticle(url string) (title, content string, err error) {
 	if content == "" {
 		body, _ := io.ReadAll(resp.Body)
 		content = string(body)
-		if len(content) > 10000 {
-			content = content[:10000]
-		}
 	}
 
 	logger.Debug("scraped article", "title", title, "content_length", len(content))
 
 	return title, content, nil
+}
+
+func smartTruncateArticle(content string, maxChars int) string {
+	if len(content) <= maxChars {
+		return content
+	}
+	truncated := content[:maxChars]
+
+	lastDoubleNewline := strings.LastIndex(truncated, "\n\n")
+	if lastDoubleNewline > maxChars/2 {
+		return truncated[:lastDoubleNewline]
+	}
+
+	lastPeriod := strings.LastIndex(truncated, ". ")
+	if lastPeriod > maxChars/2 {
+		return truncated[:lastPeriod+1]
+	}
+
+	return truncated + "..."
 }

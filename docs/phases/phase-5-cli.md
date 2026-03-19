@@ -422,7 +422,7 @@ $ kl search "paid john money"
   3 results · hybrid · 42ms
 
   ──────────────────────────────────────────────────────────
-  inbox/2019-03-03-designer.md                          0.94
+  khayal/2019-03-03-designer.md                          0.94
   March 3, 2019 · #finance #design
 
   ...paid John Doe $2,000 for logo design work...
@@ -567,7 +567,7 @@ Output (6 lines max):
 ```
 $ kl status
 
-  ✓ khayal v0.1.0 · http://100.x.x.x:7766
+  ✓ khayal v0.1.0 · http://100.x.x.x:1133
 
   queue
     processing   1   image
@@ -591,7 +591,7 @@ var initCmd = &cobra.Command{
 func runInit(cmd *cobra.Command, args []string) error {
     form := huh.NewForm(
         huh.NewGroup(
-            huh.NewInput().Title("Server address").Value(&cfg.Host).Placeholder("http://127.0.0.1:7766"),
+            huh.NewInput().Title("Server address").Value(&cfg.Host).Placeholder("http://127.0.0.1:1133"),
         ),
         huh.NewGroup(
             huh.NewInput().Title("Token").Value(&cfg.Token).Placeholder("Enter your token").Mask('•'),
@@ -644,7 +644,7 @@ var configViewCmd = &cobra.Command{
 
 Silent success:
 ```
-$ kl config set host http://100.x.x.x:7766
+$ kl config set host http://100.x.x.x:1133
   ✓ host updated
     ~/.config/khayal/kl.yaml
 ```
@@ -758,11 +758,11 @@ Flags:
 ```yaml
 vault:
   path: ~/Documents/brain
-  inbox_dir: inbox
+  inbox_dir: khayal
 
 server:
   host: 127.0.0.1
-  port: 7766
+  port: 1133
   token: ""
   log_file: ~/.config/khayal/logs/khayal.log
 
@@ -787,7 +787,7 @@ db:
 ### kl config (~/.config/kahyyal/kl.yaml)
 
 ```yaml
-host: http://127.0.0.1:7766
+host: http://127.0.0.1:1133
 token: your-token-here
 ```
 

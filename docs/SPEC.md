@@ -53,8 +53,8 @@ khayal treats your vault with extreme care. These rules are non-negotiable:
 5. **Never write broken wikilinks** — verify targets exist before writing
 6. **Never grow frontmatter unbounded** — hard caps on all list fields
 7. **Never race with Obsidian** — file locking on all writes
-8. **Never hard-delete from vault** — soft-delete to `.khayal-trash/` only
-9. **Never write outside inbox/** — khayal's blast radius is contained
+8. **Never hard-delete from vault** — soft-delete to `<inbox>/.khayal-trash/` only (NOT vault root)
+9. **Never write outside <inbox_dir>/** — khayal's blast radius is contained
 10. **Always write atomically** — temp file + rename, never partial writes
 
 ---
@@ -186,7 +186,7 @@ loading config...
   ✓ log           ~/.config/khayal/logs/khayal.log
 
 starting server...
-  ✓ listening     http://127.0.0.1:7766
+  ✓ listening     http://127.0.0.1:1133
 
 starting worker...
   ✓ workers       1
@@ -239,7 +239,7 @@ Waits for current job to complete before stopping worker. Never kills mid-proces
   khayal · admin                                         v0.1.0
 
   ┌─ server ────────────────────────────────────────────────────┐
-  │  host      http://127.0.0.1:7766                            │
+  │  host      http://127.0.0.1:1133                            │
   │  uptime    3h 24m                                           │
   │  pid       12847                                            │
   └─────────────────────────────────────────────────────────────┘
@@ -355,7 +355,7 @@ khayal config
 
   vault
     path        ~/brain
-    inbox_dir   inbox
+    inbox_dir   khayal
     media
       image     vault
       pdf       vault
@@ -364,7 +364,7 @@ khayal config
 
   server
     host        127.0.0.1
-    port        7766
+    port        1133
     token       a3f9c2e1... (redacted)
 
   llm
@@ -414,9 +414,9 @@ khayal vault fix-links
   scanning for broken wikilinks...
   4 broken links found in 3 files
 
-  inbox/2024-03-10-project.md
-    → inbox/old-note.md (deleted)
-    → inbox/renamed-note.md (exists, will update)
+  khayal/2024-03-10-project.md
+    → khayal/old-note.md (deleted)
+    → khayal/renamed-note.md (exists, will update)
 
   [dry run — use --fix to apply]
 ```
@@ -431,8 +431,8 @@ khayal vault clean-media
   scanning for orphaned media...
   12 orphaned files found · 34 MB
 
-  inbox/media/unused-1.png    2.1 MB
-  inbox/media/unused-2.jpg    1.8 MB
+  khayal/media/unused-1.png    2.1 MB
+  khayal/media/unused-2.jpg    1.8 MB
   ...
 
   [dry run — use --fix to apply]
@@ -448,12 +448,12 @@ khayal vault show-duplicates
   checking for duplicates...
   potential duplicates found:
 
-  inbox/2024-03-15-rust-thoughts.md
-  inbox/2024-03-10-rust-notes.md
+  khayal/2024-03-15-rust-thoughts.md
+  khayal/2024-03-10-rust-notes.md
     similarity: 0.87 · 234 shared words
 
-  inbox/2024-02-20-meeting-notes.md
-  inbox/2024-02-19-meeting.md
+  khayal/2024-02-20-meeting-notes.md
+  khayal/2024-02-19-meeting.md
     similarity: 0.91 · 189 shared words
 
   3 pairs total
@@ -613,7 +613,7 @@ The most used command. Output must be instant and minimal.
 
 **Server unreachable:**
 ```
-✗ cannot reach khayal at http://100.x.x.x:7766
+✗ cannot reach khayal at http://100.x.x.x:1133
 
   → is khayal running?     ssh mac-air khayal start
   → wrong address?         kl config set host <address>
@@ -636,20 +636,20 @@ $ kl search "paid john money"
   3 results · hybrid · 42ms
 
   ──────────────────────────────────────────────────────────
-  inbox/2019-03-03-designer.md                          0.94
+  khayal/2019-03-03-designer.md                          0.94
   March 3, 2019 · #finance #design
 
   ...paid John Doe $2,000 for logo design work.
   Follow-up: brand guidelines next week...
 
   ──────────────────────────────────────────────────────────
-  inbox/2019-04-10-contractor.md                        0.81
+  khayal/2019-04-10-contractor.md                        0.81
   April 10, 2019 · #finance
 
   ...second payment to John, $500 for revisions...
 
   ──────────────────────────────────────────────────────────
-  inbox/2018-12-01-branding.md                          0.68
+  khayal/2018-12-01-branding.md                          0.68
   December 1, 2018 · #design
 
   ...initial quote from John was $2,500 but...
@@ -796,7 +796,7 @@ Rules:
 ```
 $ kl status
 
-  ✓ khayal v0.1.0 · http://100.x.x.x:7766
+  ✓ khayal v0.1.0 · http://100.x.x.x:1133
 
   queue
     processing   1   image
@@ -810,7 +810,7 @@ If server unreachable:
 ```
 $ kl status
 
-  ✗ khayal unreachable · http://100.x.x.x:7766
+  ✗ khayal unreachable · http://100.x.x.x:1133
     → ssh mac-air khayal start
 ```
 
@@ -828,10 +828,10 @@ $ kl init
   kl setup
 
   ? Server address
-  › http://127.0.0.1:7766
+  › http://127.0.0.1:1133
     ──────────────────────────────────────────────────
     Your khayal server address.
-    Use Tailscale IP for remote access: http://100.x.x.x:7766
+    Use Tailscale IP for remote access: http://100.x.x.x:1133
 
   ? Token
   › ••••••••••••••••••••••••••••••••
@@ -856,7 +856,7 @@ Rules:
 #### kl config set
 
 ```
-$ kl config set host http://100.x.x.x:7766
+$ kl config set host http://100.x.x.x:1133
 
   ✓ host updated
     ~/.config/khayal/kl.yaml
@@ -909,7 +909,7 @@ Examples:
 
 ```
 # Server unreachable
-✗ cannot reach khayal at http://100.x.x.x:7766
+✗ cannot reach khayal at http://100.x.x.x:1133
   → is khayal running?    ssh mac-air khayal start
   → wrong address?        kl config set host <address>
   → check logs            ssh mac-air khayal logs
@@ -920,9 +920,9 @@ Examples:
   → update token          kl config set token <token>
 
 # Vault write failed
-✗ cannot write to vault · ~/brain/inbox/
+✗ cannot write to vault · ~/brain/khayal/
   → does the path exist?  check vault.path in config
-  → permissions ok?       ls -la ~/brain/inbox/
+  → permissions ok?       ls -la ~/brain/khayal/
 
 # Ollama unreachable (khayal start)
 ✗ ollama not running at localhost:11434
@@ -1259,7 +1259,7 @@ Deduplication:
 {
   "id": "abc123",
   "status": "done",
-  "note_path": "inbox/2024-03-16-thought.md",
+  "note_path": "khayal/2024-03-16-thought.md",
   "created_at": "2024-03-16T14:23:00Z",
   "connections_job_id": "def456"
 }
@@ -1276,7 +1276,7 @@ Connections retrieved via `GET /v1/queue/def456`:
     "connections": [
       {
         "type": "similar",
-        "note_path": "inbox/2022-04-10-react-perf.md",
+        "note_path": "khayal/2022-04-10-react-perf.md",
         "excerpt": "useEffect with wrong deps causes infinite loops",
         "score": 0.91,
         "label": "you thought about this 2 years ago"
@@ -1728,7 +1728,7 @@ kl search "query"
 kl status
 kl init
 kl config set token abc123
-kl config set host http://100.x.x.x:7766
+kl config set host http://100.x.x.x:1133
 ```
 
 ---
@@ -1757,9 +1757,9 @@ Format: YAML only. Behavior on missing/malformed: fail hard with actionable erro
 
 vault:
   path: ~/Documents/brain              # required — where markdown notes are written
-  inbox_dir: inbox                     # relative to vault root
+   inbox_dir: khayal                     # relative to vault root
   media:
-    default_dir: inbox/media           # fallback for unspecified types
+    default_dir: khayal/media           # fallback for unspecified types
     strategy:
       image: vault                     # saved inside vault, linked relatively
       pdf: vault                       # saved inside vault
@@ -1768,7 +1768,7 @@ vault:
 
 server:
   host: 127.0.0.1                      # never 0.0.0.0 by default
-  port: 7766
+  port: 1133
   token: ""                            # auto-generated on first run if empty
   log_format: text                     # text | json
   log_file: ~/.config/khayal/logs/khayal.log
@@ -1856,7 +1856,7 @@ server:
 ```
 2024-03-16T14:23:01Z INFO  POST /v1/capture 200 47ms type=text job=abc123
 2024-03-16T14:23:04Z INFO  worker: processed text abc123 3.2s
-2024-03-16T14:23:18Z ERROR vault write failed path=inbox/note.md err=permission denied code=VAULT_002
+2024-03-16T14:23:18Z ERROR vault write failed path=khayal/note.md err=permission denied code=VAULT_002
 ```
 
 **JSON format — machine readable, for jq:**
@@ -1864,7 +1864,7 @@ server:
 ```json
 {"time":"2024-03-16T14:23:01Z","level":"INFO","method":"POST","path":"/v1/capture","status":200,"latency_ms":47,"type":"text","job_id":"abc123"}
 {"time":"2024-03-16T14:23:04Z","level":"INFO","msg":"worker processed","type":"text","job_id":"abc123","duration_ms":3200}
-{"time":"2024-03-16T14:23:18Z","level":"ERROR","msg":"vault write failed","path":"inbox/note.md","error":"permission denied","code":"VAULT_002"}
+{"time":"2024-03-16T14:23:18Z","level":"ERROR","msg":"vault write failed","path":"khayal/note.md","error":"permission denied","code":"VAULT_002"}
 ```
 
 **Fields logged:**
@@ -1955,26 +1955,38 @@ file=<binary>
 note="optional context"         ← becomes frontmatter context + first paragraph
 ```
 
-**Response — text (fast, done immediately)**
+**Response — text (queued, processed by worker)**
 
 ```json
 {
   "id": "abc123",
   "type": "text",
-  "status": "done",
-  "note_path": "inbox/2024-03-16-thought.md",
+  "status": "pending",
+  "note_path": "",
   "created_at": "2024-03-16T14:23:00Z"
 }
 ```
 
-**Response — image / url (queued)**
+**Response — url (queued as article)**
 
 ```json
 {
   "id": "def456",
+  "type": "article",
+  "status": "pending",
+  "note_path": "",
+  "created_at": "2024-03-16T14:23:00Z"
+}
+```
+
+**Response — image (queued)**
+
+```json
+{
+  "id": "ghi789",
   "type": "image",
-  "status": "processing",
-  "note_path": "inbox/2024-03-16-image.md",
+  "status": "pending",
+  "note_path": "khayal/2024-03-16-image.md",
   "created_at": "2024-03-16T14:23:00Z"
 }
 ```
@@ -2005,7 +2017,7 @@ Response:
   "results": [
     {
       "id": "abc123",
-      "note_path": "inbox/2024-03-10-cap-theorem.md",
+      "note_path": "khayal/2024-03-10-cap-theorem.md",
       "title": "CAP Theorem Notes",
       "excerpt": "...consistency and availability cannot both be guaranteed...",
       "score": 0.94,
@@ -2068,7 +2080,7 @@ Response:
       "id": "abc123",
       "type": "image",
       "status": "processing",
-      "note_path": "inbox/2024-03-16-image.md",
+      "note_path": "khayal/2024-03-16-image.md",
       "created_at": "2024-03-16T14:23:00Z",
       "processed_at": null,
       "error": null
@@ -2086,7 +2098,7 @@ Response:
   "id": "abc123",
   "type": "image",
   "status": "done",
-  "note_path": "inbox/2024-03-16-image.md",
+  "note_path": "khayal/2024-03-16-image.md",
   "created_at": "2024-03-16T14:23:00Z",
   "processed_at": "2024-03-16T14:23:12Z",
   "error": null
@@ -2115,7 +2127,7 @@ All API errors return consistent JSON with `code` for machine parsing and `hint`
 {
   "error": "human readable message",
   "code": "VAULT_002",
-  "hint": "check permissions: ls -la ~/brain/inbox/"
+  "hint": "check permissions: ls -la ~/brain/khayal/"
 }
 ```
 
@@ -2135,7 +2147,7 @@ All API errors return consistent JSON with `code` for machine parsing and `hint`
 | Code | Meaning | Hint |
 |------|---------|------|
 | `VAULT_001` | vault path not found | check vault.path in config |
-| `VAULT_002` | vault write failed | check permissions: `ls -la <vault>/inbox/` |
+| `VAULT_002` | vault write failed | check permissions: `ls -la <vault>/khayal/` |
 | `VAULT_003` | file modified externally | mtime check failed, user edits protected |
 | `VAULT_004` | filename collision | could not generate unique filename |
 
@@ -2239,8 +2251,8 @@ entities:
   urls:    []
   orgs:    []
 related:
-  - inbox/2022-04-10-react-perf.md
-  - inbox/2023-01-05-hooks.md
+  - khayal/2022-04-10-react-perf.md
+  - khayal/2023-01-05-hooks.md
 history:
   - at: 2024-03-16T14:23:04
     event: processed
@@ -2409,7 +2421,7 @@ kl config set host http://...
 
 ```yaml
 # ~/.config/khayal/kl.yaml
-host: http://127.0.0.1:7766
+host: http://127.0.0.1:1133
 token: your-token-here
 ```
 
@@ -2543,8 +2555,8 @@ entities:
   urls:    []
   orgs:    []
 related:
-  - inbox/2022-04-10-react-perf.md
-  - inbox/2023-01-05-hooks.md
+  - khayal/2022-04-10-react-perf.md
+  - khayal/2023-01-05-hooks.md
 history:
   - at: 2024-03-16T14:23:04
     event: processed

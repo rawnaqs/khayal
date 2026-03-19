@@ -9,11 +9,14 @@ import (
 func NewLLM(cfg config.LLMConfig) (LLMExt, error) {
 	switch cfg.Provider {
 	case ProviderOllama:
-		client := NewOllamaClient(
+		client := NewOllamaClientWithConfig(
 			cfg.OllamaHost,
 			cfg.EmbedModel,
 			cfg.TextModel,
 			cfg.VisionModel,
+			cfg.TruncateTextTokens,
+			cfg.TruncateImageTokens,
+			cfg.TruncateArticleTokens,
 		)
 
 		if err := client.Ping(); err != nil {

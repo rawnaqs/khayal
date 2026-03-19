@@ -559,7 +559,7 @@ search:
 
 ---
 
-## Phase 5: Performance Optimization — Concurrent LLM Calls (2026-03-19)
+## Performance Optimization: Concurrent LLM Calls (2026-03-19)
 
 ### Problem
 
@@ -656,3 +656,258 @@ golang.org/x/sync v0.20.0
 | `IngestText` | ~15s | ~5s | **~3x** |
 | `IngestImage` | ~8s | ~5s | **~1.6x** |
 | `IngestArticle` | ~20s | ~7s | **~3x** |
+
+---
+
+## Comprehensive Logging System (2026-03-19)
+
+### Implementation Summary
+
+| Component | File | Status |
+|-----------|------|--------|
+| Rotating log handler | `internal/log/rotating.go` | ✅ |
+| Multi-handler setup | `internal/log/setup.go` | ✅ |
+| LogConfig struct | `internal/config/config.go` | ✅ |
+| Wired up in main.go | `cmd/khayal/main.go` | ✅ |
+
+### Features
+
+1. **Dual output**: File + stdout simultaneously
+2. **JSON format**: Structured logs for machine parsing
+3. **Size-based rotation**: Configurable max file size with gzip compression
+4. **Worker-specific levels**: Main log level + separate worker log level
+5. **Panic recovery**: Full stack traces logged to file
+
+### Config
+
+```yaml
+logging:
+  level: "info"           # Main log level (debug, info, warn, error)
+  worker_level: "debug"  # Worker log level (separate for noisy workers)
+  file: "logs/khayal.log"
+  max_size_mb: 10
+  max_backups: 5
+  compress: true
+```
+
+### Design Decisions
+
+1. **Standard library only**: No external dependencies (log/slog)
+2. **Built-in rotation**: Uses `slog.Handler` with custom RotateHandler
+3. **Gzip compression**: Compresses rotated files to save space
+4. **Context propagation**: `_context` field for request tracing
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `internal/log/rotating.go` | New - file rotation with gzip |
+| `internal/log/setup.go` | New - multi-handler for file + stdout |
+| `internal/config/config.go` | Added LogConfig struct |
+| `cmd/khayal/main.go` | Wired up logging with config |
+| `testdata/config.yaml` | Added log settings |
+
+---
+
+## Path Handling Improvements (2026-03-19)
+
+### Problem
+
+1. Config paths were resolved relative to CWD, not config.yaml location
+2. No `~` expansion in log file paths
+3. Trash location was at vault root instead of inbox directory
+4. Duplicate `expandPath` implementations
+5. No validation that paths were within vault boundaries
+
+### Solution
+
+#### 1. MakeAbsolute with Config Path
+
+```go
+func MakeAbsolute(path, configPath string) (string, error) {
+    if filepath.IsAbs(path) {
+        return path, nil
+    }
+    if strings.HasPrefix(path, "~") {
+        home, err := os.UserHomeDir()
+        // ...
+    }
+    if strings.HasPrefix(path, "$") {
+        // Expand env vars
+    }
+    // Resolve relative to config location
+    configDir := filepath.Dir(configPath)
+    return filepath.Join(configDir, path), nil
+}
+```
+
+#### 2. LoadFromPath Returns Config Path
+
+```go
+func LoadFromPath(path string) (*Config, string, error) {
+    // ...
+    return cfg, path, nil  // Returns the config path for relative resolution
+}
+```
+
+#### 3. Vault Path Validation
+
+Helper functions for path validation:
+- `isPathInVault(path)` - Check if path is within vault
+- `isPathInInbox(path)` - Check if path is within inbox
+- `isPathInMedia(path)` - Check if path is within media directory
+- `ensurePathInVault(path)` - Validate + error if outside
+- `ensurePathInInbox(path)` - Validate + error if outside
+
+#### 4. Sentinel Errors
+
+```go
+var (
+    ErrVaultPathNotAbsolute    = errors.New("VAULT_003: path must be absolute")
+    ErrVaultPathOutsideVault  = errors.New("VAULT_004: path outside vault")
+    ErrVaultPathOutsideInbox  = errors.New("VAULT_005: path outside inbox")
+    ErrVaultNoteNotFound      = errors.New("VAULT_006: note not found")
+)
+```
+
+#### 5. Trash Location Fix
+
+**Before:** `<vault>/.khayal-trash`
+**After:** `<inbox>/.khayal-trash`
+
+Now consistent with Rule #9: "Never write outside <inbox_dir>/"
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `internal/config/config.go` | MakeAbsolute, LoadFromPath returns path, ValidateVaultSubPath |
+| `internal/vault/writer.go` | Removed duplicate expandPath, added path validation |
+| `internal/ingest/image.go` | Fixed image path: `v.ResolvePath(job.SourceFile)` |
+| `testdata/config.yaml` | Relative paths, inbox/media instead of inbox/media/images |
+
+### Key Discoveries
+
+1. **No stdlib for `~` expansion** - Must use `os.UserHomeDir()` manually
+2. **os.ReadFile doesn't expand `~`** - Need to expand before OS operations
+3. **Config paths need base dir** - Cannot just use filepath.Abs() on relative paths
+
+---
+
+## Article Content Fix + Configurable Truncation (2026-03-19)
+
+### Problem
+
+Article scraping was stripping content:
+- Hard limit of 20 paragraphs
+- Minimum paragraph length of 20 chars (too restrictive)
+- Limited element types (p, h2, h3, h4, li only)
+- Content truncated BEFORE storing in Raw field
+
+### Solution
+
+#### 1. Full Content Storage
+- `scrapeArticle()` now returns full extracted content
+- `note.Raw = combinedContent` stores everything (title + content)
+- Raw field contains complete article text
+
+#### 2. Configurable Truncation Limits
+
+Added per-capture-type truncation limits to config:
+
+```yaml
+llm:
+  truncate_text_tokens: 2000    # ~8k chars for text captures
+  truncate_image_tokens: 3000    # ~12k chars for image descriptions
+  truncate_article_tokens: 12000  # ~48k chars for articles
+```
+
+#### 3. Updated LLM Interface
+
+LLM methods now accept a bucket parameter to determine truncation limits:
+
+```go
+type LLMExt interface {
+    ExtractTags(content string, bucket string) ([]string, error)
+    Summarize(content string, bucket string) (string, error)
+    ExtractKeyIdeas(content string, bucket string) ([]string, error)
+}
+
+const (
+    BucketText    = "text"
+    BucketImage   = "image"
+    BucketArticle = "article"
+)
+```
+
+#### 4. Ingest Functions Use Correct Buckets
+
+| Function | LLM Methods | Bucket Used |
+|----------|------------|-------------|
+| `IngestText` | ExtractTags, Summarize, ExtractKeyIdeas | `text` |
+| `IngestImage` | ExtractTags | `image` |
+| `IngestArticle` | ExtractTags, Summarize, ExtractKeyIdeas | `article` |
+
+#### 5. Improved Article Scraping
+
+- Removed hard 20-paragraph limit
+- Expanded element types: `blockquote, pre, code, figure, figcaption`
+- Expanded selectors: `.article-content, .post-content, .story-body`
+- Lowered paragraph minimum: 10 chars (was 20)
+
+### Implementation
+
+| File | Change |
+|------|--------|
+| `internal/config/config.go` | Added `TruncateTextTokens`, `TruncateImageTokens`, `TruncateArticleTokens` |
+| `testdata/config.yaml` | Added truncation settings |
+| `internal/llm/interface.go` | Added bucket parameter to LLM methods, added bucket constants |
+| `internal/llm/ollama.go` | Added `truncateLimit()` method, updated methods to use bucket |
+| `internal/llm/factory.go` | Pass truncation config to client |
+| `internal/ingest/article.go` | Store full content in Raw, improved scraping |
+| `internal/ingest/text.go` | Pass `BucketText` to LLM methods |
+| `internal/ingest/image.go` | Pass `BucketImage` to LLM methods |
+
+---
+
+## v1.1: Smart Chunking (Future)
+
+### Concept
+
+For very long articles, split into chunks and process concurrently:
+
+```
+Article (50 paragraphs)
+       ↓
+┌──────┴──────┐
+│   Chunk 1    │   Chunk 2    │   Chunk 3
+│ (paragraphs  │ (paragraphs  │ (paragraphs
+│   1-20)     │   21-40)     │   41-50)
+       ↓             ↓             ↓
+   Summarize     Summarize     Summarize
+       ↓             ↓             ↓
+   chunk1Sum    chunk2Sum    chunk3Sum
+       └─────────────┴─────────────┘
+                     ↓
+              Final Summary
+```
+
+### Planned Interface Changes
+
+```go
+type LLMChunkedOperations interface {
+    LLMExt
+    SummarizeChunks(chunks []string) (string, error)
+    ExtractTagsFromChunks(chunks []string) ([]string, error)
+    ExtractKeyIdeasFromChunks(chunks []string) ([]string, error)
+}
+
+func chunkArticle(content string, chunkSize int) []string {
+    // Split by paragraphs, target ~8000 tokens per chunk
+}
+```
+
+### Benefits
+- Handles arbitrarily long articles
+- Better quality (each chunk processed fully)
+- Parallel processing via existing `errgroup` pattern

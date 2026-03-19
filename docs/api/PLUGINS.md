@@ -27,7 +27,7 @@ Pick your language:
 ```go
 // Go
 client := &http.Client{}
-req, _ := http.NewRequest("GET", "http://localhost:7766/v1/health", nil)
+req, _ := http.NewRequest("GET", "http://localhost:1133/v1/health", nil)
 req.Header.Set("X-Khayal-Token", "your-token")
 resp, _ := client.Do(req)
 ```
@@ -36,26 +36,26 @@ resp, _ := client.Do(req)
 # Python
 import requests
 headers = {'X-Khayal-Token': 'your-token'}
-requests.get('http://localhost:7766/v1/health', headers=headers)
+requests.get('http://localhost:1133/v1/health', headers=headers)
 ```
 
 ```javascript
 // JavaScript
-fetch('http://localhost:7766/v1/health', {
+fetch('http://localhost:1133/v1/health', {
   headers: { 'X-Khayal-Token': 'your-token' }
 })
 ```
 
 ```swift
 // Swift
-let url = URL(string: "http://localhost:7766/v1/health")!
+let url = URL(string: "http://localhost:1133/v1/health")!
 var request = URLRequest(url: url)
 request.setValue("your-token", forHTTPHeaderField: "X-Khayal-Token")
 ```
 
 ```kotlin
 // Kotlin
-val url = URL("http://localhost:7766/v1/health")
+val url = URL("http://localhost:1133/v1/health")
 val connection = url.openConnection() as HttpURLConnection
 connection.setRequestProperty("X-Khayal-Token", "your-token")
 ```
@@ -221,13 +221,13 @@ Plugin UI → HTTP POST /v1/capture → Khayal Server
 khayal start
 
 # Test capture
-curl -X POST http://localhost:7766/v1/capture \
+curl -X POST http://localhost:1133/v1/capture \
   -H "Content-Type: application/json" \
   -H "X-Khayal-Token: your-token" \
   -d '{"type": "text", "content": "test"}'
 
 # Check health
-curl http://localhost:7766/v1/health \
+curl http://localhost:1133/v1/health \
   -H "X-Khayal-Token: your-token"
 ```
 

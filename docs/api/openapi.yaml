@@ -11,7 +11,7 @@ info:
     url: https://github.com/rawnaqs/khayal
 
 servers:
-  - url: http://localhost:7766/v1
+  - url: http://localhost:1133/v1
     description: Local development server
   - url: http://{host}:{port}/v1
     description: Custom server
@@ -19,7 +19,7 @@ servers:
       host:
         default: localhost
       port:
-        default: "7766"
+        default: "1133"
 
 security:
   - ApiToken: []

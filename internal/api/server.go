@@ -27,13 +27,16 @@ type Server struct {
 	logger *slog.Logger
 }
 
-func NewServer(cfg *config.Config, q *queue.Queue, v *vault.Writer, l llm.LLMExt) *Server {
+func NewServer(cfg *config.Config, q *queue.Queue, v *vault.Writer, l llm.LLMExt, logger *slog.Logger) *Server {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	s := &Server{
 		config: cfg,
 		queue:  q,
 		vault:  v,
 		llm:    l,
-		logger: slog.Default(),
+		logger: logger,
 	}
 	s.setupRouter()
 	return s

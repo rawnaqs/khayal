@@ -323,7 +323,7 @@ FROM alpine:3.19
 RUN apk --no-cache add ca-certificates
 WORKDIR /app
 COPY --from=builder /app/khayal .
-EXPOSE 7766
+EXPOSE 1133
 ENTRYPOINT ["./khayal", "start"]
 ```
 
@@ -338,7 +338,7 @@ services:
   khayal:
     image: ghcr.io/rawnaqs/khayal:latest
     ports:
-      - "7766:7766"
+      - "1133:1133"
     volumes:
       - ./brain:/brain
       - ./config:/config
@@ -397,7 +397,7 @@ kl "my first thought"
 kl search "distributed systems"
 
 # Or use the web UI
-# Visit http://127.0.0.1:7766
+# Visit http://127.0.0.1:1133
 ```
 
 ## Installation
@@ -497,9 +497,9 @@ Use GitHub Issues for bugs and feature requests.
 ```yaml
 vault:
   path: ~/Documents/brain
-  inbox_dir: inbox
+  inbox_dir: khayal
   media:
-    default_dir: inbox/media
+    default_dir: media
     strategy:
       image: vault
       pdf: vault
@@ -508,7 +508,7 @@ vault:
 
 server:
   host: 127.0.0.1
-  port: 7766
+  port: 1133
   token: ""  # Auto-generated on first run
   log_file: ~/.config/khayal/logs/khayal.log
 
@@ -607,5 +607,5 @@ go build -o khayal -ldflags="-X main.version=$(git describe --tags)" ./cmd/khaya
 ## Notes
 
 - Version: Semantic (v0.1.0)
-- Default bind: 127.0.0.1:7766
+- Default bind: 127.0.0.1:1133
 - Token: Auto-generated, shown once

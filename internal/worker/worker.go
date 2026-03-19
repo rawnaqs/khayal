@@ -27,14 +27,17 @@ type Worker struct {
 	logger  *slog.Logger
 }
 
-func NewWorker(cfg config.WorkerConfig, q *queue.Queue, v *vault.Writer, l llm.LLMExt) *Worker {
+func NewWorker(cfg config.WorkerConfig, q *queue.Queue, v *vault.Writer, l llm.LLMExt, logger *slog.Logger) *Worker {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &Worker{
 		queue:  q,
 		vault:  v,
 		llm:    l,
 		config: cfg,
 		jobs:   make(chan string, 100),
-		logger: slog.Default(),
+		logger: logger,
 	}
 }
 

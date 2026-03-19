@@ -2,15 +2,15 @@ package main
 
 import (
 	"fmt"
-	"log"
+	stdlog "log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/rawnaqs/khayal/internal/api"
 	"github.com/rawnaqs/khayal/internal/config"
 	"github.com/rawnaqs/khayal/internal/llm"
+	"github.com/rawnaqs/khayal/internal/log"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 	"github.com/rawnaqs/khayal/internal/version"
@@ -18,73 +18,85 @@ import (
 )
 
 func main() {
-	var cfgPath string
-
-	if os.Getenv("KHAYAL_CONFIG") != "" {
-		cfgPath = os.Getenv("KHAYAL_CONFIG")
-	} else {
-		cwd, err := os.Getwd()
-		if err != nil {
-			log.Fatalf("Failed to get current directory: %v", err)
-		}
-		testCfg := filepath.Join(cwd, "testdata", "config.yaml")
-		if _, err := os.Stat(testCfg); err == nil {
-			cfgPath = testCfg
-		} else {
-			cfgPath = config.DefaultConfigPath
-		}
+	cfgPath := os.Getenv("KHAYAL_CONFIG")
+	if cfgPath == "" {
+		cfgPath = config.DefaultConfigPath
 	}
 
-	cfg, err := config.LoadFromPath(cfgPath)
+	cfg, absCfgPath, err := config.LoadFromPath(cfgPath)
 	if err != nil {
-		log.Fatalf("Failed to load config from %s: %v", cfgPath, err)
+		stdlog.Fatalf("Failed to load config from %s: %v", cfgPath, err)
 	}
 
 	fmt.Printf("Khayal v%s\n", version.Get())
 	fmt.Println()
 
-	fmt.Printf("Config:       %s\n", cfgPath)
+	fmt.Printf("Config:       %s\n", absCfgPath)
 	fmt.Printf("Vault path:   %s\n", cfg.Vault.Path)
 	fmt.Printf("DB path:      %s\n", cfg.DB.Path)
 	fmt.Printf("Server:       %s:%d\n", cfg.Server.Host, cfg.Server.Port)
 	fmt.Printf("LLM provider: %s\n", cfg.LLM.Provider)
+	fmt.Printf("Log level:    %s\n", cfg.Log.Level)
+	if cfg.Log.WorkerLevel != "" {
+		fmt.Printf("Worker level: %s\n", cfg.Log.WorkerLevel)
+	}
 	fmt.Println()
 
-	if err := cfg.EnsureDirectories(); err != nil {
-		log.Fatalf("Failed to create directories: %v", err)
+	if err := cfg.EnsureDirectories(absCfgPath); err != nil {
+		stdlog.Fatalf("Failed to create directories: %v", err)
 	}
 
 	fmt.Println("All directories ready.")
 
-	q, err := queue.NewQueue(cfg.DB.Path)
+	loggerSetup, err := log.SetupLogger(
+		cfg.Log.File,
+		absCfgPath,
+		cfg.Log.RotationMaxSizeMB,
+		cfg.Log.RotationMaxFiles,
+		cfg.Log.Level,
+		cfg.Log.WorkerLevel,
+	)
 	if err != nil {
-		log.Fatalf("Failed to initialize queue: %v", err)
+		stdlog.Fatalf("Failed to initialize logger: %v", err)
+	}
+	defer loggerSetup.Close()
+	defer loggerSetup.Sync()
+	loggerSetup.MainLogger.Info("logging initialized",
+		"log_file", cfg.Log.File,
+		"level", cfg.Log.Level,
+		"worker_level", cfg.Log.WorkerLevel,
+	)
+
+	dbPath := config.MakeAbsolute(cfg.DB.Path, absCfgPath)
+	q, err := queue.NewQueue(dbPath)
+	if err != nil {
+		stdlog.Fatalf("Failed to initialize queue: %v", err)
 	}
 	defer q.Close()
 	fmt.Println("Database ready.")
 
-	v, err := vault.NewWriter(cfg)
+	v, err := vault.NewWriter(cfg, absCfgPath)
 	if err != nil {
-		log.Fatalf("Failed to initialize vault: %v", err)
+		stdlog.Fatalf("Failed to initialize vault: %v", err)
 	}
 	fmt.Println("Vault ready.")
 
 	llmClient, err := llm.NewLLM(cfg.LLM)
 	if err != nil {
-		log.Fatalf("Failed to initialize LLM: %v", err)
+		stdlog.Fatalf("Failed to initialize LLM: %v", err)
 	}
 	fmt.Println("LLM ready.")
 
-	w := worker.NewWorker(cfg.Worker, q, v, llmClient)
+	w := worker.NewWorker(cfg.Worker, q, v, llmClient, loggerSetup.WorkerLogger)
 	w.Start()
 	defer w.Stop()
 	fmt.Println("Worker started.")
 
-	srv := api.NewServer(cfg, q, v, llmClient)
+	srv := api.NewServer(cfg, q, v, llmClient, loggerSetup.MainLogger)
 
 	go func() {
 		if err := srv.Start(); err != nil {
-			log.Printf("Server error: %v", err)
+			loggerSetup.MainLogger.Error("server error", "error", err)
 		}
 	}()
 
@@ -97,7 +109,8 @@ func main() {
 
 	fmt.Println("\nShutting down...")
 	if err := srv.Close(); err != nil {
-		log.Printf("Error closing server: %v", err)
+		loggerSetup.MainLogger.Error("error closing server", "error", err)
 	}
+	loggerSetup.MainLogger.Info("goodbye")
 	fmt.Println("Goodbye!")
 }

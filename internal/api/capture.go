@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -60,6 +61,10 @@ func (s *Server) handleTextCapture(w http.ResponseWriter, r *http.Request) {
 		jobType = "text"
 	}
 
+	if jobType == "url" {
+		jobType = "article"
+	}
+
 	ctx := context.Background()
 	now := time.Now()
 
@@ -67,8 +72,14 @@ func (s *Server) handleTextCapture(w http.ResponseWriter, r *http.Request) {
 		ID:        uuid.New().String(),
 		Type:      jobType,
 		Status:    "pending",
-		Content:   req.Content,
 		CreatedAt: now,
+	}
+
+	if jobType == "article" && req.Type == "url" {
+		job.SourceURL = req.Content
+		job.Content = ""
+	} else {
+		job.Content = req.Content
 	}
 
 	if err := s.queue.CreateJob(ctx, job); err != nil {
@@ -100,13 +111,18 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	_, err = io.ReadAll(io.LimitReader(file, maxSize))
+	limitedReader := io.LimitReader(file, maxSize)
+	content, err := io.ReadAll(limitedReader)
 	if err != nil {
 		WriteError(w, "failed to read file", "CAPTURE_READ_FAILED", http.StatusInternalServerError)
 		return
 	}
 
-	_ = header.Filename
+	mediaPath, err := s.vault.CopyMediaFromReader(bytes.NewReader(content), header.Filename)
+	if err != nil {
+		WriteError(w, "failed to save media", "VAULT_MEDIA_FAILED", http.StatusInternalServerError)
+		return
+	}
 
 	note := r.FormValue("note")
 
@@ -117,6 +133,7 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
 		ID:          uuid.New().String(),
 		Type:        "image",
 		Status:      "pending",
+		SourceFile:  mediaPath,
 		UserContext: note,
 		CreatedAt:   now,
 	}
@@ -131,7 +148,7 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
 	WriteCreated(w, CaptureResponse{
 		ID:        job.ID,
 		Type:      "image",
-		Status:    "processing",
+		Status:    job.Status,
 		NotePath:  notePath,
 		CreatedAt: job.CreatedAt.Format(time.RFC3339),
 	})

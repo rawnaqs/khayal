@@ -19,14 +19,14 @@ Khayal uses a simple token-based authentication. Every request must include a va
 
 ```bash
 curl -H "X-Khayal-Token: a1b2c3d4e5f6..." \
-     http://localhost:7766/v1/health
+     http://localhost:1133/v1/health
 ```
 
 ### In Code
 
 ```go
 client := &http.Client{}
-req, _ := http.NewRequest("GET", "http://localhost:7766/v1/health", nil)
+req, _ := http.NewRequest("GET", "http://localhost:1133/v1/health", nil)
 req.Header.Set("X-Khayal-Token", "a1b2c3d4e5f6...")
 resp, _ := client.Do(req)
 ```
@@ -34,7 +34,7 @@ resp, _ := client.Do(req)
 ### JavaScript/Fetch
 
 ```javascript
-fetch('http://localhost:7766/v1/health', {
+fetch('http://localhost:1133/v1/health', {
   headers: {
     'X-Khayal-Token': 'a1b2c3d4e5f6...'
   }
@@ -47,7 +47,7 @@ fetch('http://localhost:7766/v1/health', {
 import requests
 
 headers = {'X-Khayal-Token': 'a1b2c3d4e5f6...'}
-response = requests.get('http://localhost:7766/v1/health', headers=headers)
+response = requests.get('http://localhost:1133/v1/health', headers=headers)
 ```
 
 ## Getting Your Token
@@ -144,7 +144,7 @@ const apiCall = async (endpoint: string) => {
 ```yaml
 server:
   host: 127.0.0.1  # Never 0.0.0.0 by default
-  port: 7766
+  port: 1133
 ```
 
 ### For Remote Access
@@ -152,7 +152,7 @@ server:
 ```yaml
 server:
   host: 0.0.0.0  # Listen on all interfaces
-  port: 7766
+  port: 1133
 ```
 
 **Warning**: Only do this on trusted networks or with VPN (e.g., Tailscale).
@@ -194,7 +194,7 @@ For CI/CD or scripts:
 
 ```bash
 export KHAYAL_TOKEN="your-token"
-export KHAYAL_HOST="http://localhost:7766"
+export KHAYAL_HOST="http://localhost:1133"
 
 # Use in scripts
 curl -H "X-Khayal-Token: $KHAYAL_TOKEN" \

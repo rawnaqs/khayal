@@ -13,22 +13,49 @@ import (
 )
 
 type OllamaClient struct {
-	baseURL     string
-	embedModel  string
-	textModel   string
-	visionModel string
-	httpClient  *http.Client
+	baseURL               string
+	embedModel            string
+	textModel             string
+	visionModel           string
+	truncateTextTokens    int
+	truncateImageTokens   int
+	truncateArticleTokens int
+	httpClient            *http.Client
 }
 
 func NewOllamaClient(baseURL, embedModel, textModel, visionModel string) *OllamaClient {
 	return &OllamaClient{
-		baseURL:     strings.TrimSuffix(baseURL, "/"),
-		embedModel:  embedModel,
-		textModel:   textModel,
-		visionModel: visionModel,
+		baseURL:               strings.TrimSuffix(baseURL, "/"),
+		embedModel:            embedModel,
+		textModel:             textModel,
+		visionModel:           visionModel,
+		truncateTextTokens:    2000,
+		truncateImageTokens:   3000,
+		truncateArticleTokens: 12000,
 		httpClient: &http.Client{
 			Timeout: 120 * time.Second,
 		},
+	}
+}
+
+func NewOllamaClientWithConfig(baseURL, embedModel, textModel, visionModel string, truncateText, truncateImage, truncateArticle int) *OllamaClient {
+	client := NewOllamaClient(baseURL, embedModel, textModel, visionModel)
+	client.truncateTextTokens = truncateText
+	client.truncateImageTokens = truncateImage
+	client.truncateArticleTokens = truncateArticle
+	return client
+}
+
+func (c *OllamaClient) truncateLimit(bucket string) int {
+	switch bucket {
+	case "text":
+		return c.truncateTextTokens
+	case "image":
+		return c.truncateImageTokens
+	case "article":
+		return c.truncateArticleTokens
+	default:
+		return c.truncateTextTokens
 	}
 }
 
@@ -173,8 +200,8 @@ func (c *OllamaClient) DescribeImage(imagePath string) (string, error) {
 	return result.Response, nil
 }
 
-func (c *OllamaClient) ExtractTags(content string) ([]string, error) {
-	truncated := truncateForLLM(content, 2000)
+func (c *OllamaClient) ExtractTags(content string, bucket string) ([]string, error) {
+	truncated := truncateForLLM(content, c.truncateLimit(bucket))
 
 	prompt := fmt.Sprintf(`Extract 3-5 relevant tags for the following content. 
 Return only a JSON array of strings, nothing else. No markdown.
@@ -220,8 +247,8 @@ Tags:`, truncated)
 	return tags, nil
 }
 
-func (c *OllamaClient) Summarize(content string) (string, error) {
-	truncated := truncateForLLM(content, 4000)
+func (c *OllamaClient) Summarize(content string, bucket string) (string, error) {
+	truncated := truncateForLLM(content, c.truncateLimit(bucket))
 
 	prompt := fmt.Sprintf(`Summarize the following content in 2-3 sentences.
 
@@ -238,8 +265,8 @@ Summary:`, truncated)
 	return strings.TrimSpace(result), nil
 }
 
-func (c *OllamaClient) ExtractKeyIdeas(content string) ([]string, error) {
-	truncated := truncateForLLM(content, 3000)
+func (c *OllamaClient) ExtractKeyIdeas(content string, bucket string) ([]string, error) {
+	truncated := truncateForLLM(content, c.truncateLimit(bucket))
 
 	prompt := fmt.Sprintf(`Extract 3-5 key ideas from the following content.
 Return only a JSON array of strings, nothing else. No markdown.

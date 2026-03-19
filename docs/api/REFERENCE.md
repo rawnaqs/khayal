@@ -5,7 +5,7 @@
 ## Base URL
 
 ```
-http://localhost:7766/v1
+http://localhost:1133/v1
 ```
 
 ## Authentication
@@ -14,7 +14,7 @@ All requests require the `X-Khayal-Token` header:
 
 ```bash
 curl -H "X-Khayal-Token: your-token-here" \
-     http://localhost:7766/v1/health
+     http://localhost:1133/v1/health
 ```
 
 See [AUTH.md](AUTH.md) for detailed authentication guide.
@@ -55,7 +55,7 @@ Capture text, URL, or image for processing.
 #### Text Capture (JSON)
 
 ```bash
-curl -X POST http://localhost:7766/v1/capture \
+curl -X POST http://localhost:1133/v1/capture \
   -H "Content-Type: application/json" \
   -H "X-Khayal-Token: your-token" \
   -d '{"type": "text", "content": "useEffect cleanup runs after every render"}'
@@ -66,8 +66,8 @@ curl -X POST http://localhost:7766/v1/capture \
 {
   "id": "abc123",
   "type": "text",
-  "status": "done",
-  "note_path": "inbox/2024-03-16-thought.md",
+  "status": "pending",
+  "note_path": "",
   "created_at": "2024-03-16T14:23:00Z"
 }
 ```
@@ -75,7 +75,7 @@ curl -X POST http://localhost:7766/v1/capture \
 #### URL Capture (JSON)
 
 ```bash
-curl -X POST http://localhost:7766/v1/capture \
+curl -X POST http://localhost:1133/v1/capture \
   -H "Content-Type: application/json" \
   -H "X-Khayal-Token: your-token" \
   -d '{"type": "url", "content": "https://blog.example.com/post"}'
@@ -86,8 +86,8 @@ curl -X POST http://localhost:7766/v1/capture \
 {
   "id": "def456",
   "type": "article",
-  "status": "processing",
-  "note_path": null,
+  "status": "pending",
+  "note_path": "",
   "created_at": "2024-03-16T14:23:00Z"
 }
 ```
@@ -95,7 +95,7 @@ curl -X POST http://localhost:7766/v1/capture \
 #### Image Capture (Multipart)
 
 ```bash
-curl -X POST http://localhost:7766/v1/capture \
+curl -X POST http://localhost:1133/v1/capture \
   -H "X-Khayal-Token: your-token" \
   -F "type=image" \
   -F "file=@screenshot.png" \
@@ -107,8 +107,8 @@ curl -X POST http://localhost:7766/v1/capture \
 {
   "id": "ghi789",
   "type": "image",
-  "status": "processing",
-  "note_path": null,
+  "status": "pending",
+  "note_path": "khayal/2024-03-16-image.md",
   "created_at": "2024-03-16T14:23:00Z"
 }
 ```
@@ -134,15 +134,15 @@ Search knowledge base.
 **Example:**
 ```bash
 # Basic search
-curl "http://localhost:7766/v1/search?q=distributed+systems&limit=5&mode=hybrid" \
+curl "http://localhost:1133/v1/search?q=distributed+systems&limit=5&mode=hybrid" \
   -H "X-Khayal-Token: your-token"
 
 # Search with date filter
-curl "http://localhost:7766/v1/search?q=react&from=2024-01-01&to=2024-12-31" \
+curl "http://localhost:1133/v1/search?q=react&from=2024-01-01&to=2024-12-31" \
   -H "X-Khayal-Token: your-token"
 
 # Search with connections (v1.1+)
-curl "http://localhost:7766/v1/search?q=react&connections=true" \
+curl "http://localhost:1133/v1/search?q=react&connections=true" \
   -H "X-Khayal-Token: your-token"
 ```
 
@@ -154,7 +154,7 @@ curl "http://localhost:7766/v1/search?q=react&connections=true" \
   "results": [
     {
       "id": "abc123",
-      "note_path": "inbox/2024-03-10-cap-theorem.md",
+      "note_path": "khayal/2024-03-10-cap-theorem.md",
       "title": "CAP Theorem Notes",
       "excerpt": "...consistency and availability cannot both be guaranteed...",
       "score": 0.94,
@@ -183,7 +183,7 @@ List jobs in queue.
 
 **Example:**
 ```bash
-curl "http://localhost:7766/v1/queue?status=failed&limit=10" \
+curl "http://localhost:1133/v1/queue?status=failed&limit=10" \
   -H "X-Khayal-Token: your-token"
 ```
 
@@ -217,7 +217,7 @@ Get single job by ID.
 
 **Example:**
 ```bash
-curl http://localhost:7766/v1/queue/abc123 \
+curl http://localhost:1133/v1/queue/abc123 \
   -H "X-Khayal-Token: your-token"
 ```
 
@@ -244,7 +244,7 @@ Retry a pending or failed job.
 
 **Example:**
 ```bash
-curl -X POST http://localhost:7766/v1/queue/abc123/retry \
+curl -X POST http://localhost:1133/v1/queue/abc123/retry \
   -H "X-Khayal-Token: your-token"
 ```
 
@@ -271,7 +271,7 @@ Permanently delete a pending or failed job.
 
 **Example:**
 ```bash
-curl -X POST http://localhost:7766/v1/queue/abc123/discard \
+curl -X POST http://localhost:1133/v1/queue/abc123/discard \
   -H "X-Khayal-Token: your-token"
 ```
 
@@ -310,6 +310,10 @@ All errors return `{"error": "...", "code": "...", "hint": "..."}`. See SPEC.md 
 | SEARCH_003 | 400 | Invalid mode |
 | VAULT_001 | 500 | Vault path not found |
 | VAULT_002 | 500 | Vault write failed |
+| VAULT_003 | 500 | Path must be absolute |
+| VAULT_004 | 500 | Path outside vault directory |
+| VAULT_005 | 500 | Path outside inbox directory |
+| VAULT_006 | 404 | Note not found |
 | LLM_001 | 500 | Ollama unreachable |
 | LLM_002 | 500 | Model not found |
 | QUEUE_002 | 404 | Job not found |

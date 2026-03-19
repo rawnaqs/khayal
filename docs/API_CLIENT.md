@@ -22,7 +22,7 @@ import "github.com/rawnaqs/khayal/internal/api/client"
 
 func main() {
     c := client.New(
-        "http://localhost:7766",
+        "http://localhost:1133",
         "your-token",
     )
     

@@ -22,19 +22,19 @@ func IngestText(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Q
 
 	g.Go(func() error {
 		var err error
-		tags, err = llmClient.ExtractTags(job.Content)
+		tags, err = llmClient.ExtractTags(job.Content, llm.BucketText)
 		return err
 	})
 
 	g.Go(func() error {
 		var err error
-		summary, err = llmClient.Summarize(job.Content)
+		summary, err = llmClient.Summarize(job.Content, llm.BucketText)
 		return err
 	})
 
 	g.Go(func() error {
 		var err error
-		keyIdeas, err = llmClient.ExtractKeyIdeas(job.Content)
+		keyIdeas, err = llmClient.ExtractKeyIdeas(job.Content, llm.BucketText)
 		return err
 	})
 
@@ -62,7 +62,7 @@ func IngestText(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Q
 		Raw:      job.Content,
 	}
 
-	notePath, err := v.WriteNote(note)
+	notePath, err := v.WriteNote(note, job.ID)
 	if err != nil {
 		return "", fmt.Errorf("failed to write note: %w", err)
 	}

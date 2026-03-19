@@ -2,7 +2,10 @@ package vault
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -18,6 +21,13 @@ const (
 	MaxTags        = 20
 	MaxHistory     = 50
 	MaxFilenameLen = 200
+)
+
+var (
+	ErrVaultPathNotAbsolute  = errors.New("vault: path must be absolute")
+	ErrVaultPathOutsideVault = errors.New("vault: path must be within vault")
+	ErrVaultPathOutsideInbox = errors.New("vault: path must be within inbox")
+	ErrVaultNoteNotFound     = errors.New("vault: note not found in inbox")
 )
 
 type Writer struct {
@@ -62,29 +72,42 @@ type Note struct {
 	Raw      string
 }
 
-func NewWriter(cfg *config.Config) (*Writer, error) {
-	basePath := expandPath(cfg.Vault.Path)
-	inboxPath := filepath.Join(basePath, cfg.Vault.InboxDir)
-	mediaPath := filepath.Join(inboxPath, "media")
-
-	if err := os.MkdirAll(inboxPath, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create inbox directory: %w", err)
-	}
-	if err := os.MkdirAll(mediaPath, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create media directory: %w", err)
-	}
-
-	return &Writer{
-		basePath:  basePath,
-		inboxPath: inboxPath,
-		mediaPath: mediaPath,
-	}, nil
+func (w *Writer) isPathInVault(path string) bool {
+	return strings.HasPrefix(path, w.basePath)
 }
 
-func NewWriterWithPaths(vaultPath, inboxDir string) (*Writer, error) {
-	basePath := expandPath(vaultPath)
-	inboxPath := filepath.Join(basePath, inboxDir)
-	mediaPath := filepath.Join(inboxPath, "media")
+func (w *Writer) isPathInInbox(path string) bool {
+	return strings.HasPrefix(path, w.inboxPath)
+}
+
+func (w *Writer) isPathInMedia(path string) bool {
+	return strings.HasPrefix(path, w.mediaPath)
+}
+
+func (w *Writer) ensurePathInVault(path string) error {
+	if !filepath.IsAbs(path) {
+		slog.Warn("vault path validation failed", "reason", "not_absolute", "path", path)
+		return fmt.Errorf("%w: %s", ErrVaultPathNotAbsolute, path)
+	}
+	if !w.isPathInVault(path) {
+		slog.Warn("vault path validation failed", "reason", "outside_vault", "path", path)
+		return fmt.Errorf("%w: %s", ErrVaultPathOutsideVault, path)
+	}
+	return nil
+}
+
+func (w *Writer) ensurePathInInbox(path string) error {
+	if !w.isPathInInbox(path) {
+		slog.Warn("vault path validation failed", "reason", "outside_inbox", "path", path)
+		return fmt.Errorf("%w: %s", ErrVaultPathOutsideInbox, path)
+	}
+	return nil
+}
+
+func NewWriter(cfg *config.Config, configPath string) (*Writer, error) {
+	basePath := config.MakeAbsolute(cfg.Vault.Path, configPath)
+	inboxPath := filepath.Join(basePath, cfg.Vault.InboxDir)
+	mediaPath := filepath.Join(inboxPath, cfg.Vault.Media.DefaultDir)
 
 	if err := os.MkdirAll(inboxPath, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create inbox directory: %w", err)
@@ -117,7 +140,7 @@ func (w *Writer) MediaPath() string {
 	return w.mediaPath
 }
 
-func (w *Writer) WriteNote(note *Note) (string, error) {
+func (w *Writer) WriteNote(note *Note, jobID string) (string, error) {
 	sanitizedContent := sanitizeUTF8(note.Raw)
 	if !utf8.ValidString(sanitizedContent) {
 		return "", fmt.Errorf("invalid UTF-8 content")
@@ -141,7 +164,7 @@ func (w *Writer) WriteNote(note *Note) (string, error) {
 		Event: "created",
 	})
 
-	filename := w.generateFilename(note)
+	filename := w.generateFilename(note, jobID)
 	notePath := filepath.Join(w.inboxPath, filename)
 	relativePath := filepath.Join(filepath.Base(w.inboxPath), filename)
 
@@ -157,11 +180,17 @@ func (w *Writer) WriteNote(note *Note) (string, error) {
 func (w *Writer) UpdateNote(notePath string, note *Note) error {
 	absolutePath := w.resolvePath(notePath)
 
-	if !w.NoteExists(notePath) {
-		return fmt.Errorf("note does not exist: %s", notePath)
+	if err := w.ensurePathInInbox(absolutePath); err != nil {
+		return err
 	}
 
 	info, err := os.Stat(absolutePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("%w: %s", ErrVaultNoteNotFound, notePath)
+		}
+		return fmt.Errorf("failed to stat note: %w", err)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to stat note: %w", err)
 	}
@@ -196,7 +225,11 @@ func (w *Writer) UpdateNote(notePath string, note *Note) error {
 func (w *Writer) DeleteNote(notePath string) error {
 	absolutePath := w.resolvePath(notePath)
 
-	trashPath := filepath.Join(w.basePath, ".khayal-trash")
+	if err := w.ensurePathInInbox(absolutePath); err != nil {
+		return err
+	}
+
+	trashPath := filepath.Join(w.inboxPath, ".khayal-trash")
 	if err := os.MkdirAll(trashPath, 0755); err != nil {
 		return fmt.Errorf("failed to create trash directory: %w", err)
 	}
@@ -212,6 +245,13 @@ func (w *Writer) DeleteNote(notePath string) error {
 }
 
 func (w *Writer) CopyMediaFile(srcPath string) (string, error) {
+	if err := w.ensurePathInVault(srcPath); err != nil {
+		return "", err
+	}
+	if err := w.ensurePathInInbox(srcPath); err != nil {
+		return "", err
+	}
+
 	srcFile, err := os.Open(srcPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to open source file: %w", err)
@@ -237,7 +277,31 @@ func (w *Writer) CopyMediaFile(srcPath string) (string, error) {
 		return "", fmt.Errorf("failed to copy media file: %w", err)
 	}
 
-	relativePath := filepath.Join(filepath.Base(w.inboxPath), "media", filename)
+	relativePath := filepath.Join(filepath.Base(w.inboxPath), filepath.Base(w.mediaPath), filename)
+	return relativePath, nil
+}
+
+func (w *Writer) CopyMediaFromReader(reader io.Reader, originalFilename string) (string, error) {
+	ext := filepath.Ext(originalFilename)
+	if ext == "" {
+		ext = ".bin"
+	}
+
+	filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
+	destPath := filepath.Join(w.mediaPath, filename)
+
+	destFile, err := os.Create(destPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create media file: %w", err)
+	}
+	defer destFile.Close()
+
+	if _, err := destFile.ReadFrom(reader); err != nil {
+		os.Remove(destPath)
+		return "", fmt.Errorf("failed to copy media: %w", err)
+	}
+
+	relativePath := filepath.Join(filepath.Base(w.inboxPath), filepath.Base(w.mediaPath), filename)
 	return relativePath, nil
 }
 
@@ -247,6 +311,9 @@ func (w *Writer) ResolvePath(relative string) string {
 
 func (w *Writer) NoteExists(notePath string) bool {
 	absolutePath := w.resolvePath(notePath)
+	if !w.isPathInInbox(absolutePath) {
+		return false
+	}
 	_, err := os.Stat(absolutePath)
 	return err == nil
 }
@@ -264,7 +331,7 @@ func (w *Writer) resolvePath(relative string) string {
 	return filepath.Join(w.basePath, relative)
 }
 
-func (w *Writer) generateFilename(note *Note) string {
+func (w *Writer) generateFilename(note *Note, jobID string) string {
 	date := note.Metadata.Created.Format("2006-01-02")
 
 	title := cleanFilename(note.Title)
@@ -279,7 +346,7 @@ func (w *Writer) generateFilename(note *Note) string {
 		title = title[:50]
 	}
 
-	filename := fmt.Sprintf("%s-%s.md", date, title)
+	filename := fmt.Sprintf("%s-%s-%s.md", date, title, jobID[:8])
 
 	if len(filename) > MaxFilenameLen {
 		filename = filename[:MaxFilenameLen-3] + "..."
@@ -468,17 +535,6 @@ func sanitizeUTF8(s string) string {
 	}
 
 	return buf.String()
-}
-
-func expandPath(path string) string {
-	if strings.HasPrefix(path, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return path
-		}
-		return filepath.Join(home, path[2:])
-	}
-	return os.ExpandEnv(path)
 }
 
 func min(a, b int) int {

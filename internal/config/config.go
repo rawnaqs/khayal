@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -23,6 +24,7 @@ type Config struct {
 	Worker WorkerConfig `yaml:"worker"`
 	DB     DBConfig     `yaml:"db"`
 	Search SearchConfig `yaml:"search"`
+	Log    LogConfig    `yaml:"log"`
 }
 
 type VaultConfig struct {
@@ -47,20 +49,22 @@ type ServerConfig struct {
 	Host             string `yaml:"host"`
 	Port             int    `yaml:"port"`
 	Token            string `yaml:"token"`
-	LogFile          string `yaml:"log_file"`
 	MaxTextBodyMB    int    `yaml:"max_text_body_mb"`
 	MaxImageBodyMB   int    `yaml:"max_image_body_mb"`
 	ShutdownTimeoutS int    `yaml:"shutdown_timeout_s"`
 }
 
 type LLMConfig struct {
-	Provider         string `yaml:"provider"`
-	OllamaHost       string `yaml:"ollama_host"`
-	EmbedModel       string `yaml:"embed_model"`
-	TextModel        string `yaml:"text_model"`
-	VisionModel      string `yaml:"vision_model"`
-	FallbackProvider string `yaml:"fallback_provider"`
-	FallbackAPIKey   string `yaml:"fallback_api_key"`
+	Provider              string `yaml:"provider"`
+	OllamaHost            string `yaml:"ollama_host"`
+	EmbedModel            string `yaml:"embed_model"`
+	TextModel             string `yaml:"text_model"`
+	VisionModel           string `yaml:"vision_model"`
+	FallbackProvider      string `yaml:"fallback_provider"`
+	FallbackAPIKey        string `yaml:"fallback_api_key"`
+	TruncateTextTokens    int    `yaml:"truncate_text_tokens"`
+	TruncateImageTokens   int    `yaml:"truncate_image_tokens"`
+	TruncateArticleTokens int    `yaml:"truncate_article_tokens"`
 }
 
 type WorkerConfig struct {
@@ -80,13 +84,21 @@ type SearchConfig struct {
 	MinSemanticScore float64 `yaml:"min_semantic_score"`
 }
 
+type LogConfig struct {
+	Level             string `yaml:"level"`
+	WorkerLevel       string `yaml:"worker_level"`
+	File              string `yaml:"file"`
+	RotationMaxSizeMB int    `yaml:"rotation_max_size_mb"`
+	RotationMaxFiles  int    `yaml:"rotation_max_files"`
+}
+
 func DefaultConfig() *Config {
 	return &Config{
 		Vault: VaultConfig{
 			Path:     "~/Documents/brain",
-			InboxDir: "inbox",
+			InboxDir: "khayal",
 			Media: MediaConfig{
-				DefaultDir: "inbox/media",
+				DefaultDir: "media",
 				Strategy: StrategyConfig{
 					Image: "vault",
 					PDF:   "vault",
@@ -97,19 +109,21 @@ func DefaultConfig() *Config {
 		},
 		Server: ServerConfig{
 			Host:             "127.0.0.1",
-			Port:             7766,
+			Port:             1133,
 			Token:            "",
-			LogFile:          DefaultLogPath,
 			MaxTextBodyMB:    1,
 			MaxImageBodyMB:   10,
 			ShutdownTimeoutS: 30,
 		},
 		LLM: LLMConfig{
-			Provider:    "ollama",
-			OllamaHost:  "http://localhost:11434",
-			EmbedModel:  "nomic-embed-text",
-			TextModel:   "llama3.2:3b",
-			VisionModel: "moondream",
+			Provider:              "ollama",
+			OllamaHost:            "http://localhost:11434",
+			EmbedModel:            "nomic-embed-text",
+			TextModel:             "llama3.2:3b",
+			VisionModel:           "moondream",
+			TruncateTextTokens:    2000,
+			TruncateImageTokens:   3000,
+			TruncateArticleTokens: 12000,
 		},
 		Worker: WorkerConfig{
 			MaxWorkers:   1,
@@ -127,42 +141,51 @@ func DefaultConfig() *Config {
 	}
 }
 
-func Load() (*Config, error) {
+func Load() (*Config, string, error) {
 	return LoadFromPath(DefaultConfigPath)
 }
 
-func LoadFromPath(path string) (*Config, error) {
-	path = expandPath(path)
+func LoadFromPath(path string) (*Config, string, error) {
+	absPath, err := filepath.Abs(expandTilde(path))
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to resolve config path: %w", err)
+	}
 
 	cfg := DefaultConfig()
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return cfg, nil
+			return cfg, absPath, nil
 		}
-		return nil, fmt.Errorf("failed to read config: %w", err)
+		return nil, "", fmt.Errorf("failed to read config: %w", err)
 	}
 
 	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config: %w", err)
+		return nil, "", fmt.Errorf("failed to parse config: %w", err)
 	}
 
 	cfg.ApplyDefaults()
 
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("config validation failed: %w", err)
+		return nil, "", fmt.Errorf("config validation failed: %w", err)
 	}
 
-	return cfg, nil
+	return cfg, absPath, nil
 }
 
 func (c *Config) ApplyDefaults() {
+	if c.Vault.InboxDir == "" {
+		c.Vault.InboxDir = "khayal"
+	}
 	if c.Server.MaxTextBodyMB == 0 {
 		c.Server.MaxTextBodyMB = 1
 	}
 	if c.Server.MaxImageBodyMB == 0 {
 		c.Server.MaxImageBodyMB = 10
+	}
+	if c.Server.Port == 0 {
+		c.Server.Port = 1133
 	}
 	if c.Server.ShutdownTimeoutS == 0 {
 		c.Server.ShutdownTimeoutS = 30
@@ -179,11 +202,38 @@ func (c *Config) ApplyDefaults() {
 	if c.Search.MinSemanticScore == 0 {
 		c.Search.MinSemanticScore = 0.5
 	}
+	if c.LLM.TruncateTextTokens == 0 {
+		c.LLM.TruncateTextTokens = 2000
+	}
+	if c.LLM.TruncateImageTokens == 0 {
+		c.LLM.TruncateImageTokens = 3000
+	}
+	if c.LLM.TruncateArticleTokens == 0 {
+		c.LLM.TruncateArticleTokens = 12000
+	}
+	if c.Log.Level == "" {
+		c.Log.Level = "info"
+	}
+	if c.Log.File == "" {
+		c.Log.File = DefaultLogPath
+	}
+	if c.Log.RotationMaxSizeMB == 0 {
+		c.Log.RotationMaxSizeMB = 10
+	}
+	if c.Log.RotationMaxFiles == 0 {
+		c.Log.RotationMaxFiles = 5
+	}
 }
 
 func (c *Config) Validate() error {
 	if c.Vault.Path == "" {
 		return fmt.Errorf("vault.path is required")
+	}
+	if err := ValidateVaultSubPath(c.Vault.InboxDir); err != nil {
+		return fmt.Errorf("vault.inbox_dir: %w", err)
+	}
+	if err := ValidateVaultSubPath(c.Vault.Media.DefaultDir); err != nil {
+		return fmt.Errorf("vault.media.default_dir: %w", err)
 	}
 	if c.Server.Port < 1 || c.Server.Port > 65535 {
 		return fmt.Errorf("server.port must be between 1 and 65535")
@@ -194,12 +244,33 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-func (c *Config) EnsureDirectories() error {
+func ValidateVaultSubPath(path string) error {
+	if path == "" {
+		return errors.New("cannot be empty")
+	}
+	if filepath.IsAbs(path) {
+		return fmt.Errorf("must be relative: %s", path)
+	}
+	if strings.HasPrefix(path, "~") || strings.Contains(path, "$") {
+		return fmt.Errorf("must not contain ~ or env vars: %s", path)
+	}
+	cleaned := filepath.Clean(path)
+	if strings.HasPrefix(cleaned, "..") || cleaned == ".." {
+		return fmt.Errorf("must not escape vault: %s", path)
+	}
+	if strings.HasPrefix(filepath.Base(path), ".") {
+		return fmt.Errorf("must not be hidden: %s", path)
+	}
+	return nil
+}
+
+func (c *Config) EnsureDirectories(configPath string) error {
+	cfgDir := filepath.Dir(configPath)
 	paths := []string{
-		filepath.Dir(expandPath(DefaultConfigPath)),
-		expandPath(c.Vault.Path),
-		filepath.Dir(expandPath(c.DB.Path)),
-		filepath.Dir(expandPath(c.Server.LogFile)),
+		cfgDir,
+		MakeAbsolute(c.Vault.Path, configPath),
+		filepath.Dir(MakeAbsolute(c.DB.Path, configPath)),
+		filepath.Dir(MakeAbsolute(c.Log.File, configPath)),
 	}
 
 	for _, p := range paths {
@@ -218,27 +289,37 @@ func GenerateToken() string {
 }
 
 func Save(cfg *Config, path string) error {
-	path = expandPath(path)
+	absPath := expandTilde(path)
 
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0600); err != nil {
+	if err := os.WriteFile(absPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write config: %w", err)
 	}
 
 	return nil
 }
 
-func expandPath(path string) string {
-	if strings.HasPrefix(path, "~/") {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return path
-		}
-		return filepath.Join(home, path[2:])
+func MakeAbsolute(path, configPath string) string {
+	path = os.ExpandEnv(path)
+	path = expandTilde(path)
+
+	if filepath.IsAbs(path) {
+		return path
 	}
-	return os.ExpandEnv(path)
+
+	return filepath.Join(filepath.Dir(configPath), path)
+}
+
+func expandTilde(path string) string {
+	if len(path) >= 2 && path[0] == '~' && path[1] == '/' {
+		home, err := os.UserHomeDir()
+		if err == nil {
+			return filepath.Join(home, path[2:])
+		}
+	}
+	return path
 }

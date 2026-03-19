@@ -242,7 +242,7 @@ kl "my first thought"
 kl search "thoughts"
 
 # After Phase 6+
-# Visit http://127.0.0.1:7766
+# Visit http://127.0.0.1:1133
 ```
 
 ## Contributing

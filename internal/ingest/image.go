@@ -14,7 +14,8 @@ import (
 )
 
 func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt) (string, error) {
-	description, err := llmClient.DescribeImage(job.SourceFile)
+	imagePath := v.ResolvePath(job.SourceFile)
+	description, err := llmClient.DescribeImage(imagePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to describe image: %w", err)
 	}
@@ -30,7 +31,7 @@ func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.
 
 	g.Go(func() error {
 		var err error
-		tags, err = llmClient.ExtractTags(contextText)
+		tags, err = llmClient.ExtractTags(contextText, llm.BucketImage)
 		return err
 	})
 
@@ -60,7 +61,7 @@ func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.
 		Raw:   description,
 	}
 
-	notePath, err := v.WriteNote(note)
+	notePath, err := v.WriteNote(note, job.ID)
 	if err != nil {
 		return "", fmt.Errorf("failed to write note: %w", err)
 	}

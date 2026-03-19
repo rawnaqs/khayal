@@ -1,8 +1,8 @@
 vault:
-  path: testdata/vault
-  inbox_dir: inbox
+  path: ./vault
+  inbox_dir: khayal
   media:
-    default_dir: inbox/media
+    default_dir: media
     strategy:
       image: vault
       pdf: vault
@@ -11,9 +11,8 @@ vault:
 
 server:
   host: 127.0.0.1
-  port: 7766
+  port: 1133
   token: "abc"
-  log_file: ~/.config/khayal/logs/khayal.log
 
 llm:
   provider: ollama
@@ -23,6 +22,9 @@ llm:
   vision_model: moondream
   fallback_provider: ""
   fallback_api_key: ""
+  truncate_text_tokens: 2000
+  truncate_image_tokens: 3000
+  truncate_article_tokens: 12000
 
 worker:
   max_workers: 1
@@ -35,5 +37,12 @@ search:
   rrf_k: 60
   min_semantic_score: 0.5
 
+log:
+  level: info
+  worker_level: debug
+  file: ./logs/khayal.log
+  rotation_max_size_mb: 10
+  rotation_max_files: 5
+
 db:
-  path: testdata/khayal.db
+  path: khayal.db

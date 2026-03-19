@@ -139,9 +139,9 @@ func GenerateToken() string // 32-byte hex
 ```yaml
 vault:
   path: ~/Documents/brain
-  inbox_dir: inbox
+  inbox_dir: khayal
   media:
-    default_dir: inbox/media
+    default_dir: media
     strategy:
       image: vault
       pdf: vault
@@ -150,7 +150,7 @@ vault:
 
 server:
   host: 127.0.0.1
-  port: 7766
+  port: 1133
   token: ""
   log_file: ~/.config/khayal/logs/khayal.log
 
@@ -522,7 +522,7 @@ go test ./internal/vault/...
 - Config path: `~/.config/khayal/config.yaml`
 - DB path: `~/.config/khayal/khayal.db`
 - Vault: User-defined, separate from config dir
-- Default bind: `127.0.0.1:7766`
+- Default bind: `127.0.0.1:1133`
 - Token: 32-byte hex, shown once on init
 
 ---

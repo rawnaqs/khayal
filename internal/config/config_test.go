@@ -12,8 +12,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Vault.Path != "~/Documents/brain" {
 		t.Errorf("expected default vault path ~/Documents/brain, got %s", cfg.Vault.Path)
 	}
-	if cfg.Server.Port != 7766 {
-		t.Errorf("expected default port 7766, got %d", cfg.Server.Port)
+	if cfg.Server.Port != 1133 {
+		t.Errorf("expected default port 1133, got %d", cfg.Server.Port)
 	}
 	if cfg.LLM.Provider != "ollama" {
 		t.Errorf("expected default provider ollama, got %s", cfg.LLM.Provider)
@@ -44,7 +44,7 @@ func TestConfigValidation(t *testing.T) {
 	}{
 		{
 			name:    "empty vault path",
-			cfg:     &Config{Vault: VaultConfig{Path: ""}, Server: ServerConfig{Port: 7766}},
+			cfg:     &Config{Vault: VaultConfig{Path: ""}, Server: ServerConfig{Port: 1133}},
 			wantErr: true,
 		},
 		{
@@ -60,8 +60,14 @@ func TestConfigValidation(t *testing.T) {
 		{
 			name: "valid config - token auto-generated",
 			cfg: &Config{
-				Vault:  VaultConfig{Path: "~/test"},
-				Server: ServerConfig{Port: 7766},
+				Vault: VaultConfig{
+					Path:     "~/test",
+					InboxDir: "inbox",
+					Media: MediaConfig{
+						DefaultDir: "media",
+					},
+				},
+				Server: ServerConfig{Port: 1133},
 			},
 			wantErr: false,
 		},
@@ -92,7 +98,7 @@ func TestSaveAndLoad(t *testing.T) {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	loaded, err := LoadFromPath(configPath)
+	loaded, _, err := LoadFromPath(configPath)
 	if err != nil {
 		t.Fatalf("LoadFromPath() error = %v", err)
 	}
@@ -105,22 +111,25 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 }
 
-func TestExpandPath(t *testing.T) {
+func TestMakeAbsolute(t *testing.T) {
 	home, _ := os.UserHomeDir()
+	configPath := "/home/user/config.yaml"
 
 	tests := []struct {
-		input    string
-		expected string
+		path       string
+		configPath string
+		expected   string
 	}{
-		{"~/test", filepath.Join(home, "test")},
-		{"/absolute/path", "/absolute/path"},
-		{"relative/path", "relative/path"},
+		{"~/test", configPath, filepath.Join(home, "test")},
+		{"/absolute/path", configPath, "/absolute/path"},
+		{"relative/path", configPath, "/home/user/relative/path"},
+		{"$HOME/test", configPath, filepath.Join(home, "test")},
 	}
 
 	for _, tt := range tests {
-		result := expandPath(tt.input)
+		result := MakeAbsolute(tt.path, tt.configPath)
 		if result != tt.expected {
-			t.Errorf("expandPath(%q) = %q, want %q", tt.input, result, tt.expected)
+			t.Errorf("MakeAbsolute(%q, %q) = %q, want %q", tt.path, tt.configPath, result, tt.expected)
 		}
 	}
 }

@@ -19,7 +19,7 @@ func TestWriter(t *testing.T) {
 		},
 	}
 
-	writer, err := NewWriter(cfg)
+	writer, err := NewWriter(cfg, filepath.Join(tmpDir, "config.yaml"))
 	if err != nil {
 		t.Fatalf("NewWriter() error = %v", err)
 	}
@@ -37,9 +37,18 @@ func TestWriter(t *testing.T) {
 func TestWriteNote(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	writer, err := NewWriterWithPaths(tmpDir, "inbox")
+	cfg := &config.Config{
+		Vault: config.VaultConfig{
+			Path:     tmpDir,
+			InboxDir: "inbox",
+			Media: config.MediaConfig{
+				DefaultDir: "media",
+			},
+		},
+	}
+	writer, err := NewWriter(cfg, filepath.Join(tmpDir, "config.yaml"))
 	if err != nil {
-		t.Fatalf("NewWriterWithPaths() error = %v", err)
+		t.Fatalf("NewWriter() error = %v", err)
 	}
 
 	now := time.Now()
@@ -59,7 +68,7 @@ func TestWriteNote(t *testing.T) {
 		Raw: "Original raw content",
 	}
 
-	notePath, err := writer.WriteNote(note)
+	notePath, err := writer.WriteNote(note, "test-job-001")
 	if err != nil {
 		t.Fatalf("WriteNote() error = %v", err)
 	}
@@ -85,9 +94,18 @@ func TestWriteNote(t *testing.T) {
 func TestUpdateNote(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	writer, err := NewWriterWithPaths(tmpDir, "inbox")
+	cfg := &config.Config{
+		Vault: config.VaultConfig{
+			Path:     tmpDir,
+			InboxDir: "inbox",
+			Media: config.MediaConfig{
+				DefaultDir: "media",
+			},
+		},
+	}
+	writer, err := NewWriter(cfg, filepath.Join(tmpDir, "config.yaml"))
 	if err != nil {
-		t.Fatalf("NewWriterWithPaths() error = %v", err)
+		t.Fatalf("NewWriter() error = %v", err)
 	}
 
 	note := &Note{
@@ -100,7 +118,7 @@ func TestUpdateNote(t *testing.T) {
 		Raw:   "Original content",
 	}
 
-	notePath, err := writer.WriteNote(note)
+	notePath, err := writer.WriteNote(note, "test-job-002")
 	if err != nil {
 		t.Fatalf("WriteNote() error = %v", err)
 	}
@@ -129,9 +147,18 @@ func TestUpdateNote(t *testing.T) {
 func TestDeleteNote(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	writer, err := NewWriterWithPaths(tmpDir, "inbox")
+	cfg := &config.Config{
+		Vault: config.VaultConfig{
+			Path:     tmpDir,
+			InboxDir: "inbox",
+			Media: config.MediaConfig{
+				DefaultDir: "media",
+			},
+		},
+	}
+	writer, err := NewWriter(cfg, filepath.Join(tmpDir, "config.yaml"))
 	if err != nil {
-		t.Fatalf("NewWriterWithPaths() error = %v", err)
+		t.Fatalf("NewWriter() error = %v", err)
 	}
 
 	note := &Note{
@@ -144,7 +171,7 @@ func TestDeleteNote(t *testing.T) {
 		Raw:   "Content",
 	}
 
-	notePath, err := writer.WriteNote(note)
+	notePath, err := writer.WriteNote(note, "test-job-003")
 	if err != nil {
 		t.Fatalf("WriteNote() error = %v", err)
 	}
@@ -157,7 +184,7 @@ func TestDeleteNote(t *testing.T) {
 		t.Error("expected note to not exist after deletion")
 	}
 
-	trashPath := filepath.Join(tmpDir, ".khayal-trash")
+	trashPath := filepath.Join(writer.InboxPath(), ".khayal-trash")
 	if _, err := os.Stat(trashPath); os.IsNotExist(err) {
 		t.Error("expected trash directory to exist")
 	}
@@ -233,12 +260,21 @@ func TestParseFrontmatterNoFrontmatter(t *testing.T) {
 func TestCopyMediaFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	writer, err := NewWriterWithPaths(tmpDir, "inbox")
+	cfg := &config.Config{
+		Vault: config.VaultConfig{
+			Path:     tmpDir,
+			InboxDir: "inbox",
+			Media: config.MediaConfig{
+				DefaultDir: "media",
+			},
+		},
+	}
+	writer, err := NewWriter(cfg, filepath.Join(tmpDir, "config.yaml"))
 	if err != nil {
-		t.Fatalf("NewWriterWithPaths() error = %v", err)
+		t.Fatalf("NewWriter() error = %v", err)
 	}
 
-	tmpFile := filepath.Join(tmpDir, "test-image.png")
+	tmpFile := filepath.Join(writer.InboxPath(), "test-image.png")
 	if err := os.WriteFile(tmpFile, []byte("fake image data"), 0644); err != nil {
 		t.Fatalf("failed to create test file: %v", err)
 	}

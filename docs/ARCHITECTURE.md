@@ -153,7 +153,7 @@ Shared typed Go client used by:
 ```go
 import "github.com/rawnaqs/khayal/internal/api/client"
 
-c := client.New("http://localhost:7766", "your-token")
+c := client.New("http://localhost:1133", "your-token")
 
 // Capture
 resp, _ := c.Capture(ctx, client.CaptureRequest{
@@ -266,8 +266,8 @@ No other code changes required. See `docs/phases/phase-4-llm.md` for details.
 └── media/               ← Raw audio/video (not in vault)
 
 <user-vault-path>/       ← User's markdown vault
-├── inbox/               ← New captures
-└── inbox/media/         ← Images
+├── khayal/             ← New captures
+└── khayal/media/       ← Images
 ```
 
 ## API Base
