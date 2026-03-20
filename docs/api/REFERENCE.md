@@ -23,147 +23,32 @@ See [AUTH.md](AUTH.md) for detailed authentication guide.
 
 ---
 
-### GET /health
+### GET /stats
 
-Get system health status, dependency checks, and queue statistics.
+Get vault statistics.
 
 **Response:**
 ```json
 {
-  "status": "ok",
-  "version": "0.1.0",
-  "dependencies": {
-    "ollama": { "status": "ok", "host": "http://localhost:11434" },
-    "vault": { "status": "ok", "path": "~/Documents/brain" },
-    "db": { "status": "ok", "path": "~/.config/khayal/khayal.db" }
+  "total": 2847,
+  "this_week": 23,
+  "this_month": 94,
+  "by_type": {
+    "text": 1420,
+    "article": 890,
+    "image": 537
   },
-  "queue": {
-    "pending": 2,
-    "processing": 1,
-    "done": 147,
-    "failed": 0
-  }
-}
-```
-
----
-
-### POST /capture
-
-Capture text, URL, or image for processing.
-
-#### Text Capture (JSON)
-
-```bash
-curl -X POST http://localhost:1133/v1/capture \
-  -H "Content-Type: application/json" \
-  -H "X-Khayal-Token: your-token" \
-  -d '{"type": "text", "content": "useEffect cleanup runs after every render"}'
-```
-
-**Response:**
-```json
-{
-  "id": "abc123",
-  "type": "text",
-  "status": "pending",
-  "note_path": "",
-  "created_at": "2024-03-16T14:23:00Z"
-}
-```
-
-#### URL Capture (JSON)
-
-```bash
-curl -X POST http://localhost:1133/v1/capture \
-  -H "Content-Type: application/json" \
-  -H "X-Khayal-Token: your-token" \
-  -d '{"type": "url", "content": "https://blog.example.com/post"}'
-```
-
-**Response:**
-```json
-{
-  "id": "def456",
-  "type": "article",
-  "status": "pending",
-  "note_path": "",
-  "created_at": "2024-03-16T14:23:00Z"
-}
-```
-
-#### Image Capture (Multipart)
-
-```bash
-curl -X POST http://localhost:1133/v1/capture \
-  -H "X-Khayal-Token: your-token" \
-  -F "type=image" \
-  -F "file=@screenshot.png" \
-  -F "note=optional context"
-```
-
-**Response:**
-```json
-{
-  "id": "ghi789",
-  "type": "image",
-  "status": "pending",
-  "note_path": "khayal/2024-03-16-image.md",
-  "created_at": "2024-03-16T14:23:00Z"
-}
-```
-
----
-
-### GET /search
-
-Search knowledge base.
-
-**Parameters:**
-
-| Parameter | Required | Default | Description |
-|-----------|----------|---------|-------------|
-| q | Yes | - | Search query |
-| limit | No | 10 | Max results (max 50) |
-| mode | No | hybrid | Search mode: keyword, semantic, hybrid |
-| excerpt_length | No | 200 | Max excerpt chars (max 500) |
-| from | No | - | Filter: notes created after this date (ISO) |
-| to | No | - | Filter: notes created before this date (ISO) |
-| connections | No | false | Include related connections (v1.1+) |
-
-**Example:**
-```bash
-# Basic search
-curl "http://localhost:1133/v1/search?q=distributed+systems&limit=5&mode=hybrid" \
-  -H "X-Khayal-Token: your-token"
-
-# Search with date filter
-curl "http://localhost:1133/v1/search?q=react&from=2024-01-01&to=2024-12-31" \
-  -H "X-Khayal-Token: your-token"
-
-# Search with connections (v1.1+)
-curl "http://localhost:1133/v1/search?q=react&connections=true" \
-  -H "X-Khayal-Token: your-token"
-```
-
-**Response:**
-```json
-{
-  "query": "distributed systems",
-  "mode": "hybrid",
-  "results": [
-    {
-      "id": "abc123",
-      "note_path": "khayal/2024-03-10-cap-theorem.md",
-      "title": "CAP Theorem Notes",
-      "excerpt": "...consistency and availability cannot both be guaranteed...",
-      "score": 0.94,
-      "type": "text",
-      "created_at": "2024-03-10T09:00:00Z"
-    }
+  "top_tags": [
+    { "name": "react", "count": 142 },
+    { "name": "go", "count": 98 },
+    { "name": "work", "count": 87 }
   ],
-  "total": 3,
-  "took_ms": 42
+  "top_people": [
+    { "name": "John Doe", "count": 34 },
+    { "name": "Sarah Chen", "count": 18 }
+  ],
+  "capture_streak": 12,
+  "longest_streak": 34
 }
 ```
 
@@ -299,31 +184,35 @@ All errors follow this format:
 
 ### Error Codes
 
-All errors return `{"error": "...", "code": "...", "hint": "..."}`. See SPEC.md Error Taxonomy for full list.
+All errors return `{"error": "...", "code": "..."}`. See SPEC.md Error Taxonomy for full list.
 
 | Code | HTTP Status | Description |
 |------|-------------|-------------|
-| AUTH_001 | 401 | Invalid token |
-| AUTH_002 | 401 | Token missing |
-| CAPTURE_004 | 400 | Missing required field |
-| SEARCH_001 | 400 | Query too short |
-| SEARCH_003 | 400 | Invalid mode |
-| VAULT_001 | 500 | Vault path not found |
-| VAULT_002 | 500 | Vault write failed |
-| VAULT_003 | 500 | Path must be absolute |
-| VAULT_004 | 500 | Path outside vault directory |
-| VAULT_005 | 500 | Path outside inbox directory |
-| VAULT_006 | 404 | Note not found |
-| LLM_001 | 500 | Ollama unreachable |
-| LLM_002 | 500 | Model not found |
-| QUEUE_002 | 404 | Job not found |
-| SYS_001 | 500 | Database error |
+| AUTH_TOKEN_MISSING | 401 | Token missing |
+| AUTH_TOKEN_INVALID | 401 | Invalid token |
+| CAPTURE_BODY_TOO_LARGE | 413 | Request body too large |
+| CAPTURE_INVALID_BODY | 400 | Invalid request body |
+| CAPTURE_MISSING_CONTENT | 400 | Missing required field: content |
+| CAPTURE_INVALID_FORM | 413 | Invalid multipart form |
+| CAPTURE_MISSING_FILE | 400 | Missing file |
+| CAPTURE_READ_FAILED | 500 | Failed to read file |
+| QUEUE_CREATE_FAILED | 500 | Failed to create job |
+| QUEUE_LIST_FAILED | 500 | Failed to list jobs |
+| QUEUE_JOB_NOT_FOUND | 404 | Job not found |
+| QUEUE_INVALID_STATE | 400 | Invalid job state for operation |
+| QUEUE_UPDATE_FAILED | 500 | Failed to update job |
+| QUEUE_DELETE_FAILED | 500 | Failed to delete job |
+| VAULT_MEDIA_FAILED | 500 | Failed to save media |
+| SEARCH_MISSING_QUERY | 400 | Missing query parameter |
+| SEARCH_INVALID_MODE | 400 | Invalid search mode |
+| SEARCH_FAILED | 500 | Search operation failed |
+| COUNT_ERROR | 500 | Database error |
 
 ### Examples
 
 ```json
-400 { "error": "missing required field: content", "code": "CAPTURE_004" }
-401 { "error": "invalid token", "code": "AUTH_001" }
+400 { "error": "missing required field: content", "code": "CAPTURE_MISSING_CONTENT" }
+401 { "error": "invalid token", "code": "AUTH_TOKEN_INVALID" }
 500 { "error": "failed to write note to vault", "code": "VAULT_002" }
 ```
 

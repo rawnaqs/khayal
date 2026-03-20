@@ -33,7 +33,7 @@ func newRecentCmd() *cobra.Command {
 			}
 
 			client := klapi.NewClient(cfg.Host, cfg.Token)
-			result, err := client.Search("", "recent", 10)
+			result, err := client.Search("", "recent", 10, 200, "", "", false)
 			if err != nil {
 				internal.ServerUnreachable(cfg.Host)
 				return err
@@ -48,7 +48,7 @@ func newRecentCmd() *cobra.Command {
 				tags := ""
 				if len(r.Tags) > 0 {
 					for _, t := range r.Tags {
-						tags += " " + theme.RenderTag(t)
+						tags += " " + theme.RenderTag(t, r.Type)
 					}
 				}
 				if date != "" {

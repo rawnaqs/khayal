@@ -34,6 +34,11 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 		mode = "hybrid"
 	}
 
+	queryForLog := query
+	if len(queryForLog) > 50 {
+		queryForLog = queryForLog[:50] + "..."
+	}
+
 	var results []queue.SearchResult
 	var err error
 
@@ -50,6 +55,12 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
+		s.logger.Error("search failed",
+			"code", "SEARCH_FAILED",
+			"query", queryForLog,
+			"mode", mode,
+			"error", err,
+		)
 		WriteError(w, "search failed", "SEARCH_FAILED", http.StatusInternalServerError)
 		return
 	}
@@ -59,6 +70,13 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	took := time.Since(start).Milliseconds()
+
+	s.logger.Info("search",
+		"query", queryForLog,
+		"mode", mode,
+		"results_count", len(results),
+		"took_ms", took,
+	)
 
 	WriteJSON(w, http.StatusOK, SearchResponse{
 		Query:   query,

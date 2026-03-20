@@ -462,6 +462,7 @@ export interface SearchResult {
   score: number
   type: string
   created_at: string
+  tags: string[]
 }
 
 export async function search(query: string, limit = 10, mode = 'hybrid'): Promise<SearchResponse> {

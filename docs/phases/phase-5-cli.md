@@ -43,10 +43,9 @@ cmd/
         ├── capture/
         │   ├── url.go               # Capture URL
         │   └── image.go              # Capture image
-        ├── search.go                 # Search with glamour
+        ├── search.go                 # Search with dynamic dividers
         ├── recent.go                 # Recent captures
-        ├── browse.go                 # Browse by tag/person/amount
-        ├── stats.go                  # ASCII bar charts
+        ├── stats.go                  # Vault statistics
         ├── status.go                 # Lightweight check
         ├── init.go                  # Huh wizard
         └── config/
@@ -77,8 +76,8 @@ require (
     charm.land/huh/v2
     charm.land/bubbletea/v2
     charm.land/bubbles/v2
-    github.com/charmbracelet/glamour
     github.com/rawnaqs/theme
+    golang.org/x/term
 )
 ```
 
@@ -91,8 +90,8 @@ import (
     "charm.land/huh/v2"
     "charm.land/bubbletea/v2"
     "charm.land/bubbles/v2"
-    "github.com/charmbracelet/glamour"
     "github.com/rawnaqs/theme"
+    "golang.org/x/term"
 )
 ```
 
@@ -174,7 +173,6 @@ press ctrl+c to stop
 | `kl capture image` | `commands/capture/image.go` | Capture image |
 | `kl search` | `commands/search.go` | Search vault |
 | `kl recent` | `commands/recent.go` | Recent captures |
-| `kl browse` | `commands/browse.go` | Browse by tag/person |
 | `kl stats` | `commands/stats.go` | Vault statistics |
 | `kl status` | `commands/status.go` | Lightweight check |
 | `kl init` | `commands/init.go` | Huh wizard setup |
@@ -192,15 +190,20 @@ press ctrl+c to stop
 
 #### kl search
 ```
-3 results · hybrid · 42ms
+  3 results · hybrid · 42ms
 
-──────────────────────────────────────────────────────────
-khayal/2019-03-03-designer.md                          0.94
-March 3, 2019 · #finance #design
+  ───────────────────────────────────────
+  khayal/2019-03-03-designer.md          0.94
+  March 3, 2019 · #finance #design
 
-...paid John Doe $2,000 for logo design work...
+  ...paid John Doe $2,000 for logo design work.
+  Follow-up: brand guidelines next week...
 
-──────────────────────────────────────────────────────────
+  ─────────────────────────────────────────
+  khayal/2019-04-10-contractor.md        0.81
+  April 10, 2019 · #finance
+
+  ...second payment to John, $500 for revisions...
 ```
 
 #### kl stats
@@ -242,18 +245,39 @@ Using `github.com/rawnaqs/theme` for all styling:
 ```go
 import "github.com/rawnaqs/theme"
 
-// Pre-built styles from theme
+// Search result styles
+theme.SearchTitle       // Note title — bold bright
+theme.SearchScore       // Score — dim right-aligned
+theme.SearchDate        // Date — dim
+theme.SearchExcerpt     // Excerpt — italic muted with left border
+
+// Type badges
+theme.TypeText          // [text] badge — green
+theme.TypeArticle       // [article] badge — blue
+theme.TypeImage         // [image] badge — magenta
+theme.RenderTypeBadge(noteType)  // renders type badge by note type
+
+// Tags (matched to note type)
+theme.Tag               // Text note tags — yellow background
+theme.TagMuted          // Muted tag variant
+theme.TagArticle        // Article note tags — blue
+theme.TagImage          // Image note tags — magenta
+theme.RenderTag(tag, noteType)   // renders tag matched to note type
+
+// Panels
+theme.Panel             // Panel with rounded border
+theme.PanelAccent       // Panel with accent border (was PanelGold)
+
+// Base styles
 theme.Primary           // Gold light (#E8B86D)
 theme.Muted             // Gold dark (#8B6020)
 theme.Dim               // Gold dim (#3A2E18)
-theme.SuccessStyle      // Success green (#4A7C59), bold
-theme.ErrorStyle        // Error red (#8B3A3A), bold
-theme.WarningStyle      // Warning gold (#C9933A), bold
+theme.Bold              // Bold primary
+theme.Italic            // Italic muted
+theme.SuccessStyle      // Success green, bold
+theme.ErrorStyle        // Error red, bold
+theme.WarningStyle      // Warning gold, bold
 theme.ProcessingStyle   // Italic gold dark
-theme.Tag               // Gold background, dark text
-theme.TagMuted          // Muted tag variant
-theme.Panel             // Panel with rounded border
-theme.PanelGold         // Panel with gold border
 ```
 
 ### Error Message Format
@@ -314,13 +338,12 @@ const (
 3. [x] Implement default capture (`kl "text"`)
 4. [x] Implement `kl capture url`
 5. [x] Implement `kl capture image`
-6. [x] Implement `kl search` (glamour)
+6. [x] Implement `kl search` (dynamic dividers)
 7. [x] Implement `kl status`
 8. [x] Implement `kl recent`
-9. [x] Implement `kl browse`
-10. [x] Implement `kl stats` (ASCII charts)
-11. [x] Implement `kl init` (huh wizard)
-12. [x] Implement `kl config set/get/view`
+9. [x] Implement `kl stats` (vault statistics)
+10. [x] Implement `kl init` (huh wizard)
+11. [x] Implement `kl config set/get/view`
 
 ---
 
@@ -419,10 +442,9 @@ builds:
 - [x] kl "text" (default capture)
 - [x] kl capture url
 - [x] kl capture image
-- [x] kl search (Glamour, proper format)
+- [x] kl search (dynamic dividers, proper format)
 - [x] kl recent (grouped by day)
-- [x] kl browse (tag/person/amount)
-- [x] kl stats (ASCII charts)
+- [x] kl stats (vault statistics)
 - [x] kl status (lightweight)
 - [x] kl init (Huh wizard, validate before save)
 - [x] kl config set/get/view

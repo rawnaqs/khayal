@@ -130,7 +130,6 @@ Local AI integration.
   - [x] `kl capture image` - capture image
   - [x] `kl search` - search vault
   - [x] `kl recent` - recent captures
-  - [x] `kl browse` - browse by tag/person/amount
   - [x] `kl stats` - vault statistics
   - [x] `kl status` - lightweight check
   - [x] `kl init` - Huh wizard

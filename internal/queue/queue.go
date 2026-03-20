@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,12 +40,16 @@ type JobStore interface {
 }
 
 func NewQueue(dbPath string) (*Queue, error) {
+	return NewQueueWithLogger(dbPath, slog.Default())
+}
+
+func NewQueueWithLogger(dbPath string, logger *slog.Logger) (*Queue, error) {
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	q := &Queue{db: db}
+	q := &Queue{db: db, logger: logger}
 	if err := q.initSchema(); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
@@ -53,7 +59,8 @@ func NewQueue(dbPath string) (*Queue, error) {
 }
 
 type Queue struct {
-	db *sql.DB
+	db     *sql.DB
+	logger *slog.Logger
 }
 
 type Job struct {
@@ -72,13 +79,14 @@ type Job struct {
 }
 
 type SearchResult struct {
-	JobID     string  `json:"id"`
-	NotePath  string  `json:"note_path"`
-	Title     string  `json:"title"`
-	Excerpt   string  `json:"excerpt"`
-	Score     float64 `json:"score"`
-	Type      string  `json:"type"`
-	CreatedAt string  `json:"created_at"`
+	JobID     string   `json:"id"`
+	NotePath  string   `json:"note_path"`
+	Title     string   `json:"title"`
+	Excerpt   string   `json:"excerpt"`
+	Score     float64  `json:"score"`
+	Type      string   `json:"type"`
+	CreatedAt string   `json:"created_at"`
+	Tags      []string `json:"tags,omitempty"`
 }
 
 func (q *Queue) initSchema() error {
@@ -173,6 +181,14 @@ func (q *Queue) CreateJob(ctx context.Context, job *Job) error {
 		job.ID, job.Type, job.Status, job.NotePath, job.SourceURL, job.SourceFile,
 		job.Content, job.UserContext, job.CreatedAt.Format(time.RFC3339),
 		nullableTime(job.ProcessedAt), job.Error, job.Retries)
+
+	if err == nil {
+		q.logger.Debug("job created",
+			"job_id", job.ID,
+			"type", job.Type,
+		)
+	}
+
 	return err
 }
 
@@ -216,6 +232,14 @@ func (q *Queue) UpdateJob(ctx context.Context, job *Job) error {
 
 func (q *Queue) UpdateJobStatus(ctx context.Context, id, status string) error {
 	_, err := q.db.ExecContext(ctx, "UPDATE jobs SET status = ? WHERE id = ?", status, id)
+
+	if err == nil {
+		q.logger.Debug("job status changed",
+			"job_id", id,
+			"new_status", status,
+		)
+	}
+
 	return err
 }
 
@@ -361,6 +385,17 @@ func (q *Queue) SearchKeyword(ctx context.Context, query string, limit int) ([]S
 			return nil, err
 		}
 		r.Score = 1.0
+
+		tags, err := q.GetNoteTags(ctx, r.NotePath)
+		if err == nil {
+			r.Tags = tags
+		}
+
+		title, err := q.GetNoteTitle(ctx, r.NotePath)
+		if err == nil {
+			r.Title = title
+		}
+
 		results = append(results, r)
 	}
 
@@ -462,7 +497,7 @@ func (q *Queue) SearchSemantic(ctx context.Context, queryEmbedding []float32, li
 
 	searchResults := make([]SearchResult, len(results))
 	for i, r := range results {
-		searchResults[i] = SearchResult{
+		sr := SearchResult{
 			JobID:     r.jobID,
 			NotePath:  r.notePath,
 			Excerpt:   r.content,
@@ -470,6 +505,18 @@ func (q *Queue) SearchSemantic(ctx context.Context, queryEmbedding []float32, li
 			Type:      r.jobType,
 			CreatedAt: r.createdAt,
 		}
+
+		tags, err := q.GetNoteTags(ctx, r.notePath)
+		if err == nil {
+			sr.Tags = tags
+		}
+
+		title, err := q.GetNoteTitle(ctx, r.notePath)
+		if err == nil && title != "" {
+			sr.Title = title
+		}
+
+		searchResults[i] = sr
 	}
 
 	return searchResults, nil
@@ -486,7 +533,41 @@ func (q *Queue) SaveChunk(ctx context.Context, notePath string, chunkIdx int, co
 }
 
 func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags string) error {
-	_, err := q.db.ExecContext(ctx, `INSERT INTO notes_fts (note_path, content, title, tags) VALUES (?, ?, ?, ?)`, notePath, content, title, tags)
+	now := time.Now().Format(time.RFC3339)
+
+	_, err := q.db.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath)
+	if err != nil {
+		return err
+	}
+
+	if title != "" {
+		_, err = q.db.ExecContext(ctx, `
+			INSERT OR REPLACE INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
+			VALUES (?, NULL, 'title', ?, ?)`,
+			notePath, title, now)
+		if err != nil {
+			return err
+		}
+	}
+
+	if tags != "" {
+		tagList := strings.Split(tags, ",")
+		for _, tag := range tagList {
+			tag = strings.TrimSpace(tag)
+			if tag == "" {
+				continue
+			}
+			_, err = q.db.ExecContext(ctx, `
+				INSERT INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
+				VALUES (?, NULL, 'tag', ?, ?)`,
+				notePath, tag, now)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	_, err = q.db.ExecContext(ctx, `INSERT INTO notes_fts (note_path, content, title, tags) VALUES (?, ?, ?, ?)`, notePath, content, title, tags)
 	if err != nil && isFTSErr(err) {
 		return nil
 	}
@@ -494,10 +575,44 @@ func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags st
 }
 
 func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, tags string) error {
+	now := time.Now().Format(time.RFC3339)
+
+	_, err := q.db.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath)
+	if err != nil {
+		return err
+	}
+
+	if title != "" {
+		_, err = q.db.ExecContext(ctx, `
+			INSERT OR REPLACE INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
+			VALUES (?, NULL, 'title', ?, ?)`,
+			notePath, title, now)
+		if err != nil {
+			return err
+		}
+	}
+
+	if tags != "" {
+		tagList := strings.Split(tags, ",")
+		for _, tag := range tagList {
+			tag = strings.TrimSpace(tag)
+			if tag == "" {
+				continue
+			}
+			_, err = q.db.ExecContext(ctx, `
+				INSERT INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
+				VALUES (?, NULL, 'tag', ?, ?)`,
+				notePath, tag, now)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	if _, err := q.db.ExecContext(ctx, `DELETE FROM notes_fts WHERE note_path = ?`, notePath); err != nil && !isFTSErr(err) {
 		return err
 	}
-	_, err := q.db.ExecContext(ctx, `INSERT INTO notes_fts (note_path, content, title, tags) VALUES (?, ?, ?, ?)`, notePath, content, title, tags)
+	_, err = q.db.ExecContext(ctx, `INSERT INTO notes_fts (note_path, content, title, tags) VALUES (?, ?, ?, ?)`, notePath, content, title, tags)
 	if err != nil && isFTSErr(err) {
 		return nil
 	}
@@ -582,4 +697,208 @@ func cosine(a, b []float32) float64 {
 	}
 
 	return dot / (normA * normB)
+}
+
+type TagCount struct {
+	Name  string
+	Count int
+}
+
+type PersonCount struct {
+	Name  string
+	Count int
+}
+
+func (q *Queue) CountNotes(ctx context.Context) (int, error) {
+	var count int
+	err := q.db.QueryRowContext(ctx, `
+		SELECT COUNT(DISTINCT note_path) FROM chunks
+		WHERE note_path LIKE 'khayal/%'
+	`).Scan(&count)
+	return count, err
+}
+
+func (q *Queue) CountNotesSince(ctx context.Context, since time.Time) (int, error) {
+	var count int
+	err := q.db.QueryRowContext(ctx, `
+		SELECT COUNT(DISTINCT note_path) FROM chunks
+		WHERE note_path LIKE 'khayal/%'
+		AND created_at >= ?
+	`, since.Format(time.RFC3339)).Scan(&count)
+	return count, err
+}
+
+func (q *Queue) CountByType(ctx context.Context) (map[string]int, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT type, COUNT(*) FROM jobs
+		WHERE status = 'done' AND type IN ('text', 'article', 'image')
+		GROUP BY type
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]int)
+	for rows.Next() {
+		var t string
+		var count int
+		if err := rows.Scan(&t, &count); err != nil {
+			return nil, err
+		}
+		result[t] = count
+	}
+	return result, rows.Err()
+}
+
+func (q *Queue) GetTopTags(ctx context.Context, limit int) ([]TagCount, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT entity_value, COUNT(*) as cnt
+		FROM entities
+		WHERE entity_type = 'tag'
+		GROUP BY entity_value
+		ORDER BY cnt DESC
+		LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []TagCount
+	for rows.Next() {
+		var tc TagCount
+		if err := rows.Scan(&tc.Name, &tc.Count); err != nil {
+			return nil, err
+		}
+		result = append(result, tc)
+	}
+	return result, rows.Err()
+}
+
+func (q *Queue) GetTopPeople(ctx context.Context, limit int) ([]PersonCount, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT entity_value, COUNT(*) as cnt
+		FROM entities
+		WHERE entity_type = 'person'
+		GROUP BY entity_value
+		ORDER BY cnt DESC
+		LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []PersonCount
+	for rows.Next() {
+		var pc PersonCount
+		if err := rows.Scan(&pc.Name, &pc.Count); err != nil {
+			return nil, err
+		}
+		result = append(result, pc)
+	}
+	return result, rows.Err()
+}
+
+func (q *Queue) GetStreaks(ctx context.Context) (int, int, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT DISTINCT DATE(created_at) as capture_date
+		FROM jobs
+		WHERE status = 'done'
+		ORDER BY capture_date DESC
+	`)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer rows.Close()
+
+	var dates []time.Time
+	for rows.Next() {
+		var dateStr string
+		if err := rows.Scan(&dateStr); err != nil {
+			return 0, 0, err
+		}
+		t, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			continue
+		}
+		dates = append(dates, t)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, 0, err
+	}
+
+	if len(dates) == 0 {
+		return 0, 0, nil
+	}
+
+	today := time.Now().Truncate(24 * time.Hour)
+	currentStreak := 0
+	longestStreak := 0
+	streak := 1
+
+	for i := 0; i < len(dates)-1; i++ {
+		diff := dates[i].Sub(dates[i+1]).Hours() / 24
+		if diff == 1 {
+			streak++
+		} else {
+			if streak > longestStreak {
+				longestStreak = streak
+			}
+			streak = 1
+		}
+	}
+	if streak > longestStreak {
+		longestStreak = streak
+	}
+
+	if len(dates) > 0 && dates[0].Equal(today) || dates[0].Equal(today.AddDate(0, 0, -1)) {
+		streak = 1
+		for i := 0; i < len(dates)-1; i++ {
+			diff := dates[i].Sub(dates[i+1]).Hours() / 24
+			if diff == 1 {
+				streak++
+			} else {
+				break
+			}
+		}
+		currentStreak = streak
+	}
+
+	return currentStreak, longestStreak, nil
+}
+
+func (q *Queue) GetNoteTags(ctx context.Context, notePath string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT DISTINCT entity_value
+		FROM entities
+		WHERE note_path = ? AND entity_type = 'tag'
+		ORDER BY entity_value
+	`, notePath)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tags []string
+	for rows.Next() {
+		var tag string
+		if err := rows.Scan(&tag); err != nil {
+			return nil, err
+		}
+		tags = append(tags, tag)
+	}
+	return tags, rows.Err()
+}
+
+func (q *Queue) GetNoteTitle(ctx context.Context, notePath string) (string, error) {
+	var title string
+	err := q.db.QueryRowContext(ctx, `
+		SELECT entity_value FROM entities WHERE note_path = ? AND entity_type = 'title'
+	`, notePath).Scan(&title)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return title, err
 }

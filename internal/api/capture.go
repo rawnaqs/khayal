@@ -41,17 +41,30 @@ func (s *Server) captureHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleTextCapture(w http.ResponseWriter, r *http.Request) {
 	if r.ContentLength > int64(s.config.Server.MaxTextBodyMB)<<20 {
+		s.logger.Error("capture failed",
+			"code", "CAPTURE_BODY_TOO_LARGE",
+			"type", "text",
+		)
 		WriteError(w, "request body too large", "CAPTURE_BODY_TOO_LARGE", http.StatusRequestEntityTooLarge)
 		return
 	}
 
 	var req CaptureRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		s.logger.Error("capture failed",
+			"code", "CAPTURE_INVALID_BODY",
+			"type", "text",
+			"error", err,
+		)
 		WriteError(w, "invalid request body", "CAPTURE_INVALID_BODY", http.StatusBadRequest)
 		return
 	}
 
 	if req.Content == "" {
+		s.logger.Warn("capture failed",
+			"code", "CAPTURE_MISSING_CONTENT",
+			"type", "text",
+		)
 		WriteError(w, "missing required field: content", "CAPTURE_MISSING_CONTENT", http.StatusBadRequest)
 		return
 	}
@@ -83,9 +96,20 @@ func (s *Server) handleTextCapture(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.queue.CreateJob(ctx, job); err != nil {
+		s.logger.Error("capture failed",
+			"code", "QUEUE_CREATE_FAILED",
+			"type", "text",
+			"job_id", job.ID,
+			"error", err,
+		)
 		WriteError(w, "failed to create job", "QUEUE_CREATE_FAILED", http.StatusInternalServerError)
 		return
 	}
+
+	s.logger.Info("capture",
+		"type", "text",
+		"job_id", job.ID,
+	)
 
 	WriteCreated(w, CaptureResponse{
 		ID:        job.ID,
@@ -100,12 +124,21 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
 	maxSize := int64(s.config.Server.MaxImageBodyMB) << 20
 
 	if err := r.ParseMultipartForm(maxSize); err != nil {
+		s.logger.Error("capture failed",
+			"code", "CAPTURE_INVALID_FORM",
+			"type", "image",
+			"error", err,
+		)
 		WriteError(w, "invalid multipart form or file too large", "CAPTURE_INVALID_FORM", http.StatusRequestEntityTooLarge)
 		return
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
+		s.logger.Warn("capture failed",
+			"code", "CAPTURE_MISSING_FILE",
+			"type", "image",
+		)
 		WriteError(w, "missing file", "CAPTURE_MISSING_FILE", http.StatusBadRequest)
 		return
 	}
@@ -114,12 +147,22 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
 	limitedReader := io.LimitReader(file, maxSize)
 	content, err := io.ReadAll(limitedReader)
 	if err != nil {
+		s.logger.Error("capture failed",
+			"code", "CAPTURE_READ_FAILED",
+			"type", "image",
+			"error", err,
+		)
 		WriteError(w, "failed to read file", "CAPTURE_READ_FAILED", http.StatusInternalServerError)
 		return
 	}
 
 	mediaPath, err := s.vault.CopyMediaFromReader(bytes.NewReader(content), header.Filename)
 	if err != nil {
+		s.logger.Error("capture failed",
+			"code", "VAULT_MEDIA_FAILED",
+			"type", "image",
+			"error", err,
+		)
 		WriteError(w, "failed to save media", "VAULT_MEDIA_FAILED", http.StatusInternalServerError)
 		return
 	}
@@ -139,9 +182,20 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.queue.CreateJob(ctx, job); err != nil {
+		s.logger.Error("capture failed",
+			"code", "QUEUE_CREATE_FAILED",
+			"type", "image",
+			"job_id", job.ID,
+			"error", err,
+		)
 		WriteError(w, "failed to create job", "QUEUE_CREATE_FAILED", http.StatusInternalServerError)
 		return
 	}
+
+	s.logger.Info("capture",
+		"type", "image",
+		"job_id", job.ID,
+	)
 
 	notePath := fmt.Sprintf("%s/%s-image.md", s.config.Vault.InboxDir, now.Format("2006-01-02-")+job.ID[:8])
 

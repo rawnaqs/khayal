@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 	"github.com/rawnaqs/khayal/cmd/kl/internal"
 	klapi "github.com/rawnaqs/khayal/cmd/kl/internal/api"
 	"github.com/rawnaqs/theme"
@@ -31,40 +33,49 @@ func formatDate(iso string) string {
 	return t.Format("January 2, 2006")
 }
 
-func contentWidth(title, path, date string, tags []string) int {
-	titleWidth := len(title)
-	pathWidth := len(path)
-	dateWidth := len(date)
-	tagWidth := 0
-	for _, tag := range tags {
-		tagWidth += len(tag) + 1
+func resultWidth(termW int) int {
+	if termW > 100 {
+		return 100
 	}
-
-	headerWidth := titleWidth
-	if pathWidth > headerWidth {
-		headerWidth = pathWidth
+	if termW < 60 {
+		return 60
 	}
-
-	metaWidth := dateWidth + tagWidth + 2
-	if metaWidth > headerWidth {
-		headerWidth = metaWidth
-	}
-
-	return headerWidth
+	return termW
 }
 
-func dividerWidth(contentW, termW int) int {
-	d := contentW + 8
-	min := 50
-	max := termW * 60 / 100
+func truncateTitle(title string, width int) string {
+	const scoreW = 6
+	maxTitle := width - scoreW
+	if lipgloss.Width(title) <= maxTitle {
+		return title
+	}
+	runes := []rune(title)
+	for lipgloss.Width(string(runes)) > maxTitle-1 {
+		runes = runes[:len(runes)-1]
+	}
+	return string(runes) + "…"
+}
 
-	if d < min {
-		return min
+func buildMetaLine(dateStr, noteType string, tags []string, width int) string {
+	parts := []string{}
+	if dateStr != "" {
+		parts = append(parts, theme.SearchDate.Render(dateStr))
 	}
-	if d > max {
-		return max
+	if noteType != "" {
+		parts = append(parts, theme.RenderTypeBadge(noteType))
 	}
-	return d
+
+	sep := theme.Dim.Render(" · ")
+	line := strings.Join(parts, sep)
+
+	for _, tag := range tags {
+		candidate := line + sep + theme.RenderTag("#"+tag, noteType)
+		if lipgloss.Width(candidate) > width {
+			break
+		}
+		line = candidate
+	}
+	return line
 }
 
 func printResult(r klapi.SearchResult, termW int) {
@@ -72,63 +83,49 @@ func printResult(r klapi.SearchResult, termW int) {
 	if displayPath == "" {
 		displayPath = r.NotePath
 	}
-
 	dateStr := formatDate(r.CreatedAt)
+	width := resultWidth(termW)
+	displayPath = truncateTitle(displayPath, width)
 
-	contentW := contentWidth(r.Title, r.NotePath, dateStr, r.Tags)
-	divW := dividerWidth(contentW, termW)
+	fmt.Println(theme.Divider(width))
 
-	fmt.Println(theme.Divider(divW))
-
-	path := theme.Bold.Render(displayPath)
-	score := theme.Dim.Render(fmt.Sprintf("%.2f", r.Score))
-	gap := divW - len(stripAnsi(path)) - len(stripAnsi(score))
-	if gap < 1 {
-		gap = 1
-	}
-	fmt.Println(path + strings.Repeat(" ", gap) + score)
-
-	if dateStr != "" || len(r.Tags) > 0 {
-		parts := []string{}
-		if dateStr != "" {
-			parts = append(parts, theme.Muted.Render(dateStr))
-		}
-		for _, tag := range r.Tags {
-			parts = append(parts, theme.RenderTag(tag))
-		}
-		if len(parts) > 1 {
-			dateLine := parts[0]
-			for i := 1; i < len(parts); i++ {
-				dateLine += " " + theme.Dim.Render("·") + " " + parts[i]
+	// ── Row 1: title + score — use table for correct alignment ────
+	t := table.New().
+		Width(width).
+		Border(lipgloss.HiddenBorder()).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			switch col {
+			case 0:
+				return theme.SearchTitle
+			case 1:
+				return theme.SearchScore.Align(lipgloss.Right)
 			}
-			fmt.Println(dateLine)
-		} else {
-			fmt.Println(parts[0])
-		}
+			return lipgloss.NewStyle()
+		}).Row(displayPath, fmt.Sprintf("%.2f", r.Score))
+
+	fmt.Println(t.Render())
+
+	// ── Row 2: plain string, no table ─────────────────────────────
+	metaLine := buildMetaLine(dateStr, r.Type, r.Tags, width)
+	if metaLine != "" {
+		fmt.Println(" " + metaLine)
 	}
 
+	// ── Excerpt ───────────────────────────────────────────────────
 	fmt.Println()
-	fmt.Println(theme.Primary.Render(r.Excerpt))
+	fmt.Println(theme.SearchExcerpt.Width(width - 2).Render(r.Excerpt))
 	fmt.Println()
 }
 
-func stripAnsi(s string) string {
-	var result strings.Builder
-	inEscape := false
-	for _, c := range s {
-		if c == '\x1b' {
-			inEscape = true
-			continue
-		}
-		if inEscape {
-			if c == 'm' {
-				inEscape = false
-			}
-			continue
-		}
-		result.WriteRune(c)
+func tookMsStyle(ms int) lipgloss.Style {
+	switch {
+	case ms < 100:
+		return theme.SuccessStyle
+	case ms < 500:
+		return theme.WarningStyle
+	default:
+		return theme.ErrorStyle
 	}
-	return result.String()
 }
 
 func runSearch(query string) error {
@@ -139,33 +136,57 @@ func runSearch(query string) error {
 	}
 
 	client := klapi.NewClient(cfg.Host, cfg.Token)
-	result, err := client.Search(query, searchMode, searchLimit)
+	result, err := client.Search(query, searchMode, searchLimit, searchExcerptLen, searchFrom, searchTo, searchConnections)
 	if err != nil {
 		internal.ServerUnreachable(cfg.Host)
 		return err
 	}
 
 	total := len(result.Results)
-	tookMs := int(result.Time)
+	tookMs := int(result.TookMs)
 	mode := result.Mode
 	width := termWidth()
 
+	fmt.Println()
+
 	if total == 0 {
-		fmt.Println()
 		fmt.Println(theme.Dim.Render(fmt.Sprintf("0 results · %s · %dms", mode, tookMs)))
 		fmt.Println()
-		fmt.Println(theme.Muted.Render("  nothing found for") + " " + theme.Primary.Render(`"`+query+`"`))
-		fmt.Println(theme.Dim.Render("  → try: kl search \"" + query + "\" --mode keyword"))
+		fmt.Println(theme.Muted.Render("nothing found for") + " " + theme.Primary.Render(`"`+query+`"`))
+		fmt.Println(theme.Dim.Render(`  → try: kl search "` + query + `" --mode keyword`))
 		return nil
 	}
 
-	fmt.Println()
-	fmt.Println(theme.Dim.Render(fmt.Sprintf("  %d results · %s · %dms", total, mode, tookMs)))
+	fmt.Println(
+		theme.Bold.Render(fmt.Sprintf("%d", total)) +
+			theme.Dim.Render(" results for ") +
+			theme.Primary.Render(`"`+query+`"`) +
+			theme.Dim.Render(" · "+mode+" · ") +
+			tookMsStyle(tookMs).Render(fmt.Sprintf("%dms", tookMs)))
 	fmt.Println()
 
 	for _, r := range result.Results {
 		printResult(r, width)
 	}
+
+	fmt.Println(theme.Divider(resultWidth(width)))
+	fmt.Println()
+
+	if total == 0 {
+		fmt.Println(theme.Dim.Render(fmt.Sprintf("0 results · %s · %dms", mode, tookMs)))
+		fmt.Println()
+		fmt.Println(theme.Muted.Render("nothing found for") + " " + theme.Primary.Render(`"`+query+`"`))
+		fmt.Println(theme.Dim.Render(`  → try: kl search "` + query + `" --mode keyword`))
+		return nil
+	}
+
+	fmt.Println(
+		theme.Bold.Render(fmt.Sprintf("%d", total)) +
+			theme.Dim.Render(" results for ") +
+			theme.Primary.Render(`"`+query+`"`) +
+			theme.Dim.Render(" · "+mode+" · ") +
+			tookMsStyle(tookMs).Render(fmt.Sprintf("%dms", tookMs)))
+	fmt.Println()
 
 	return nil
 }

@@ -60,7 +60,11 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(rec, r)
 
 			latency := time.Since(start)
-			logger.Info("request",
+			level := slog.LevelInfo
+			if rec.status >= 400 {
+				level = slog.LevelWarn
+			}
+			logger.Log(r.Context(), level, "request",
 				"method", r.Method,
 				"path", r.URL.Path,
 				"status", rec.status,

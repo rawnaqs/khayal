@@ -103,9 +103,6 @@ kl search "query"         # search vault
 kl recent                 # recent captures
 kl recent --days 7        # last 7 days
 kl recent --type image    # recent images only
-kl browse --tag react     # all notes tagged react
-kl browse --person "John" # all notes mentioning John
-kl browse --amount 2000   # all notes mentioning $2000
 kl stats                  # vault statistics (read-only)
 kl status                 # lightweight — server reachable, queue health
 kl init                   # setup ~/.config/khayal/kl.yaml (client config only)
@@ -618,37 +615,41 @@ Rules:
 #### kl search
 
 ```
-$ kl search "paid john money"
+$ kl search "distributed systems"
 
-  3 results · hybrid · 42ms
+  3 results for "distributed systems" · hybrid · 42ms
 
-  ──────────────────────────────────────────────────────────
-  khayal/2019-03-03-designer.md                          0.94
-  March 3, 2019 · #finance #design
+  ────────────────────────────────────────────────────────
+   CAP Theorem Notes                                    0.94
+   March 3, 2026 · [text] · #distributed #systems
 
-  ...paid John Doe $2,000 for logo design work.
-  Follow-up: brand guidelines next week...
+   ▌ ...consistency and availability cannot both be guaranteed...
+     in distributed systems...
 
-  ──────────────────────────────────────────────────────────
-  khayal/2019-04-10-contractor.md                        0.81
-  April 10, 2019 · #finance
+  ────────────────────────────────────────────────────────
+   Consistency Models Overview                          0.81
+   March 5, 2026 · [text] · #distributed #databases
 
-  ...second payment to John, $500 for revisions...
+   ▌ ...eventual consistency vs strong consistency in...
 
-  ──────────────────────────────────────────────────────────
-  khayal/2018-12-01-branding.md                          0.68
-  December 1, 2018 · #design
+  ────────────────────────────────────────────────────────
+   Database Replication Guide                            0.68
+   March 10, 2026 · [article] · #distributed
 
-  ...initial quote from John was $2,500 but...
+   ▌ ...primary-backup vs multi-leader replication...
 ```
 
 Rules:
-- Score shown right-aligned — user learns what scores mean over time
-- Date prominent — temporal context matters more than filename
-- Tags on second line — category at a glance
-- Excerpt shows the matched text — not random 200 chars
-- Dividers between results — scannable
-- No color on content — only on metadata (score, date, tags)
+- Header: `{count} results for "{query}" · {mode} · {tookMs}ms`
+- Dynamic dividers: content width + padding, capped at terminal width
+- Score right-aligned, formatted to 2 decimal places (`0.94`)
+- Title: use note title if available, else note_path
+- Meta line: `{date} · {type badge} · #tag1 · #tag2` with ` · ` separator
+- Type badge: `[text]`, `[article]`, `[image]` — color matched to type
+- Tags: color matched to note type (yellow=text, blue=article, magenta=image)
+- Tags truncated if line exceeds terminal width
+- Excerpt: left border accent, muted text color
+- Dividers between results, no trailing divider
 - `kl search "query" --mode keyword` forces keyword only
 - `kl search "query" --mode semantic` forces semantic only
 - `kl search "query" --from 2024-01-01 --to 2024-03-16` date filter
@@ -657,10 +658,9 @@ Rules:
 ```
 $ kl search "unicorn rainbow"
 
-  0 results · hybrid · 12ms
+  0 results for "unicorn rainbow" · hybrid · 12ms
 
   nothing found for "unicorn rainbow"
-  → try different keywords
   → try: kl search "unicorn rainbow" --mode keyword
 ```
 
@@ -696,54 +696,6 @@ Rules:
 - `kl recent --days 7` shows full last 7 days
 - `kl recent --type image` filters by type
 
-#### kl browse
-
-**By tag:**
-```
-$ kl browse --tag react
-
-  #react · 23 notes
-
-  2024-03-16  useEffect cleanup runs after every render
-  2024-03-10  React Server Components mental model
-  2024-02-28  Why I stopped using useCallback everywhere
-  2024-01-15  [article] React 19 new hooks overview
-  2023-12-03  [image] component architecture whiteboard
-
-  18 more · kl browse --tag react --all
-```
-
-**By person:**
-```
-$ kl browse --person "John Doe"
-
-  John Doe · 8 mentions
-
-  2024-03-16  paid contractor 500 for revisions
-  2024-03-02  meeting with John re new project
-  2023-11-14  [article] saved John's blog post on systems
-  2019-04-10  second payment to John, $500
-  2019-03-03  paid John Doe $2,000 for logo design
-
-  3 more · kl browse --person "John Doe" --all
-```
-
-**By amount:**
-```
-$ kl browse --amount 2000
-
-  $2,000 · 2 mentions
-
-  2019-03-03  paid John Doe $2,000 for logo design
-  2019-01-15  budget approved: $2,000 for branding work
-```
-
-Rules:
-- Show 5 results by default, `--all` flag shows everything
-- Sorted by date descending — most recent first
-- Note type badge in brackets for non-text [article] [image]
-- Amount search normalizes: 2000 matches "2k", "$2,000", "2000", "2,000"
-
 #### kl stats
 
 ```
@@ -751,28 +703,27 @@ $ kl stats
 
   vault · ~/brain
 
-  total         2,847   notes
-  this week        23   ████░░░░░░░░░░░░░░░
-  this month       94   ████████░░░░░░░░░░░░
+  total         2,847
+  this week        23
+  this month       94
 
-  top tags
-  #react           142  ████████████████████
-  #go               98  ████████████████░░░░
-  #work             87  ██████████████░░░░░
-  #finance          34  ██████░░░░░░░░░░░░░░
-  #distributed      28  █████░░░░░░░░░░░░░░
+  TOP TAGS
+  #react      142
+  #go          98
+  #work        87
+  #finance     34
+  #distributed 28
 
-  top people
-  John Doe          34  mentions
-  Sarah Chen        18  mentions
-  Robert Kim         6  mentions
+  TOP PEOPLE
+  John Doe      34 mentions
+  Sarah Chen    18 mentions
+  Robert Kim     6 mentions
 
-  capture streak    12 days
-  longest streak    34 days
+  capture streak  12 days
+  longest streak   34 days
 ```
 
 Rules:
-- ASCII bar charts — normalized to longest bar = full width
 - Top 5 tags, top 3 people — not exhaustive
 - Capture streak — motivates consistent use
 - No processing stats here — that's khayal status
@@ -943,7 +894,6 @@ Never: `tool target verb` or `tool noun verb`
 
 ```
 kl search "query"          ✓ verb then target
-kl browse --tag react      ✓ verb then flag-target
 kl config set key value    ✓ verb verb key value (set is sub-verb)
 kl "thought"               ✓ implicit capture verb
 ```
@@ -1039,7 +989,6 @@ kl completion fish > ~/.config/fish/completions/kl.fish
 kl se<tab>              → kl search
 kl search --m<tab>      → --mode
 kl search --mode <tab>  → hybrid  keyword  semantic
-kl browse --<tab>       → --tag  --person  --amount  --all
 kl config set <tab>     → host  token
 khayal <tab>            → init  start  stop  restart  status  reindex  version  logs  config  completion
 ```
@@ -1611,9 +1560,8 @@ khayal/
 ├── cli/
 │   ├── root.go                  ← Cobra root command
 │   ├── capture.go               ← kl "thought", --url, --image
-│   ├── search.go                ← kl search (Glamour rendering)
+│   ├── search.go                ← kl search (dynamic dividers)
 │   ├── recent.go                ← kl recent
-│   ├── browse.go                ← kl browse
 │   ├── stats.go                 ← kl stats
 │   ├── status.go                ← kl status (lightweight, read-only)
 │   ├── init.go                  ← kl init (Huh wizard)
@@ -2009,7 +1957,8 @@ Response:
       "excerpt": "...consistency and availability cannot both be guaranteed...",
       "score": 0.94,
       "type": "text",
-      "created_at": "2024-03-10T09:00:00Z"
+      "created_at": "2024-03-10T09:00:00Z",
+      "tags": ["distributed", "systems", "theory"]
     }
   ],
   "total": 3,

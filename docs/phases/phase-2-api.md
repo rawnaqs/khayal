@@ -620,7 +620,8 @@ func (s *Server) queueDiscardHandler(w http.ResponseWriter, r *http.Request) {
       "excerpt": "...consistency and availability cannot both be guaranteed...",
       "score": 0.94,
       "type": "text",
-      "created_at": "2024-03-10T09:00:00Z"
+      "created_at": "2024-03-10T09:00:00Z",
+      "tags": ["distributed", "systems", "theory"]
     }
   ],
   "total": 3,

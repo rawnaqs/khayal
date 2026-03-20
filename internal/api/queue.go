@@ -53,6 +53,12 @@ func (s *Server) queueListHandler(w http.ResponseWriter, r *http.Request) {
 
 	jobs, total, err := s.queue.ListJobs(ctx, status, limit, offset)
 	if err != nil {
+		s.logger.Error("queue operation failed",
+			"code", "QUEUE_LIST_FAILED",
+			"operation", "list",
+			"status_filter", status,
+			"error", err,
+		)
 		WriteError(w, "failed to list jobs", "QUEUE_LIST_FAILED", http.StatusInternalServerError)
 		return
 	}
@@ -89,6 +95,12 @@ func (s *Server) queueRetryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if job.Status != "pending" && job.Status != "failed" {
+		s.logger.Warn("queue operation failed",
+			"code", "QUEUE_INVALID_STATE",
+			"operation", "retry",
+			"job_id", job.ID,
+			"current_status", job.Status,
+		)
 		WriteError(w, "can only retry pending or failed jobs", "QUEUE_INVALID_STATE", http.StatusBadRequest)
 		return
 	}
@@ -98,9 +110,19 @@ func (s *Server) queueRetryHandler(w http.ResponseWriter, r *http.Request) {
 	job.Retries = 0
 
 	if err := s.queue.UpdateJob(ctx, job); err != nil {
+		s.logger.Error("queue operation failed",
+			"code", "QUEUE_UPDATE_FAILED",
+			"operation", "retry",
+			"job_id", job.ID,
+			"error", err,
+		)
 		WriteError(w, "failed to update job", "QUEUE_UPDATE_FAILED", http.StatusInternalServerError)
 		return
 	}
+
+	s.logger.Info("job retry",
+		"job_id", job.ID,
+	)
 
 	WriteJSON(w, http.StatusOK, job)
 }
@@ -116,14 +138,30 @@ func (s *Server) queueDiscardHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if job.Status == "done" {
+		s.logger.Warn("queue operation failed",
+			"code", "QUEUE_INVALID_STATE",
+			"operation", "discard",
+			"job_id", jobID,
+			"current_status", job.Status,
+		)
 		WriteError(w, "cannot discard completed jobs", "QUEUE_INVALID_STATE", http.StatusBadRequest)
 		return
 	}
 
 	if err := s.queue.DeleteJob(ctx, jobID); err != nil {
+		s.logger.Error("queue operation failed",
+			"code", "QUEUE_DELETE_FAILED",
+			"operation", "discard",
+			"job_id", jobID,
+			"error", err,
+		)
 		WriteError(w, "failed to delete job", "QUEUE_DELETE_FAILED", http.StatusInternalServerError)
 		return
 	}
+
+	s.logger.Info("job discarded",
+		"job_id", jobID,
+	)
 
 	WriteJSON(w, http.StatusOK, QueueDiscardResponse{
 		Success: true,

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -21,6 +22,7 @@ type OllamaClient struct {
 	truncateImageTokens   int
 	truncateArticleTokens int
 	httpClient            *http.Client
+	logger                *slog.Logger
 }
 
 func NewOllamaClient(baseURL, embedModel, textModel, visionModel string) *OllamaClient {
@@ -35,7 +37,16 @@ func NewOllamaClient(baseURL, embedModel, textModel, visionModel string) *Ollama
 		httpClient: &http.Client{
 			Timeout: 120 * time.Second,
 		},
+		logger: slog.Default(),
 	}
+}
+
+func NewOllamaClientWithLogger(baseURL, embedModel, textModel, visionModel string, logger *slog.Logger) *OllamaClient {
+	c := NewOllamaClient(baseURL, embedModel, textModel, visionModel)
+	if logger != nil {
+		c.logger = logger
+	}
+	return c
 }
 
 func NewOllamaClientWithConfig(baseURL, embedModel, textModel, visionModel string, truncateText, truncateImage, truncateArticle int) *OllamaClient {
@@ -86,6 +97,8 @@ func (c *OllamaClient) Ping() error {
 }
 
 func (c *OllamaClient) Embed(text string) ([]float32, error) {
+	start := time.Now()
+
 	reqBody := map[string]any{
 		"model":  c.embedModel,
 		"prompt": text,
@@ -98,12 +111,21 @@ func (c *OllamaClient) Embed(text string) ([]float32, error) {
 
 	resp, err := c.httpClient.Post(c.baseURL+"/api/embeddings", "application/json", bytes.NewReader(body))
 	if err != nil {
+		c.logger.Debug("llm embed failed",
+			"model", c.embedModel,
+			"error", err.Error(),
+		)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("embed request failed with status %d", resp.StatusCode)
+		err := fmt.Errorf("embed request failed with status %d", resp.StatusCode)
+		c.logger.Debug("llm embed failed",
+			"model", c.embedModel,
+			"error", err.Error(),
+		)
+		return nil, err
 	}
 
 	var result struct {
@@ -111,12 +133,27 @@ func (c *OllamaClient) Embed(text string) ([]float32, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		c.logger.Debug("llm embed failed",
+			"model", c.embedModel,
+			"error", err.Error(),
+		)
 		return nil, err
 	}
 
 	if len(result.Embedding) == 0 {
-		return nil, fmt.Errorf("empty embedding returned")
+		err := fmt.Errorf("empty embedding returned")
+		c.logger.Debug("llm embed failed",
+			"model", c.embedModel,
+			"error", err.Error(),
+		)
+		return nil, err
 	}
+
+	c.logger.Debug("llm embed",
+		"model", c.embedModel,
+		"text_length", len(text),
+		"duration_ms", time.Since(start).Milliseconds(),
+	)
 
 	return result.Embedding, nil
 }
@@ -126,6 +163,8 @@ func (c *OllamaClient) Generate(prompt string) (string, error) {
 }
 
 func (c *OllamaClient) generateWithModel(model, prompt string) (string, error) {
+	start := time.Now()
+
 	reqBody := map[string]any{
 		"model":       model,
 		"prompt":      prompt,
@@ -140,12 +179,21 @@ func (c *OllamaClient) generateWithModel(model, prompt string) (string, error) {
 
 	resp, err := c.httpClient.Post(c.baseURL+"/api/generate", "application/json", bytes.NewReader(body))
 	if err != nil {
+		c.logger.Debug("llm generate failed",
+			"model", model,
+			"error", err.Error(),
+		)
 		return "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("generate request failed with status %d", resp.StatusCode)
+		err := fmt.Errorf("generate request failed with status %d", resp.StatusCode)
+		c.logger.Debug("llm generate failed",
+			"model", model,
+			"error", err.Error(),
+		)
+		return "", err
 	}
 
 	var result struct {
@@ -153,8 +201,19 @@ func (c *OllamaClient) generateWithModel(model, prompt string) (string, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		c.logger.Debug("llm generate failed",
+			"model", model,
+			"error", err.Error(),
+		)
 		return "", err
 	}
+
+	c.logger.Debug("llm generate",
+		"model", model,
+		"prompt_length", len(prompt),
+		"response_length", len(result.Response),
+		"duration_ms", time.Since(start).Milliseconds(),
+	)
 
 	return result.Response, nil
 }
@@ -179,14 +238,26 @@ func (c *OllamaClient) DescribeImage(imagePath string) (string, error) {
 		return "", err
 	}
 
+	start := time.Now()
 	resp, err := c.httpClient.Post(c.baseURL+"/api/generate", "application/json", bytes.NewReader(body))
 	if err != nil {
+		c.logger.Debug("llm vision failed",
+			"model", c.visionModel,
+			"image_path", imagePath,
+			"error", err.Error(),
+		)
 		return "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("vision request failed with status %d", resp.StatusCode)
+		err := fmt.Errorf("vision request failed with status %d", resp.StatusCode)
+		c.logger.Debug("llm vision failed",
+			"model", c.visionModel,
+			"image_path", imagePath,
+			"error", err.Error(),
+		)
+		return "", err
 	}
 
 	var result struct {
@@ -194,8 +265,21 @@ func (c *OllamaClient) DescribeImage(imagePath string) (string, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		c.logger.Debug("llm vision failed",
+			"model", c.visionModel,
+			"image_path", imagePath,
+			"error", err.Error(),
+		)
 		return "", err
 	}
+
+	c.logger.Debug("llm vision",
+		"model", c.visionModel,
+		"image_path", imagePath,
+		"image_size", len(imgData),
+		"description_length", len(result.Response),
+		"duration_ms", time.Since(start).Milliseconds(),
+	)
 
 	return result.Response, nil
 }

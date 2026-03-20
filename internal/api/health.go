@@ -56,6 +56,19 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	done, _ := s.queue.CountByStatus(ctx, "done")
 	failed, _ := s.queue.CountByStatus(ctx, "failed")
 
+	if vaultStatus != "ok" {
+		s.logger.Warn("health check degraded",
+			"component", "vault",
+			"status", vaultStatus,
+		)
+	}
+	if llmStatus != "ok" {
+		s.logger.Warn("health check degraded",
+			"component", "llm",
+			"status", llmStatus,
+		)
+	}
+
 	WriteJSON(w, http.StatusOK, HealthResponse{
 		Status:  "ok",
 		Version: version.Get(),

@@ -7,7 +7,9 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -26,17 +28,33 @@ type CaptureResponse struct {
 }
 
 type HealthResponse struct {
-	Status  string `json:"status"`
-	Version string `json:"version"`
-	Queue   struct {
-		Pending    int `json:"pending"`
-		Processing int `json:"processing"`
-		Done       int `json:"done"`
-		Failed     int `json:"failed"`
-	} `json:"queue"`
+	Status       string       `json:"status"`
+	Version      string       `json:"version"`
+	Dependencies Dependencies `json:"dependencies"`
+	Queue        QueueStats   `json:"queue"`
+}
+
+type Dependencies struct {
+	DB    Dependency `json:"db"`
+	Vault Dependency `json:"vault"`
+	LLM   Dependency `json:"llm"`
+}
+
+type Dependency struct {
+	Status string `json:"status"`
+	Path   string `json:"path,omitempty"`
+	Host   string `json:"host,omitempty"`
+}
+
+type QueueStats struct {
+	Pending    int `json:"pending"`
+	Processing int `json:"processing"`
+	Done       int `json:"done"`
+	Failed     int `json:"failed"`
 }
 
 type SearchResult struct {
+	ID        string   `json:"id"`
 	NotePath  string   `json:"note_path"`
 	Title     string   `json:"title"`
 	Score     float64  `json:"score"`
@@ -50,7 +68,8 @@ type SearchResponse struct {
 	Results []SearchResult `json:"results"`
 	Query   string         `json:"query"`
 	Mode    string         `json:"mode"`
-	Time    int64          `json:"time_ms"`
+	Total   int            `json:"total"`
+	TookMs  int64          `json:"took_ms"`
 }
 
 func NewClient(host, token string) *Client {
@@ -192,10 +211,24 @@ func (c *Client) CaptureImage(imagePath, note string) (*CaptureResponse, error) 
 	return &result, nil
 }
 
-func (c *Client) Search(query string, mode string, limit int) (*SearchResponse, error) {
-	url := fmt.Sprintf("/v1/search?q=%s&mode=%s&limit=%d", query, mode, limit)
+func (c *Client) Search(query, mode string, limit, excerptLength int, from, to string, connections bool) (*SearchResponse, error) {
+	params := url.Values{}
+	params.Set("q", query)
+	params.Set("mode", mode)
+	params.Set("limit", strconv.Itoa(limit))
+	params.Set("excerpt_length", strconv.Itoa(excerptLength))
+	if from != "" {
+		params.Set("from", from)
+	}
+	if to != "" {
+		params.Set("to", to)
+	}
+	if connections {
+		params.Set("connections", "true")
+	}
+	searchURL := "/v1/search?" + params.Encode()
 
-	resp, err := c.doRequest("GET", url, nil)
+	resp, err := c.doRequest("GET", searchURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -251,10 +284,24 @@ func (c *Client) CheckConnection() error {
 }
 
 type StatsResponse struct {
-	Total     int            `json:"total"`
-	ByType    map[string]int `json:"by_type"`
-	ByTag     map[string]int `json:"by_tag"`
-	QueueSize int            `json:"queue_size"`
+	Total         int            `json:"total"`
+	ThisWeek      int            `json:"this_week"`
+	ThisMonth     int            `json:"this_month"`
+	ByType        map[string]int `json:"by_type"`
+	TopTags       []TagCount     `json:"top_tags"`
+	TopPeople     []PersonCount  `json:"top_people"`
+	CaptureStreak int            `json:"capture_streak"`
+	LongestStreak int            `json:"longest_streak"`
+}
+
+type TagCount struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+type PersonCount struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
 }
 
 func (c *Client) Stats() (*StatsResponse, error) {
@@ -269,36 +316,6 @@ func (c *Client) Stats() (*StatsResponse, error) {
 	}
 
 	var result StatsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return &result, nil
-}
-
-type BrowseResponse struct {
-	Notes []struct {
-		Path    string   `json:"path"`
-		Tags    []string `json:"tags"`
-		Date    string   `json:"date"`
-		Excerpt string   `json:"excerpt"`
-	} `json:"notes"`
-	Total int `json:"total"`
-}
-
-func (c *Client) Browse(filter string, value string, limit int) (*BrowseResponse, error) {
-	url := fmt.Sprintf("/v1/browse?filter=%s&value=%s&limit=%d", filter, value, limit)
-	resp, err := c.doRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("browse request failed with status %d", resp.StatusCode)
-	}
-
-	var result BrowseResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}

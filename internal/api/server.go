@@ -54,6 +54,7 @@ func (s *Server) setupRouter() {
 
 		r.Post("/capture", s.captureHandler)
 		r.Get("/search", s.searchHandler)
+		r.Get("/stats", s.statsHandler)
 		r.Get("/queue", s.queueListHandler)
 		r.Get("/queue/{id}", s.queueGetHandler)
 		r.Post("/queue/{id}/retry", s.queueRetryHandler)

@@ -47,7 +47,6 @@ khayal/
 │           ├── capture_image.go    # Image capture
 │           ├── search.go           # Search vault
 │           ├── recent.go           # Recent captures
-│           ├── browse.go           # Browse by tag/person
 │           ├── stats.go            # Vault statistics
 │           ├── status.go           # Lightweight check
 │           ├── init.go             # Huh wizard setup
@@ -114,9 +113,8 @@ khayal/
 │   ├── main.go                         # CLI entry point
 │   ├── root.go                         # Cobra root command
 │   ├── capture.go                      # kl "text", --url, --image
-│   ├── search.go                       # kl search (Glamour)
+│   ├── search.go                       # kl search (dynamic dividers)
 │   ├── recent.go                       # kl recent
-│   ├── browse.go                       # kl browse
 │   ├── stats.go                        # kl stats
 │   ├── status.go                       # kl status (lightweight, read-only)
 │   ├── init.go                         # kl init (Huh wizard)

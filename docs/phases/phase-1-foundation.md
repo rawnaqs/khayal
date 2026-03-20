@@ -279,13 +279,14 @@ func (q *Queue) SearchSemantic(queryEmbedding []float32, limit int) ([]SearchRes
 func (q *Queue) SaveEmbedding(jobID, model string, vector []float32) error
 
 type SearchResult struct {
-    JobID     string  `json:"id"`
-    NotePath  string  `json:"note_path"`
-    Title     string  `json:"title"`
-    Excerpt   string  `json:"excerpt"`
-    Score     float64 `json:"score"`
-    Type      string  `json:"type"`
-    CreatedAt string `json:"created_at"`
+    JobID     string   `json:"id"`
+    NotePath  string   `json:"note_path"`
+    Title     string   `json:"title"`
+    Excerpt   string   `json:"excerpt"`
+    Score     float64  `json:"score"`
+    Type      string   `json:"type"`
+    CreatedAt string   `json:"created_at"`
+    Tags      []string `json:"tags,omitempty"`
 }
 ```
 

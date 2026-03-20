@@ -114,12 +114,18 @@ func (w *Worker) workerLoop(id int) {
 
 func (w *Worker) processJob(jobID string) {
 	ctx := context.Background()
+	start := time.Now()
 
 	job, err := w.queue.GetJob(ctx, jobID)
 	if err != nil {
 		w.logger.Error("failed to get job", "job_id", jobID, "error", err)
 		return
 	}
+
+	w.logger.Info("job started",
+		"type", job.Type,
+		"job_id", job.ID,
+	)
 
 	if err := w.queue.UpdateJobStatus(ctx, jobID, "processing"); err != nil {
 		w.logger.Error("failed to update job status", "job_id", jobID, "error", err)
@@ -156,7 +162,12 @@ func (w *Worker) processJob(jobID string) {
 		return
 	}
 
-	w.logger.Info("job completed", "job_id", jobID, "type", job.Type, "note_path", notePath)
+	w.logger.Info("job processed",
+		"type", job.Type,
+		"job_id", job.ID,
+		"note_path", notePath,
+		"duration_ms", time.Since(start).Milliseconds(),
+	)
 }
 
 func (w *Worker) handleFailure(job *queue.Job, processErr error) {

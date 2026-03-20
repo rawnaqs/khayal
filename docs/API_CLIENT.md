@@ -314,13 +314,14 @@ type SearchResponse struct {
 }
 
 type SearchResult struct {
-    ID        string  `json:"id"`
-    NotePath  string  `json:"note_path"`
-    Title     string  `json:"title"`
-    Excerpt   string  `json:"excerpt"`
-    Score     float64 `json:"score"`
-    Type      string  `json:"type"`
-    CreatedAt string  `json:"created_at"`
+    ID        string   `json:"id"`
+    NotePath  string   `json:"note_path"`
+    Title     string   `json:"title"`
+    Excerpt   string   `json:"excerpt"`
+    Score     float64  `json:"score"`
+    Type      string   `json:"type"`
+    CreatedAt string   `json:"created_at"`
+    Tags      []string `json:"tags,omitempty"`
 }
 
 // Queue
