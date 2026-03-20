@@ -97,8 +97,6 @@
 | Tool | Purpose | Status |
 |------|---------|--------|
 | Ollama | Local LLM | Required for full functionality |
-| ffmpeg | Video processing | v1.1+ |
-| yt-dlp | YouTube ingestion | v1.2+ |
 
 ## Design System
 

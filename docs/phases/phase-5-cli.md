@@ -1,682 +1,264 @@
-# Phase 5: CLI
+# Phase 5: CLI Implementation Plan
 
-> Command line interface implementation — khayal (server) + kl (client). Updated: 2026-03-18
+> Command line interface implementation — khayal (server admin) + kl (client).
+> Updated: 2026-03-20
 
-## Two CLI Tools
+## Architecture
 
-This phase implements TWO separate CLI tools:
-
-| Tool | Binary | Purpose |
-|------|--------|---------|
-| `khayal` | Server admin | init, start, stop, status, reindex, logs |
-| `kl` | Client | capture, search, recent, browse, stats, init, config |
-
-## Goals
-
-### khayal (server admin)
-- [ ] `khayal init` — first-run setup
-- [ ] `khayal start` — start server + worker with dependency checks
-- [ ] `khayal stop` — graceful shutdown (wait for jobs)
-- [ ] `khayal restart` — stop + start
-- [ ] `khayal status` — Bubble Tea admin dashboard
-- [ ] `khayal reindex` — rebuild chunk embeddings with progress
-- [ ] `khayal version` — version + build info
-- [ ] `khayal logs` — tail logs
-- [ ] `khayal config` — view config (token redacted)
-
-### kl (client)
-- [ ] `kl "text"` — capture text (default command)
-- [ ] `kl --url` — capture URL
-- [ ] `kl --image` — capture image
-- [ ] `kl search` — search vault
-- [ ] `kl recent` — recent captures
-- [ ] `kl browse` — browse by tag/person/amount
-- [ ] `kl stats` — vault statistics
-- [ ] `kl status` — lightweight server check
-- [ ] `kl init` — Huh wizard setup
-- [ ] `kl config` — config management
-
-## Directory Structure
+### Directory Structure
 
 ```
 cmd/
-├── khayal/                      # Server admin CLI
-│   └── main.go
-└── kl/                          # Client CLI
-    └── main.go
-
-cli/                            # Shared code (used by both)
-├── main.go
-├── root.go
-├── capture.go
-├── search.go
-├── recent.go
-├── browse.go
-├── stats.go
-├── status.go
-├── init.go
-└── config.go
-
-internal/
-├── api/client/                  # Shared HTTP client
-│   └── client.go
-└── config/
-    └── config.go
+├── khayal/                          # Server admin CLI
+│   ├── main.go                      # Cobra root
+│   │
+│   ├── internal/                    # khayal-only utilities
+│   │   ├── config.go               # Config loading/writing
+│   │   ├── pid.go                  # PID file management
+│   │   ├── deps.go                 # Dependency checking
+│   │   ├── output.go                # Styled output helpers
+│   │   └── errors.go                # Error formatting + exit codes
+│   │
+│   └── commands/
+│       ├── init.go                  # First-run setup
+│       ├── start.go                 # Start server + deps check
+│       ├── stop.go                  # Graceful shutdown
+│       ├── restart.go               # Stop + Start
+│       ├── status.go                # Bubble Tea TUI dashboard
+│       ├── reindex.go               # Progress bar reindex
+│       ├── version.go                # Version info
+│       ├── logs.go                  # Log tail
+│       └── config.go                # View config
+│
+└── kl/                              # Client CLI
+    ├── main.go                      # Cobra root
+    │
+    ├── internal/                    # kl-only utilities
+    │   └── api/
+    │       └── client/
+    │           └── client.go       # HTTP client
+    │
+    └── commands/
+        ├── root.go                  # Default capture (text)
+        ├── capture/
+        │   ├── url.go               # Capture URL
+        │   └── image.go              # Capture image
+        ├── search.go                 # Search with glamour
+        ├── recent.go                 # Recent captures
+        ├── browse.go                 # Browse by tag/person/amount
+        ├── stats.go                  # ASCII bar charts
+        ├── status.go                 # Lightweight check
+        ├── init.go                  # Huh wizard
+        └── config/
+            ├── set.go                # Set config value
+            ├── get.go                # Get config value
+            └── view.go               # View all config
 ```
+
+### Design Principles
+
+| Principle | Implementation |
+|-----------|----------------|
+| **Separation of concerns** | Thin commands delegate to internal packages |
+| **No shared code** | khayal and kl are completely separate |
+| **Scoped utilities** | Internal packages live inside cmd/ only |
+| **goreleaser builds** | Builds from cmd/khayal and cmd/kl |
+
+---
 
 ## Dependencies
 
+### Required Packages
+
 ```go
 require (
-    github.com/spf13/cobra v1.8.0
-    github.com/charmbracelet/lipgloss v0.9.1
-    github.com/charmbracelet/glamour v0.6.0
-    github.com/charmbracelet/huh v0.3.0
-    github.com/charmbracelet/bubbletea v0.25.0
-    github.com/charmbracelet/bubbles v0.16.1
-    github.com/rawnaqs/theme v0.0.0
+    github.com/spf13/cobra v1.9+
+    charm.land/lipgloss/v2
+    charm.land/huh/v2
+    charm.land/bubbletea/v2
+    charm.land/bubbles/v2
+    github.com/charmbracelet/glamour
+    github.com/rawnaqs/theme
+)
+```
+
+### Import Paths (v2 Libraries)
+
+```go
+import (
+    "github.com/spf13/cobra"
+    "charm.land/lipgloss/v2"
+    "charm.land/huh/v2"
+    "charm.land/bubbletea/v2"
+    "charm.land/bubbles/v2"
+    "github.com/charmbracelet/glamour"
+    "github.com/rawnaqs/theme"
 )
 ```
 
 ---
 
-## Part A: khayal CLI (Server Admin)
+## khayal Commands (v1)
 
-### Directory Structure
+### Command Reference
 
-```
-cmd/khayal/
-├── main.go
-└── commands/
-    ├── init.go
-    ├── start.go
-    ├── stop.go
-    ├── restart.go
-    ├── status.go
-    ├── reindex.go
-    ├── version.go
-    ├── logs.go
-    └── config.go
-```
+| Command | File | Description |
+|---------|------|-------------|
+| `khayal init` | `commands/init.go` | First-run setup |
+| `khayal start` | `commands/start.go` | Start server + worker |
+| `khayal stop` | `commands/stop.go` | Graceful shutdown |
+| `khayal restart` | `commands/restart.go` | Stop + start |
+| `khayal status` | `commands/status.go` | Bubble Tea TUI |
+| `khayal reindex` | `commands/reindex.go` | Rebuild embeddings |
+| `khayal version` | `commands/version.go` | Version info |
+| `khayal logs` | `commands/logs.go` | Tail logs |
+| `khayal config` | `commands/config.go` | View config |
 
-### Implementation Details
+### Internal Packages
 
-#### khayal init
+| Package | Purpose |
+|---------|---------|
+| `internal/config.go` | Load/write config.yaml |
+| `internal/pid.go` | PID file for stop/restart |
+| `internal/deps.go` | Check ollama only |
+| `internal/output.go` | Styled terminal output |
+| `internal/errors.go` | Exit codes, error formatting |
 
-**File:** `cmd/khayal/commands/init.go`
-
-```go
-var initCmd = &cobra.Command{
-    Use:   "init",
-    Short: "First-run setup — generates config.yaml + token",
-    RunE:  runInit,
-}
-
-func runInit(cmd *cobra.Command, args []string) error {
-    // Create ~/.config/khayal/
-    // Generate 32-byte hex token
-    // Write config.yaml with 600 permissions
-    // Create log directory
-    // Print token ONCE (never again)
-    
-    fmt.Println("creating config directory...  ~/.config/khayal/")
-    fmt.Println("generating token...           " + token[:16] + "... (save this — shown once)")
-    fmt.Println("writing config...             ~/.config/khayal/config.yaml (600)")
-    fmt.Println("creating log directory...     ~/.config/khayal/logs/")
-    // Print next steps...
-}
-```
-
-Rules:
-- Token: 32-byte hex, shown once only
-- Config: 600 permissions
-- End with clear next steps
+### Sample Output
 
 #### khayal start
+```
+khayal v0.1.0
 
-**File:** `cmd/khayal/commands/start.go`
+loading config...
+checking dependencies...
+  ✓ ollama        http://localhost:11434
 
-```go
-var startCmd = &cobra.Command{
-    Use:   "start",
-    Short: "Start server + worker, run dependency checker",
-    RunE:  runStart,
-}
+  ✓ vault         /absolute/path/to/vault
+  ✓ db            /absolute/path/to/khayal.db
+  ✓ log           /absolute/path/to/logs/khayal.log
+  ✓ queue         ready
+  ✓ llm           ollama
+  ✓ worker        started
+  ✓ server        127.0.0.1:1133
+  ✓ pid           12345
 
-func runStart(cmd *cobra.Command, args []string) error {
-    // 1. Check dependencies (ollama, ffmpeg, yt-dlp, easyocr)
-    // 2. Load config
-    // 3. Start server
-    // 4. Start worker
-    // 5. Print "khayal is running"
-    
-    // Dependency check output:
-    fmt.Println("checking dependencies...")
-    fmt.Println("  ✓ ollama        localhost:11434")
-    fmt.Println("      models: qwen2.5:3b · moondream · nomic-embed-text")
-    fmt.Println("  ✓ ffmpeg        /usr/local/bin/ffmpeg")
-    fmt.Println("  ✗ yt-dlp        not found")
-    fmt.Println("      → brew install yt-dlp")
-    
-    // End with success signal
-    fmt.Println("\nkhayal is running.")
-    fmt.Println("press ctrl+c to stop")
-}
+khayal is running.
+press ctrl+c to stop
 ```
 
-Rules:
-- Show every dep check (pass and fail)
-- On dep failure: show install commands
-- Redact token: show first 8 chars + "..."
-- End with "khayal is running"
-
-#### khayal stop
-
-```go
-var stopCmd = &cobra.Command{
-    Use:   "stop",
-    Short: "Graceful shutdown",
-    RunE:  runStop,
-}
-
-func runStop(cmd *cobra.Command, args []string) error {
-    // Wait for current job to complete
-    // Stop worker
-    // Stop server
-    fmt.Println("stopping worker...    ✓ (waited for current job to finish)")
-    fmt.Println("stopping server...    ✓")
-    fmt.Println("khayal stopped.")
-}
+#### khayal status (TUI)
 ```
-
-Rules:
-- Wait for current job to finish
-- Never kill mid-processing
-
-#### khayal status — Bubble Tea TUI
-
-**File:** `cmd/khayal/commands/status.go`
-
-```go
-func initialModel() (model, tea.Cmd) {
-    return model{
-        server: fetchServerStatus(),
-        vault:  fetchVaultStatus(),
-        deps:   fetchDeps(),
-        queue:  fetchQueueStats(),
-        system: fetchSystemStats(),
-    }, nil
-}
-
-func (m model) View() string {
-    // Render full admin dashboard
-    // Server: host, uptime, pid
-    // Vault: path, notes, indexed %
-    // Dependencies: ollama, ffmpeg, yt-dlp
-    // Queue: pending, processing, done, failed
-    // System: memory, db size, log size
-}
-```
-
-Rules:
-- Refresh every 3 seconds
-- Show progress bar for indexed %
-- Show current job (type + ID) when processing
-- Keyboard hints at bottom: q, r, l, c, ?
-
-#### khayal reindex
-
-**File:** `cmd/khayal/commands/reindex.go`
-
-```go
-var reindexCmd = &cobra.Command{
-    Use:   "reindex",
-    Short: "Rebuild all chunk embeddings from vault",
-    RunE:  runReindex,
-}
-
-var force bool
-
-func init() {
-    reindexCmd.Flags().BoolVar(&force, "force", false, "reindex everything regardless of mtime")
-}
-
-func runReindex(cmd *cobra.Command, args []string) error {
-    // Scan vault
-    // Show notes found, already indexed, to reindex
-    // Progress bar with percentage + ETA
-    // Show each note as it completes (last 4 visible)
-    // Check mtime before re-embedding (skip if unchanged unless --force)
-}
-```
-
-Rules:
-- Progress bar: percentage + ETA
-- Show last 4 notes as they complete
-- Ctrl+c: graceful stop, show progress, resumable
-- Check mtime (skip unless --force)
-
-#### khayal logs
-
-```go
-var logsCmd = &cobra.Command{
-    Use:   "logs",
-    Short: "Tail ~/.config/khayal/logs/khayal.log",
-    RunE:  runLogs,
-}
-
-func runLogs(cmd *cobra.Command, args []string) error {
-    // Simple log tail
-    // No flags
-    // Ctrl+c to exit
-}
-```
-
-#### khayal version
-
-```
-khayal version
-
-  khayal v0.1.0
-  commit  a3f9c2e
-  built   2024-03-16T10:00:00Z
-  go      1.22.1
-```
-
-#### khayal config
-
-```go
-var configCmd = &cobra.Command{
-    Use:   "config",
-    Short: "View current config (token redacted)",
-    RunE:  runConfig,
-}
-
-func runConfig(cmd *cobra.Command, args []string) error {
-    // Load config
-    // Print all config with token redacted
-    // Read-only (edit the file directly)
-}
+┌─ Server ─────────────────────────────────────┐
+│  host      http://127.0.0.1:1133            │
+│  uptime    3h 24m                           │
+│  pid       12847                            │
+└──────────────────────────────────────────────┘
+┌─ Queue ─────────────────────────────────────┐
+│  pending      2    ██░░░░░░░░░░░░           │
+│  processing   1    ██░░░░░░░░░░░░  image    │
+│  done       147                               │
+└──────────────────────────────────────────────┘
 ```
 
 ---
 
-## Part B: kl CLI (Client)
+## kl Commands (v1)
 
-### Directory Structure
+### Command Reference
 
-```
-cmd/kl/
-└── main.go
+| Command | File | Description |
+|---------|------|-------------|
+| `kl "text"` | `commands/root.go` | Default capture (text) |
+| `kl capture url` | `commands/capture/url.go` | Capture URL |
+| `kl capture image` | `commands/capture/image.go` | Capture image |
+| `kl search` | `commands/search.go` | Search vault |
+| `kl recent` | `commands/recent.go` | Recent captures |
+| `kl browse` | `commands/browse.go` | Browse by tag/person |
+| `kl stats` | `commands/stats.go` | Vault statistics |
+| `kl status` | `commands/status.go` | Lightweight check |
+| `kl init` | `commands/init.go` | Huh wizard setup |
+| `kl config set` | `commands/config/set.go` | Set value |
+| `kl config get` | `commands/config/get.go` | Get value |
+| `kl config view` | `commands/config/view.go` | View all |
 
-cli/
-├── root.go          # Cobra root + default capture
-├── capture.go       # Text, URL, image capture
-├── search.go        # Search with Glamour
-├── recent.go        # Recent captures
-├── browse.go        # Browse by tag/person/amount
-├── stats.go         # Vault statistics
-├── status.go        # Lightweight status
-├── init.go          # Huh wizard
-└── config.go        # Config management
-```
+### Internal Packages
 
-### Implementation
+| Package | Purpose |
+|---------|---------|
+| `internal/api/client/client.go` | HTTP client for API calls |
 
-#### kl Root — Default Capture
-
-**File:** `cli/root.go`
-
-```go
-var rootCmd = &cobra.Command{
-    Use:   "kl",
-    Short: "Your private second brain",
-    Long: `Capture thoughts, images, and articles.
-Search your knowledge base semantically.
-
-Examples:
-  kl "my thought"
-  kl --url https://example.com
-  kl --image screenshot.png
-  kl search "distributed systems"
-  kl status`,
-    // Default command is capture
-    RunE: runCapture,
-}
-
-func init() {
-    // Register all subcommands
-    // Make "kl thought" work without "capture" subcommand
-    rootCmd.SetArgs(append([]string{"capture"}, rootCmd.Flags().Args()...))
-}
-```
-
-#### kl capture — Output Styles
-
-**File:** `cli/capture.go`
-
-Output must be minimal and instant:
-
-```
-✓ saved · #react #performance · 3ms          # text done
-⏳ queued · article · id: abc123              # URL queued
-⏳ queued · image · id: def456                 # image queued
-✓ saved · unprocessed                          # ollama down
-✗ cannot reach khayal at http://...            # server unreachable
-```
-
-Using `rawnaqs/theme`:
-
-```go
-import styles "github.com/rawnaqs/theme/custom/go"
-
-// Success
-fmt.Println(styles.SuccessStyle.Render("✓ saved"))
-
-// Processing
-fmt.Println(styles.ProcessingStyle.Render("⏳ queued · " + result.Type))
-
-// Error
-fmt.Println(styles.ErrorStyle.Render("✗ cannot reach khayal..."))
-```
-
-Rules (from UX spec):
-- No spinner for text capture (<100ms)
-- Spinner only for image/URL if >200ms
-- Error messages: actionable, never raw Go errors
+### Sample Output
 
 #### kl search
-
-**File:** `cli/search.go`
-
-```go
-var (
-    searchLimit int
-    searchMode  string
-    searchFrom  string
-    searchTo    string
-    verbose     bool
-)
-
-var searchCmd = &cobra.Command{
-    Use:   "search <query>",
-    Short: "Search your vault",
-    Args:  cobra.ExactArgs(1),
-    RunE:  runSearch,
-}
-
-func init() {
-    searchCmd.Flags().IntVarP(&searchLimit, "limit", "l", 5, "max results (max: 50)")
-    searchCmd.Flags().StringVar(&searchMode, "mode", "hybrid", "hybrid|keyword|semantic")
-    searchCmd.Flags().StringVar(&searchFrom, "from", "", "start date YYYY-MM-DD")
-    searchCmd.Flags().StringVar(&searchTo, "to", "", "end date YYYY-MM-DD")
-    searchCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "show scores and debug info")
-}
 ```
+3 results · hybrid · 42ms
 
-Output format (from UX spec):
+──────────────────────────────────────────────────────────
+khayal/2019-03-03-designer.md                          0.94
+March 3, 2019 · #finance #design
 
-```
-$ kl search "paid john money"
+...paid John Doe $2,000 for logo design work...
 
-  3 results · hybrid · 42ms
-
-  ──────────────────────────────────────────────────────────
-  khayal/2019-03-03-designer.md                          0.94
-  March 3, 2019 · #finance #design
-
-  ...paid John Doe $2,000 for logo design work...
-
-  ──────────────────────────────────────────────────────────
-  ...
-```
-
-Rules:
-- Score right-aligned
-- Date prominent
-- Tags on second line
-- Dividers between results
-- No color on content
-
-#### kl recent
-
-**File:** `cli/recent.go`
-
-```go
-var (
-    recentDays int
-    recentType string
-)
-
-var recentCmd = &cobra.Command{
-    Use:   "recent",
-    Short: "Show recent captures",
-    RunE:  runRecent,
-}
-
-func init() {
-    recentCmd.Flags().IntVar(&recentDays, "days", 1, "days to show")
-    recentCmd.Flags().StringVar(&recentType, "type", "", "filter by type: text|image|article")
-}
-```
-
-Output:
-```
-$ kl recent
-
-  today
-
-  14:23  text     useEffect cleanup runs after every render    #react
-  14:18  image    whiteboard-arch.png                         #system-design
-  13:55  article  CAP theorem explained                       #distributed
-
-  yesterday
-
-  18:44  text     meeting with Sarah re contract              #work
-  ...
-```
-
-Rules:
-- Group by day
-- Type badge: text/image/article (consistent width)
-- Truncate at 7 per day, show "N more →"
-
-#### kl browse
-
-**File:** `cli/browse.go`
-
-```go
-var (
-    browseTag    string
-    browsePerson string
-    browseAmount int
-    browseAll    bool
-)
-
-var browseCmd = &cobra.Command{
-    Use:   "browse",
-    Short: "Browse notes by tag, person, or amount",
-    RunE:  runBrowse,
-}
-
-func init() {
-    browseCmd.Flags().StringVar(&browseTag, "tag", "", "browse by tag")
-    browseCmd.Flags().StringVar(&browsePerson, "person", "", "browse by person")
-    browseCmd.Flags().IntVar(&browseAmount, "amount", 0, "browse by amount")
-    browseCmd.Flags().BoolVar(&browseAll, "all", false, "show all results")
-}
-```
-
-Output:
-```
-$ kl browse --tag react
-
-  #react · 23 notes
-
-  2024-03-16  useEffect cleanup runs after every render
-  2024-03-10  React Server Components mental model
-  ...
+──────────────────────────────────────────────────────────
 ```
 
 #### kl stats
+```
+vault · ~/brain
 
-**File:** `cli/stats.go`
+total         2,847   notes
+this week        23   ████░░░░░░░░░░░░░░░
+this month       94   ████████░░░░░░░░░░░
 
-```go
-var statsCmd = &cobra.Command{
-    Use:   "stats",
-    Short: "Show vault statistics",
-    RunE:  runStats,
-}
+top tags
+#react           142  ████████████████████
+#go               98  ████████████████░░░░
 ```
 
-Output with ASCII bar charts:
+#### kl init (huh wizard)
 ```
-$ kl stats
+? Server address
+  http://127.0.0.1:1133
 
-  vault · ~/brain
+? Token
+  ••••••••••••••••••
 
-  total         2,847   notes
-  this week        23   ████░░░░░░░░░░░░░░░
-  this month       94   ████████░░░░░░░░░░░
+  ✓ connected!
 
-  top tags
-  #react           142  ████████████████████
-  #go               98  ████████████████░░░░
-  ...
-```
+  saved to ~/.config/khayal/kl.yaml
 
-Rules:
-- ASCII bar charts (normalized)
-- Top 5 tags, top 3 people
-- Pure SQL, no LLM
-
-#### kl status — Lightweight
-
-**File:** `cli/status.go`
-
-```go
-var statusCmd = &cobra.Command{
-    Use:   "status",
-    Short: "Quick server + queue check",
-    RunE:  runStatus,
-}
-```
-
-Output (6 lines max):
-```
-$ kl status
-
-  ✓ khayal v0.1.0 · http://100.x.x.x:1133
-
-  queue
-    processing   1   image
-    pending      2
-    failed       0
-
-  last capture  14:23 · useEffect cleanup runs after...
-```
-
-#### kl init — Huh Wizard
-
-**File:** `cli/init.go`
-
-```go
-var initCmd = &cobra.Command{
-    Use:   "init",
-    Short: "Setup kl configuration",
-    RunE:  runInit,
-}
-
-func runInit(cmd *cobra.Command, args []string) error {
-    form := huh.NewForm(
-        huh.NewGroup(
-            huh.NewInput().Title("Server address").Value(&cfg.Host).Placeholder("http://127.0.0.1:1133"),
-        ),
-        huh.NewGroup(
-            huh.NewInput().Title("Token").Value(&cfg.Token).Placeholder("Enter your token").Mask('•'),
-        ),
-    )
-    
-    // Validate connection BEFORE writing config
-    // If fails: show error, stay in wizard
-    
-    // Write to ~/.config/khayal/kl.yaml
-    // End with "you're ready. try: kl \"your first thought\""
-}
-```
-
-Rules:
-- Validate connection BEFORE writing
-- Token masked with bullets
-- End with first command to try
-
-#### kl config
-
-**File:** `cli/config.go`
-
-```go
-var configCmd = &cobra.Command{
-    Use:   "config",
-    Short: "Manage configuration",
-}
-
-var configSetCmd = &cobra.Command{
-    Use:   "set <key> <value>",
-    Short: "Set a config value",
-    Args:  cobra.ExactArgs(2),
-    RunE:  runConfigSet,
-}
-
-var configGetCmd = &cobra.Command{
-    Use:   "get <key>",
-    Short: "Get a config value",
-    Args:  cobra.ExactArgs(1),
-    RunE:  runConfigGet,
-}
-
-var configViewCmd = &cobra.Command{
-    Use:   "view",
-    Short: "View all config",
-    RunE:  runConfigView,
-}
-```
-
-Silent success:
-```
-$ kl config set host http://100.x.x.x:1133
-  ✓ host updated
-    ~/.config/khayal/kl.yaml
+  you're ready. try: kl "your first thought"
 ```
 
 ---
 
-## Shared: Typography System
+## UX/UI Guidelines
 
-Both tools use `rawnaqs/theme`:
+### Typography System
+
+Using `github.com/rawnaqs/theme` for all styling:
 
 ```go
-import styles "github.com/rawnaqs/theme/custom/go"
+import "github.com/rawnaqs/theme"
 
-// Usage
-styles.Primary.Render("text")        // GoldLight #E8B86D
-styles.Muted.Render("text")          // GoldDark #8B6020
-styles.SuccessStyle.Render("✓ saved") // Green #4A7C59
-styles.ErrorStyle.Render("✗ error")   // Red #8B3A3A
-styles.ProcessingStyle.Render("⏳")   // GoldDark italic
-styles.Tag.Render("#tag")             // Gold bg, dark text
+// Pre-built styles from theme
+theme.Primary           // Gold light (#E8B86D)
+theme.Muted             // Gold dark (#8B6020)
+theme.Dim               // Gold dim (#3A2E18)
+theme.SuccessStyle      // Success green (#4A7C59), bold
+theme.ErrorStyle        // Error red (#8B3A3A), bold
+theme.WarningStyle      // Warning gold (#C9933A), bold
+theme.ProcessingStyle   // Italic gold dark
+theme.Tag               // Gold background, dark text
+theme.TagMuted          // Muted tag variant
+theme.Panel             // Panel with rounded border
+theme.PanelGold         // Panel with gold border
 ```
 
-Rules:
-- One color family: gold on dark
-- Color on metadata only — never on content
-- Error color only for actual errors
+### Error Message Format
 
----
-
-## Shared: Error Message Format
-
-Never show raw Go errors:
+Never show raw Go errors. Every error tells the user what to do next.
 
 ```
 ✗ short description of what failed
@@ -686,68 +268,59 @@ Never show raw Go errors:
   → where to get more info
 ```
 
+### Exit Codes
+
 ```go
-func handleServerUnreachable(err error) error {
-    return fmt.Errorf("✗ cannot reach khayal at %s\n\n  → is khayal running?    ssh mac-air khayal start\n  → wrong address?        kl config set host <address>\n  → check logs            ssh mac-air khayal logs", cfg.Host)
-}
+const (
+    ExitSuccess = 0  // Success
+    ExitUser    = 1  // Wrong args, not found
+    ExitServer  = 2  // Unreachable, auth failed
+    ExitVault   = 3  // Write failed, permission
+    ExitDep     = 4  // Ollama missing
+)
 ```
+
+### Spinner Rules
+
+| Operation | Duration | Show Spinner? |
+|-----------|----------|---------------|
+| Text capture | <100ms | No |
+| URL/image capture | varies | Yes (>200ms) |
+| Search | varies | Only if >200ms |
+| Status check | <200ms | No |
+| Init wizard | varies | Yes (network) |
 
 ---
 
-## Shared: Spinner Rules
+## Implementation Order
 
-Operations under 200ms: NO spinner (jarring)
-Operations over 200ms: SHOW spinner
+### Phase 5A: khayal CLI
 
-| Command | Show Spinner? |
-|---------|---------------|
-| `kl "thought"` | No (<100ms) |
-| `kl --url` | Yes (upload) |
-| `kl --image` | Yes (upload) |
-| `kl search` | Only with reranking |
-| `kl status` | No (<200ms) |
-| `kl recent` | No (<50ms) |
-| `kl stats` | No (<50ms) |
-| `khayal start` | No (step-by-step) |
-| `khayal reindex` | No (progress bar) |
-| `khayal stop` | No (text) |
-| `kl init` | Yes (network) |
+1. [x] Set up Cobra root with command groups
+2. [x] Implement `khayal version`
+3. [x] Implement `khayal init` (config generation)
+4. [x] Implement `khayal start` (deps check, step output)
+5. [x] Implement `khayal stop` (PID file)
+6. [x] Implement `khayal config` (view config)
+7. [x] Implement `khayal logs` (log tail)
+8. [x] Implement `khayal restart`
+9. [x] Implement `khayal status` (Bubble Tea TUI)
+10. [x] Implement `khayal reindex` (progress bar)
 
----
+### Phase 5B: kl CLI
 
-## Shared: Exit Codes
-
-```go
-import "os"
-
-// 0 - success
-// 1 - user error (wrong args, not found)
-// 2 - server error (unreachable, auth failed)
-// 3 - vault error (write failed, permission)
-// 4 - dep error (ollama, ffmpeg missing)
-```
-
----
-
-## Shared: Help Format
-
-Examples first, then flags:
-
-```go
-searchCmd.SetHelpTemplate(`Search your vault using keyword and semantic search.
-
-Usage:
-  kl search <query> [flags]
-
-Examples:
-  kl search "paid john money"
-  kl search "react hooks" --mode keyword
-  kl search "distributed systems" --from 2024-01-01
-
-Flags:
-{{.Flags}}
-`)
-```
+1. [x] Set up Cobra root with command groups
+2. [x] Create API client (`internal/api/`)
+3. [x] Implement default capture (`kl "text"`)
+4. [x] Implement `kl capture url`
+5. [x] Implement `kl capture image`
+6. [x] Implement `kl search` (glamour)
+7. [x] Implement `kl status`
+8. [x] Implement `kl recent`
+9. [x] Implement `kl browse`
+10. [x] Implement `kl stats` (ASCII charts)
+11. [x] Implement `kl init` (huh wizard)
+12. [x] Implement `kl config set/get/view`
 
 ---
 
@@ -772,19 +345,21 @@ llm:
   embed_model: nomic-embed-text
   text_model: qwen2.5:3b
   vision_model: moondream
-  fallback_provider: ""
-  fallback_api_key: ""
 
 worker:
   max_workers: 1
   max_retries: 3
-  retry_backoff: exponential
 
 db:
   path: ~/.config/khayal/khayal.db
+
+log:
+  level: info
+  worker_level: info
+  file: ~/.config/khayal/logs/khayal.log
 ```
 
-### kl config (~/.config/kahyyal/kl.yaml)
+### kl config (~/.config/khayal/kl.yaml)
 
 ```yaml
 host: http://127.0.0.1:1133
@@ -793,54 +368,84 @@ token: your-token-here
 
 ---
 
-## Testing
+## goreleaser Configuration
 
-```bash
-go test ./cmd/khayal/... -v
-go test ./cmd/kl/... -v
-go test ./cli/... -v
+```yaml
+# .goreleaser.yml
+builds:
+  - id: khayal
+    dir: ./cmd/khayal
+    main: ./main.go
+    binary: khayal
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+  - id: kl
+    dir: ./cmd/kl
+    main: ./main.go
+    binary: kl
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
 ```
+
+---
 
 ## Checklist
 
 ### khayal (server admin)
-- [ ] khayal init
-- [ ] khayal start (dep checks, verbose output)
-- [ ] khayal stop (graceful)
-- [ ] khayal restart
-- [ ] khayal status (Bubble Tea TUI)
-- [ ] khayal reindex (progress bar, mtime check)
-- [ ] khayal version
-- [ ] khayal logs
-- [ ] khayal config (token redacted)
+- [x] khayal init
+- [x] khayal start (dep checks, verbose output)
+- [x] khayal stop (graceful)
+- [x] khayal restart
+- [x] khayal status (Bubble Tea TUI)
+- [x] khayal reindex (progress bar, mtime check)
+- [x] khayal version
+- [x] khayal logs
+- [x] khayal config (token redacted)
 
 ### kl (client)
-- [ ] kl "text" (default capture)
-- [ ] kl --url
-- [ ] kl --image
-- [ ] kl search (Glamour, proper format)
-- [ ] kl recent (grouped by day)
-- [ ] kl browse (tag/person/amount)
-- [ ] kl stats (ASCII charts)
-- [ ] kl status (lightweight)
-- [ ] kl init (Huh wizard, validate before save)
-- [ ] kl config set/get/view
+- [x] kl "text" (default capture)
+- [x] kl capture url
+- [x] kl capture image
+- [x] kl search (Glamour, proper format)
+- [x] kl recent (grouped by day)
+- [x] kl browse (tag/person/amount)
+- [x] kl stats (ASCII charts)
+- [x] kl status (lightweight)
+- [x] kl init (Huh wizard, validate before save)
+- [x] kl config set/get/view
 
 ### Shared
-- [ ] Typography (rawnaqs/theme)
-- [ ] Error messages (actionable)
-- [ ] Spinner rules
-- [ ] Exit codes
-- [ ] Help format
+- [x] Typography (rawnaqs/theme)
+- [x] Error messages (actionable)
+- [x] Spinner rules
+- [x] Exit codes
+- [x] Help format (examples first)
+
+---
 
 ## Next Phase
 
 [Phase 6: PWA](phase-6-pwa.md)
+
+---
 
 ## Notes
 
 - **Two binaries**: `khayal` for server admin, `kl` for client
 - **UX spec**: See SPEC.md "CLI UX" section for detailed output formats
 - **khayal**: Sysadmin feel — dense, verbose, operational
-- **kl**: Personal feel — minimal, fast, warm
-- Config: khayal uses `~/.config/khayal/config.yaml`, kl uses `~/.config/khayal/kl.yaml`
+- **kl**: Personal feel — minimal, fast, one-line
+- **Build**: Both binaries built via goreleaser from cmd/ directories

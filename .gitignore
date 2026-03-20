@@ -1,6 +1,6 @@
 # Binaries
-khayal
-kl
+/khayal
+/kl
 *.exe
 
 # Test artifacts
@@ -8,6 +8,7 @@ testdata/khayal.db
 testdata/logs/
 *.test
 testdata/vault/khayal/*.md
+testdata/*.pid
 testdata/vault/khayal/media/*
 testdata/vault/khayal/.khayal-trash/
 

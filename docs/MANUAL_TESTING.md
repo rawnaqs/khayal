@@ -3,7 +3,7 @@
 > Step-by-step verification commands for Khayal implementation.
 > Update after completing each phase.
 
-**Current Phase:** Phase 1-4 (Foundation + API + Worker + LLM) — Logging + path handling implemented
+**Current Phase:** Phase 5 (CLI) — khayal + kl commands implemented
 **Last Updated:** 2026-03-20
 
 ---
@@ -40,24 +40,26 @@ logging:
 
 ```bash
 # Terminal 1: Start server
-KHAYAL_CONFIG=./testdata/config.yaml go run ./cmd/khayal
+KHAYAL_CONFIG=./testdata/config.yaml go run ./cmd/khayal start
 
 # Expected output:
-# Khayal v0.1.0
+# khayal v0.1.0
 #
-# Config:       testdata/config.yaml
-# Vault path:   testdata/vault
-# DB path:      testdata/khayal.db
-# Server:       127.0.0.1:1133
-# LLM provider: ollama
+# loading config...
+# checking dependencies...
+#   ✓ ollama        http://localhost:11434
 #
-# All directories ready.
-# Database ready.
-# Vault ready.
-# LLM ready.
-# Worker started.
-# Server listening on 127.0.0.1:1133
-# Press Ctrl+C to stop
+#   ✓ vault         /absolute/path/to/testdata/vault
+#   ✓ db            /absolute/path/to/testdata/khayal.db
+#   ✓ log           /absolute/path/to/testdata/logs/khayal.log
+#   ✓ queue         ready
+#   ✓ llm           ollama
+#   ✓ worker        started
+#   ✓ server        127.0.0.1:1133
+#   ✓ pid           12345
+#
+# khayal is running.
+# press ctrl+c to stop
 ```
 
 ---
@@ -65,7 +67,7 @@ KHAYAL_CONFIG=./testdata/config.yaml go run ./cmd/khayal
 ## Logging Verification
 
 ```bash
-# Check log file was created
+# Check log file was created (logs go to file only, not stdout)
 ls -la testdata/logs/
 
 # Expected: khayal.log exists
@@ -80,9 +82,6 @@ cat testdata/logs/khayal.log
 # Check for rotation (after hitting max_size_mb)
 ls -la testdata/logs/
 # Expected: khayal.log.1.gz, khayal.log.2.gz, etc.
-
-# Stdout also shows logs
-# (visible in terminal when running)
 ```
 
 ---
@@ -104,6 +103,139 @@ ls -la testdata/vault/khayal/.khayal-trash/
 
 # Verify NOT in vault root
 ls testdata/vault/.khayal-trash/ 2>/dev/null || echo "Correct: No trash at vault root"
+```
+
+---
+
+## Phase 5: CLI Commands
+
+### Environment Variables
+
+```bash
+# khayal uses KHAYAL_CONFIG for config path
+KHAYAL_CONFIG=./testdata/config.yaml
+
+# kl uses KL_CONFIG for config path (defaults to ~/.config/khayal/kl.yaml)
+KL_CONFIG=./testdata/kl.yaml
+```
+
+### khayal Commands
+
+#### khayal config
+```bash
+# View current config (token redacted)
+KHAYAL_CONFIG=./testdata/config.yaml go run ./cmd/khayal config
+
+# Expected: formatted config output with token masked
+```
+
+#### khayal start
+```bash
+# Start server (already tested above)
+KHAYAL_CONFIG=./testdata/config.yaml go run ./cmd/khayal start
+```
+
+#### khayal stop
+```bash
+# Graceful shutdown (run from another terminal while server is running)
+KHAYAL_CONFIG=./testdata/config.yaml go run ./cmd/khayal stop
+
+# Expected output:
+# stopping worker...    ✓ (waited for current job to finish)
+# stopping server...     ✓
+# khayal stopped.
+```
+
+#### khayal status
+```bash
+# Bubble Tea TUI dashboard
+KHAYAL_CONFIG=./testdata/config.yaml go run ./cmd/khayal status
+
+# Expected: Interactive TUI with queue status
+# Press 'q' to quit
+```
+
+#### khayal version
+```bash
+KHAYAL_CONFIG=./testdata/config.yaml go run ./cmd/khayal version
+
+# Expected:
+# khayal v0.1.0
+# commit  a3f9c2e
+# built   2024-03-20T10:00:00Z
+```
+
+### kl Commands
+
+First, create a test config for kl:
+```bash
+mkdir -p ./testdata
+cat > ./testdata/kl.yaml << 'EOF'
+host: http://127.0.0.1:1133
+token: abc
+EOF
+```
+
+#### kl init
+```bash
+# Interactive wizard (run without test config first to test wizard)
+KL_CONFIG=./testdata/kl.yaml go run ./cmd/kl init
+
+# Expected: Huh form with host + token inputs
+```
+
+#### kl config
+```bash
+# View config
+KL_CONFIG=./testdata/kl.yaml go run ./cmd/kl config view
+
+# Expected: shows host and token (token masked)
+
+# Set config values
+KL_CONFIG=./testdata/kl.yaml go run ./cmd/kl config set host http://127.0.0.1:1133
+KL_CONFIG=./testdata/kl.yaml go run ./cmd/kl config set token abc
+
+# Get config value
+KL_CONFIG=./testdata/kl.yaml go run ./cmd/kl config get host
+```
+
+#### kl status
+```bash
+# Lightweight server check (requires server running)
+KL_CONFIG=./testdata/kl.yaml go run ./cmd/kl status
+
+# Expected (when server up):
+# ✓ khayal v0.1.0 · http://127.0.0.1:1133
+#   queue
+#     processing   1   image
+#     pending      2
+#
+# Expected (when server down):
+# ✗ cannot reach khayal at http://127.0.0.1:1133
+```
+
+#### kl capture
+```bash
+# Capture text (default command)
+KL_CONFIG=./testdata/kl.yaml go run ./cmd/kl "test thought from cli"
+
+# Expected: capture response with note path or queued status
+```
+
+#### kl search
+```bash
+# Search vault
+KL_CONFIG=./testdata/kl.yaml go run ./cmd/kl search "test"
+
+# Expected: search results with scores and excerpts
+```
+
+#### kl recent
+```bash
+# Recent captures
+KL_CONFIG=./testdata/kl.yaml go run ./cmd/kl recent
+
+# Expected: grouped list of recent captures by day
 ```
 
 ---

@@ -146,7 +146,7 @@ func Load() (*Config, string, error) {
 }
 
 func LoadFromPath(path string) (*Config, string, error) {
-	absPath, err := filepath.Abs(expandTilde(path))
+	absPath, err := filepath.Abs(ExpandTilde(path))
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to resolve config path: %w", err)
 	}
@@ -289,7 +289,7 @@ func GenerateToken() string {
 }
 
 func Save(cfg *Config, path string) error {
-	absPath := expandTilde(path)
+	absPath := ExpandTilde(path)
 
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
@@ -305,7 +305,7 @@ func Save(cfg *Config, path string) error {
 
 func MakeAbsolute(path, configPath string) string {
 	path = os.ExpandEnv(path)
-	path = expandTilde(path)
+	path = ExpandTilde(path)
 
 	if filepath.IsAbs(path) {
 		return path
@@ -314,7 +314,7 @@ func MakeAbsolute(path, configPath string) string {
 	return filepath.Join(filepath.Dir(configPath), path)
 }
 
-func expandTilde(path string) string {
+func ExpandTilde(path string) string {
 	if len(path) >= 2 && path[0] == '~' && path[1] == '/' {
 		home, err := os.UserHomeDir()
 		if err == nil {

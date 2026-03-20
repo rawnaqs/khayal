@@ -169,34 +169,21 @@ Verbose. Every check shown. User knows exactly what happened.
 ```
 khayal v0.1.0
 
-checking dependencies...
-  ✓ ollama        localhost:11434
-      models: qwen2.5:3b · moondream · nomic-embed-text
-  ✓ ffmpeg        /usr/local/bin/ffmpeg
-  ✗ yt-dlp        not found
-      → brew install yt-dlp
-      → pip install yt-dlp
-      → video ingestion unavailable until installed
-  ✓ easyocr       available
-
 loading config...
-  ✓ vault         ~/brain
-  ✓ token         a3f9c2e1... (redacted)
-  ✓ db            ~/.config/khayal/khayal.db
-  ✓ log           ~/.config/khayal/logs/khayal.log
+checking dependencies...
+  ✓ ollama        http://localhost:11434
 
-starting server...
-  ✓ listening     http://127.0.0.1:1133
-
-starting worker...
-  ✓ workers       1
-  ✓ queue         2 pending jobs
-
-scanning vault...
-  2,847 notes found
-  all notes indexed ✓
+  ✓ vault         /absolute/path/to/vault
+  ✓ db            /absolute/path/to/khayal.db
+  ✓ log           /absolute/path/to/logs/khayal.log
+  ✓ queue         ready
+  ✓ llm           ollama
+  ✓ worker        started
+  ✓ server        127.0.0.1:1133
+  ✓ pid           12345
 
 khayal is running.
+press ctrl+c to stop
 press ctrl+c to stop
 ```
 
@@ -994,7 +981,7 @@ $ kl search --help
 1   user error    (wrong args, note not found, config missing)
 2   server error  (unreachable, auth failed, API error)
 3   vault error   (write failed, file locked, permission denied)
-4   dep error     (Ollama unreachable, ffmpeg missing)
+4   dep error     (Ollama unreachable)
 ```
 
 Scripts consuming kl or khayal can rely on these codes being consistent.

@@ -38,7 +38,7 @@ search:
   min_semantic_score: 0.5
 
 log:
-  level: info
+  level: debug
   worker_level: debug
   file: ./logs/khayal.log
   rotation_max_size_mb: 10

@@ -3,7 +3,6 @@ package log
 import (
 	"context"
 	"log/slog"
-	"os"
 )
 
 type multiHandler struct {
@@ -88,22 +87,14 @@ func SetupLogger(logFile string, configPath string, maxSizeMB, maxFiles int, lev
 	fileHandler := slog.NewJSONHandler(rotatingFile, &slog.HandlerOptions{
 		Level: mainLvl,
 	})
-	stdoutHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: mainLvl,
-	})
 
-	mainHandler := NewMultiHandler(fileHandler, stdoutHandler)
-	mainLogger := slog.New(mainHandler)
+	mainLogger := slog.New(fileHandler)
 
 	workerFileHandler := slog.NewJSONHandler(rotatingFile, &slog.HandlerOptions{
 		Level: workerLvl,
 	})
-	workerStdoutHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: workerLvl,
-	})
 
-	workerHandler := NewMultiHandler(workerFileHandler, workerStdoutHandler)
-	workerLogger := slog.New(workerHandler)
+	workerLogger := slog.New(workerFileHandler)
 
 	return &LoggerSetup{
 		MainLogger:   mainLogger,

@@ -107,23 +107,36 @@ Local AI integration.
 `kl` command and shared API client.
 
 **Goals:**
-- [ ] `cmd/kl/main.go` entry point
-- [ ] `internal/api/client/` package
-  - [ ] Capture methods
-  - [ ] Search methods
-  - [ ] Queue methods
-  - [ ] Health methods
-  - [ ] Types
-- [ ] kl commands:
-  - [ ] `kl "text"` - capture text
-  - [ ] `kl --url` - capture URL
-  - [ ] `kl --image` - capture image
-  - [ ] `kl search` - search with Glamour
-  - [ ] `kl status` - lightweight, read-only
-  - [ ] `kl init` - Huh wizard
-  - [ ] `kl config` - config management
+- [x] `cmd/kl/main.go` entry point
+- [x] `cmd/kl/internal/api/client.go` package
+  - [x] Capture methods (text, url, image)
+  - [x] Search methods
+  - [x] Queue methods
+  - [x] Health/Stats methods
+  - [x] Types
+- [x] khayal commands:
+  - [x] `khayal init` - First-run setup
+  - [x] `khayal start` - Start server + worker
+  - [x] `khayal stop` - Graceful shutdown
+  - [x] `khayal restart` - Stop + start
+  - [x] `khayal status` - Bubble Tea TUI dashboard
+  - [x] `khayal reindex` - Progress bar reindex
+  - [x] `khayal version` - Version info
+  - [x] `khayal logs` - Log tail
+  - [x] `khayal config` - View config (token redacted)
+- [x] kl commands:
+  - [x] `kl "text"` - capture text (default)
+  - [x] `kl capture url` - capture URL
+  - [x] `kl capture image` - capture image
+  - [x] `kl search` - search vault
+  - [x] `kl recent` - recent captures
+  - [x] `kl browse` - browse by tag/person/amount
+  - [x] `kl stats` - vault statistics
+  - [x] `kl status` - lightweight check
+  - [x] `kl init` - Huh wizard
+  - [x] `kl config` - config management (view/set/get)
 
-**Files Created:** ~13
+**Files Created:** ~25 (cmd/khayal + cmd/kl)
 **Tests:** CLI integration
 
 ### Phase 6: PWA

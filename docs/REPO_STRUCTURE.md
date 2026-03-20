@@ -14,11 +14,45 @@
 ```
 khayal/
 ├── cmd/
-│   ├── khayal/                      # Full server binary
-│   │   └── main.go                  # Entry point: khayal
+│   ├── khayal/                      # Server admin CLI
+│   │   ├── main.go                  # Entry point: khayal
+│   │   ├── internal/                # khayal-only utilities
+│   │   │   ├── config.go           # Config loading/writing
+│   │   │   ├── pid.go              # PID file management
+│   │   │   ├── deps.go             # Dependency checking (ollama)
+│   │   │   ├── output.go           # Styled output helpers
+│   │   │   └── errors.go           # Error formatting + exit codes
+│   │   └── commands/               # khayal subcommands
+│   │       ├── init.go            # First-run setup
+│   │       ├── start.go           # Start server + deps check
+│   │       ├── stop.go            # Graceful shutdown
+│   │       ├── restart.go          # Stop + start
+│   │       ├── status.go          # Bubble Tea TUI dashboard
+│   │       ├── reindex.go         # Progress bar reindex
+│   │       ├── version.go         # Version info
+│   │       ├── logs.go            # Log tail
+│   │       └── config.go          # View config
 │   │
-│   └── kl/                          # Thin HTTP client binary
-│       └── main.go                  # Entry point: kl
+│   └── kl/                          # Client CLI
+│       ├── main.go                  # Entry point: kl
+│       ├── internal/                # kl-only utilities
+│       │   ├── config.go           # Config loading (KL_CONFIG env)
+│       │   ├── output.go           # Styled output helpers
+│       │   └── api/                # HTTP client
+│       │       └── client.go      # API client for server
+│       └── commands/               # kl subcommands
+│           ├── root.go             # Default capture
+│           ├── capture.go          # Text capture
+│           ├── capture_url.go      # URL capture
+│           ├── capture_image.go    # Image capture
+│           ├── search.go           # Search vault
+│           ├── recent.go           # Recent captures
+│           ├── browse.go           # Browse by tag/person
+│           ├── stats.go            # Vault statistics
+│           ├── status.go           # Lightweight check
+│           ├── init.go             # Huh wizard setup
+│           └── config/             # Config subcommands
+│               └── root.go        # View/set/get config
 │
 ├── internal/
 │   ├── api/
@@ -161,7 +195,9 @@ khayal/
 
 ### `cmd/`
 
-Single entry point for the binary. All other code is under `internal/`.
+Two separate CLI binaries:
+- `cmd/khayal/` — Server admin CLI (khayal start, stop, status, etc.)
+- `cmd/kl/` — Client CLI (kl capture, search, status, etc.)
 
 ### `internal/`
 
@@ -178,10 +214,7 @@ Private application code. Not importable by external packages.
 | `search/` | Search algorithms |
 | `config/` | Configuration management |
 | `version/` | Version info |
-
-### `cli/`
-
-Cobra-based CLI (`kl` command). Separated from server for clarity.
+| `log/` | Structured logging (file only, no stdout) |
 
 ### `ui/`
 
@@ -364,5 +397,5 @@ khayal_linux_arm64  # Linux ARM
 
 - Go: 1.22+
 - Node: 18+ (for PWA build)
-- GCC: Required (for CGO SQLite)
-- SQLite: mattn/go-sqlite3 (CGO)
+- Ollama: Required for LLM features
+- No CGO required (uses modernc.org/sqlite)
