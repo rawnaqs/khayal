@@ -198,11 +198,12 @@ CREATE INDEX idx_jobs_status ON jobs(status);
 CREATE INDEX idx_jobs_created ON jobs(created_at);
 
 -- Full-text search
-CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
-    note_path,
+CREATE VIRTUAL TABLE notes_fts USING fts5(
+    note_path UNINDEXED,    -- metadata, not searchable
     content,
     title,
-    tags
+    tags,
+    tokenize = 'porter unicode61'  -- stemming + Unicode support
 );
 
 -- Embeddings storage
@@ -266,9 +267,10 @@ func NewQueueWithLogger(dbPath string, logger *slog.Logger) (*Queue, error) {
         return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
     }
 
-    // Limit connections (SQLite only allows 1 writer)
-    db.SetMaxOpenConns(1)
-    db.SetMaxIdleConns(1)
+    // No connection limit - let SQLite handle contention via busy_timeout
+    // WAL mode supports concurrent readers + 1 writer
+    db.SetMaxOpenConns(0)
+    db.SetMaxIdleConns(2)
     db.SetConnMaxLifetime(time.Hour)
 
     // ... rest of initialization
@@ -276,13 +278,18 @@ func NewQueueWithLogger(dbPath string, logger *slog.Logger) (*Queue, error) {
 ```
 
 **WAL Mode Benefits:**
-- Concurrent reads allowed during writes
+- Concurrent readers allowed during writes
 - Better performance under load
 - No read/write blocking
 
 **Busy Timeout:**
 - Retries lock acquisition up to 5 seconds
 - Handles transient lock contention
+
+**Connection Pool:**
+- Unlimited connections (`SetMaxOpenConns(0)`)
+- SQLite handles writer serialization via busy_timeout
+- Search queries don't block when workers are writing
 
 **Lock Retry Logic:**
 Critical write operations include retry logic for SQLite lock errors:

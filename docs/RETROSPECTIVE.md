@@ -305,6 +305,41 @@ CREATE VIRTUAL TABLE notes_fts USING fts5(
 
 **Note:** Required deleting `testdata/khayal.db` to recreate with correct schema.
 
+### FTS5 Tokenizer and BM25 Weighting (2026-03-22)
+
+**Problem:** Search quality was poor - exact matches didn't rank higher than partial matches.
+
+**Changes:**
+
+1. **Added `porter unicode61` tokenizer:**
+   - **Porter stemming**: "running" matches "run", "runs", "runner"
+   - **Unicode61**: Better handling of Unicode characters
+   ```sql
+   CREATE VIRTUAL TABLE notes_fts USING fts5(
+       note_path UNINDEXED,  -- path is metadata, not searchable
+       content,
+       title,
+       tags,
+       tokenize = 'porter unicode61'
+   )
+   ```
+
+2. **Added BM25 weighting:**
+   ```sql
+   ORDER BY bm25(notes_fts, 0, 3.0, 1.0, 1.0)
+   ```
+   - `note_path`: 0 (UNINDEXED)
+   - `title`: 3.0 (3x more important)
+   - `content`: 1.0 (base weight)
+   - `tags`: 1.0 (same as content)
+
+3. **Auto-drop on startup:**
+   - `DROP TABLE IF EXISTS notes_fts` runs on every startup
+   - Ensures schema changes are applied
+   - Requires `khayal reindex --force` to repopulate
+
+**Result:** Better search relevance with stemming and weighted ranking.
+
 ### Issue: Duplicate History Frontmatter
 
 **Problem:** Notes had duplicate `history:` keys in frontmatter or malformed YAML.
@@ -948,18 +983,26 @@ db.Exec("PRAGMA journal_mode=WAL")
 // Set busy timeout for automatic lock retry
 db.Exec("PRAGMA busy_timeout=5000")
 
-// Limit connections (SQLite only allows 1 writer)
-db.SetMaxOpenConns(1)
+// No connection limit - let SQLite handle contention via busy_timeout
+// WAL mode supports concurrent readers + 1 writer
+db.SetMaxOpenConns(0)
+db.SetMaxIdleConns(2)
+db.SetConnMaxLifetime(time.Hour)
 ```
 
 **WAL Mode Benefits:**
-- Concurrent reads allowed during writes
+- Concurrent readers allowed during writes
 - Better performance under load
 - No read/write blocking
 
 **Busy Timeout:**
 - Retries lock acquisition up to 5 seconds
 - Handles transient lock contention
+
+**Connection Pool:**
+- Unlimited connections (`SetMaxOpenConns(0)`)
+- SQLite handles writer serialization via busy_timeout
+- Search queries don't block when workers are writing
 
 #### 2. Lock Retry Logic
 

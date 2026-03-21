@@ -1029,8 +1029,9 @@ Never show:
 ### Search Implementation
 
 **Keyword Search:**
-- SQLite FTS5 with porter stemming
-- BM25 ranking for relevance
+- SQLite FTS5 with `porter unicode61` tokenizer (stemming + Unicode support)
+- BM25 ranking with column weights: title 3x, content 1x, tags 1x
+- `note_path` UNINDEXED (metadata, not searchable)
 - FTS5 triggers on content, title, tags
 
 **Semantic Search:**

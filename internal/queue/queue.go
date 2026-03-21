@@ -59,8 +59,10 @@ func NewQueueWithLogger(dbPath string, logger *slog.Logger) (*Queue, error) {
 		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
 	}
 
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	// No connection limit - let SQLite handle contention via busy_timeout
+	// WAL mode supports concurrent readers + 1 writer
+	db.SetMaxOpenConns(0)
+	db.SetMaxIdleConns(2)
 	db.SetConnMaxLifetime(time.Hour)
 
 	q := &Queue{db: db, logger: logger}
@@ -165,11 +167,15 @@ func (q *Queue) initSchema() error {
 }
 
 func (q *Queue) initFTS() error {
-	_, err := q.db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
-		note_path,
+	// Drop existing table if it exists (migration for schema change)
+	q.db.Exec(`DROP TABLE IF EXISTS notes_fts`)
+
+	_, err := q.db.Exec(`CREATE VIRTUAL TABLE notes_fts USING fts5(
+		note_path UNINDEXED,
 		content,
 		title,
-		tags
+		tags,
+		tokenize = 'porter unicode61'
 	)`)
 	return err
 }
@@ -473,7 +479,7 @@ func (q *Queue) SearchKeyword(ctx context.Context, query string, limit int) ([]S
 		FROM notes_fts fts
 		JOIN jobs j ON fts.note_path = j.note_path
 		WHERE notes_fts MATCH ?
-		ORDER BY rank
+		ORDER BY bm25(notes_fts, 0, 3.0, 1.0, 1.0)
 		LIMIT ?`, query, limit)
 	if err != nil {
 		if isFTSErr(err) {
