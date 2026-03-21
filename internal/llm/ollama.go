@@ -23,9 +23,17 @@ type OllamaClient struct {
 	truncateArticleTokens int
 	httpClient            *http.Client
 	logger                *slog.Logger
+	semaphore             chan struct{}
 }
 
 func NewOllamaClient(baseURL, embedModel, textModel, visionModel string) *OllamaClient {
+	return NewOllamaClientWithConcurrency(baseURL, embedModel, textModel, visionModel, 4)
+}
+
+func NewOllamaClientWithConcurrency(baseURL, embedModel, textModel, visionModel string, maxConcurrent int) *OllamaClient {
+	if maxConcurrent < 1 {
+		maxConcurrent = 4
+	}
 	return &OllamaClient{
 		baseURL:               strings.TrimSuffix(baseURL, "/"),
 		embedModel:            embedModel,
@@ -37,7 +45,8 @@ func NewOllamaClient(baseURL, embedModel, textModel, visionModel string) *Ollama
 		httpClient: &http.Client{
 			Timeout: 120 * time.Second,
 		},
-		logger: slog.Default(),
+		logger:    slog.Default(),
+		semaphore: make(chan struct{}, maxConcurrent),
 	}
 }
 
@@ -70,6 +79,25 @@ func (c *OllamaClient) truncateLimit(bucket string) int {
 	}
 }
 
+func (c *OllamaClient) acquire(ctx context.Context) error {
+	if c.semaphore == nil {
+		return nil
+	}
+	select {
+	case c.semaphore <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c *OllamaClient) release() {
+	if c.semaphore == nil {
+		return
+	}
+	<-c.semaphore
+}
+
 func (c *OllamaClient) Type() string {
 	return ProviderOllama
 }
@@ -98,6 +126,14 @@ func (c *OllamaClient) Ping() error {
 
 func (c *OllamaClient) Embed(text string) ([]float32, error) {
 	start := time.Now()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	if err := c.acquire(ctx); err != nil {
+		return nil, fmt.Errorf("llm concurrency limit reached: %w", err)
+	}
+	defer c.release()
 
 	reqBody := map[string]any{
 		"model":  c.embedModel,
@@ -165,6 +201,14 @@ func (c *OllamaClient) Generate(prompt string) (string, error) {
 func (c *OllamaClient) generateWithModel(model, prompt string) (string, error) {
 	start := time.Now()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	if err := c.acquire(ctx); err != nil {
+		return "", fmt.Errorf("llm concurrency limit reached: %w", err)
+	}
+	defer c.release()
+
 	reqBody := map[string]any{
 		"model":       model,
 		"prompt":      prompt,
@@ -223,6 +267,14 @@ func (c *OllamaClient) DescribeImage(imagePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to read image: %w", err)
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	if err := c.acquire(ctx); err != nil {
+		return "", fmt.Errorf("llm concurrency limit reached: %w", err)
+	}
+	defer c.release()
 
 	base64Img := base64.StdEncoding.EncodeToString(imgData)
 

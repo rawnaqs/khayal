@@ -171,8 +171,11 @@ jobs, _ := c.ListQueue(ctx, client.QueueFilter{Status: "pending"})
 ### Worker (`internal/worker/`)
 
 - Job processing (concurrent, configurable)
+- **Atomic fetch+lock pattern** prevents duplicate job processing
+- **120-second timeout per job** prevents hung jobs
+- **Job status flow**: `pending → queued → processing → done/failed`
 - Retry logic (exponential backoff, max 3)
-- Crash recovery (reset stuck jobs)
+- Crash recovery (reset stuck jobs to pending)
 - Error handling (mark failed, cleanup)
 
 ### Ingest (`internal/ingest/`)
@@ -184,10 +187,11 @@ jobs, _ := c.ListQueue(ctx, client.QueueFilter{Status: "pending"})
 ### LLM (`internal/llm/`)
 
 - Interface definition
-- Ollama (primary)
+- Ollama (primary) with **concurrency semaphore** (default 4)
 - Groq (fallback)
 - OpenAI (fallback)
 - Graceful degradation
+- **Token truncation** per content type (text/image/article)
 
 ### Vault (`internal/vault/`)
 
@@ -205,7 +209,9 @@ jobs, _ := c.ListQueue(ctx, client.QueueFilter{Status: "pending"})
 
 ### Queue (`internal/queue/`)
 
-- SQLite-based job queue
+- SQLite-based job queue with **WAL mode** and **busy_timeout**
+- **Atomic fetch+lock** with `UPDATE...RETURNING`
+- **Lock retry logic** for concurrent writes
 - FTS5 search index
 - Embedding storage
 

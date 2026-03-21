@@ -911,3 +911,229 @@ func chunkArticle(content string, chunkSize int) []string {
 - Handles arbitrarily long articles
 - Better quality (each chunk processed fully)
 - Parallel processing via existing `errgroup` pattern
+
+---
+
+## SQLite Lock Contention Fixes (2026-03-22)
+
+### Problem
+
+Stress test with 20 concurrent captures was failing:
+- `QUEUE_CREATE_FAILED` errors appearing
+- Jobs getting stuck in 'processing' state
+- Workers not completing jobs
+
+### Root Cause Analysis
+
+1. **SQLite default settings**: No WAL mode, no busy_timeout
+   - Only ONE writer allowed at a time
+   - 20 concurrent requests → 19 fail immediately
+
+2. **LLM overload**: 30 workers × 4 LLM calls = 120 concurrent requests to Ollama
+   - Ollama can only handle ~4 concurrent requests
+   - Jobs hung forever waiting for LLM responses
+
+3. **Race condition**: Multiple workers could fetch same job
+   - `GetPendingJobs()` SELECT + later `UpdateJobStatus()` UPDATE not atomic
+   - Duplicate job processing
+
+### Solutions Implemented
+
+#### 1. SQLite PRAGMAs
+
+```go
+// Enable WAL mode for concurrent reads/writes
+db.Exec("PRAGMA journal_mode=WAL")
+
+// Set busy timeout for automatic lock retry
+db.Exec("PRAGMA busy_timeout=5000")
+
+// Limit connections (SQLite only allows 1 writer)
+db.SetMaxOpenConns(1)
+```
+
+**WAL Mode Benefits:**
+- Concurrent reads allowed during writes
+- Better performance under load
+- No read/write blocking
+
+**Busy Timeout:**
+- Retries lock acquisition up to 5 seconds
+- Handles transient lock contention
+
+#### 2. Lock Retry Logic
+
+Critical write operations include retry logic:
+
+```go
+const maxRetries = 3
+for attempt := 0; attempt < maxRetries; attempt++ {
+    _, err = q.db.ExecContext(ctx, `INSERT INTO jobs ...`)
+    if err == nil {
+        return nil
+    }
+    if isLockError(err) {
+        time.Sleep(100 * time.Millisecond)
+        continue
+    }
+    break  // Non-lock error
+}
+return err
+```
+
+Applied to: `CreateJob`, `UpdateJob`, `UpdateJobStatus`, `IndexNote`, `UpdateNoteIndex`, `DeleteFromIndex`
+
+#### 3. LLM Concurrency Limit
+
+Added semaphore to prevent Ollama overload:
+
+```go
+type OllamaClient struct {
+    semaphore chan struct{}  // e.g., make(chan struct{}, 4)
+}
+
+func (c *OllamaClient) acquire(ctx context.Context) error {
+    select {
+    case c.semaphore <- struct{}{}:
+        return nil
+    case <-ctx.Done():
+        return ctx.Err()
+    }
+}
+
+func (c *OllamaClient) release() {
+    <-c.semaphore
+}
+```
+
+**Default**: 4 concurrent LLM requests (configurable via `llm.max_llm_concurrency`)
+
+#### 4. Worker Job Timeout
+
+Added 120-second timeout per job:
+
+```go
+func (w *Worker) processJob(jobID string) {
+    ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+    defer cancel()
+    // ... process job
+}
+```
+
+**Benefits:**
+- Jobs fail fast instead of hanging forever
+- Worker slots freed up for next job
+- Visible error messages
+
+#### 5. Atomic Fetch+Lock Pattern
+
+Replaced separate SELECT + UPDATE with single atomic operation:
+
+```go
+func (q *Queue) FetchAndLockPendingJobs(ctx context.Context, limit int) ([]Job, error) {
+    // Single atomic operation: UPDATE + RETURNING
+    rows, err := q.db.QueryContext(ctx, `
+        UPDATE jobs 
+        SET status = 'queued'
+        WHERE id IN (
+            SELECT id FROM jobs 
+            WHERE status = 'pending' 
+            ORDER BY created_at ASC 
+            LIMIT ?
+        )
+        RETURNING id, type, status, note_path, ...`,
+        limit)
+    // ... scan and return jobs
+}
+```
+
+**Benefits:**
+- Only one worker can fetch each job
+- Status immediately set to 'queued'
+- No duplicate processing
+
+#### 6. Job Status Flow
+
+Added 'queued' status between 'pending' and 'processing':
+
+```
+pending → queued → processing → done/failed
+   ↑                  ↓
+   └──────────────────┘ (on retry)
+```
+
+**Status Meanings:**
+- **pending**: Job created, waiting to be fetched
+- **queued**: Fetched from database, waiting in channel for worker
+- **processing**: Worker actively processing the job
+- **done**: Job completed successfully
+- **failed**: Job permanently failed (max retries exceeded)
+
+**Crash Recovery:**
+`ResetStuckJobs()` now resets both 'processing' and 'queued' jobs to 'pending':
+
+```go
+UPDATE jobs SET status = 'pending' WHERE status = 'processing' OR status = 'queued'
+```
+
+### Files Changed
+
+| File | Changes |
+|------|---------|
+| `internal/queue/queue.go` | SQLite PRAGMAs, lock retry, atomic fetch+lock |
+| `internal/llm/ollama.go` | Concurrency semaphore, acquire/release |
+| `internal/worker/worker.go` | 120s timeout, atomic fetch, queued status |
+| `internal/api/health.go` | Added queued count |
+| `internal/config/config.go` | Added max_llm_concurrency config |
+| `cmd/khayal/commands/status.go` | Added queued display |
+| `cmd/kl/commands/status.go` | Added queued display |
+| `tests/stress/main.go` | Updated wait logic for queued status |
+
+### Lessons Learned
+
+1. **SQLite defaults are not production-ready**: Always set WAL mode and busy_timeout for concurrent access
+2. **Worker pools need backpressure**: Don't create more workers than the underlying system can handle
+3. **Atomic operations prevent races**: Use UPDATE...RETURNING for fetch+lock patterns
+4. **Timeouts are essential**: Never let jobs hang forever - fail fast and retry
+5. **Status tracking helps debugging**: 'queued' status provides visibility into job lifecycle
+
+---
+
+## Logging Improvements (2026-03-22)
+
+### Problem
+
+API handlers were not logging errors or warnings, making debugging difficult.
+
+### Solution
+
+Added comprehensive error/warn logging to all API handlers:
+
+| Handler | Error Logging | Warn Logging |
+|---------|---------------|--------------|
+| capture.go | 9 error points | 2 warn points |
+| queue.go | 3 error points | 2 invalid state warnings |
+| search.go | 1 error point | - |
+| stats.go | 7 error points | - |
+| health.go | - | 2 degraded state warnings |
+| middleware.go | - | 4xx status warnings |
+
+### Log Fields
+
+All logs include:
+- `code`: Error code (e.g., `QUEUE_CREATE_FAILED`)
+- `query`: For search (truncated to 50 chars)
+- `error`: Actual error message
+- `job_id`: For job operations
+- `type`: For capture operations
+
+### Files Changed
+
+| File | Changes |
+|------|---------|
+| `internal/api/search.go` | Error logging with code, query, mode, error |
+| `internal/api/capture.go` | 9 error/warn logging points |
+| `internal/api/queue.go` | 5 logging points |
+| `internal/api/stats.go` | 7 error logging points |
+| `internal/api/health.go` | Warn logging for degraded dependencies |
+| `internal/api/middleware/middleware.go` | WARN level for 4xx status

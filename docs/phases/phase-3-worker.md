@@ -59,15 +59,74 @@ type Worker struct {
     running    atomic.Bool
 }
 
+### Job Status Flow
+
+Jobs transition through these states:
+
+```
+pending → queued → processing → done/failed
+   ↑                  ↓
+   └──────────────────┘ (on retry)
+```
+
+- **pending**: Job created, waiting to be fetched
+- **queued**: Fetched from database, waiting in channel for worker
+- **processing**: Worker actively processing the job
+- **done**: Job completed successfully
+- **failed**: Job permanently failed (max retries exceeded)
+
+### Atomic Fetch+Lock Pattern
+
+To prevent duplicate job processing, we use an atomic fetch+lock operation:
+
+```go
+func (q *Queue) FetchAndLockPendingJobs(ctx context.Context, limit int) ([]Job, error) {
+    // Single atomic operation: UPDATE + RETURNING
+    // Prevents race conditions where multiple workers fetch the same job
+    rows, err := q.db.QueryContext(ctx, `
+        UPDATE jobs 
+        SET status = 'queued'
+        WHERE id IN (
+            SELECT id FROM jobs 
+            WHERE status = 'pending' 
+            ORDER BY created_at ASC 
+            LIMIT ?
+        )
+        RETURNING id, type, status, note_path, ...`,
+        limit)
+    // ... scan and return jobs
+}
+```
+
+**Benefits:**
+- Only one worker can fetch each job
+- Status is immediately set to 'queued'
+- No duplicate processing
+
+**Crash Recovery:**
+On startup, `ResetStuckJobs()` resets both `processing` and `queued` jobs to `pending`:
+
+```go
+func (q *Queue) ResetStuckJobs(ctx context.Context) error {
+    _, err := q.db.ExecContext(ctx, 
+        `UPDATE jobs SET status = 'pending' WHERE status = 'processing' OR status = 'queued'`)
+    return err
+}
+```
+
+### Worker Constructor
+
+```go
 func NewWorker(cfg WorkerConfig, q *queue.Queue, v *vault.Writer, l llm.LLM) *Worker {
     return &Worker{
         config: cfg,
         queue:  q,
         vault:  v,
         llm:    l,
-        jobs:   make(chan string, 100),
+        jobs:   make(chan string, 1000),  // Buffer for job IDs
     }
 }
+```
 
 func (w *Worker) Start() {
     if w.running.Swap(true) {
@@ -105,17 +164,21 @@ func (w *Worker) jobFetcher() {
     for w.running.Load() {
         select {
         case <-ticker.C:
-            jobs, err := w.queue.GetPendingJobs(w.config.MaxWorkers)
+            // Calculate how many jobs we can fetch based on channel capacity
+            available := cap(w.jobs) - len(w.jobs)
+            if available <= 0 {
+                continue
+            }
+            
+            // Fetch and lock jobs atomically - prevents duplicate processing
+            // Uses UPDATE...SET status='queued' WHERE status='pending' RETURNING *
+            jobs, err := w.queue.FetchAndLockPendingJobs(ctx, available)
             if err != nil {
                 log.Error().Err(err).Msg("failed to fetch pending jobs")
                 continue
             }
             for _, job := range jobs {
-                select {
-                case w.jobs <- job.ID:
-                default:
-                    // Channel full, will pick up next tick
-                }
+                w.jobs <- job.ID  // Safe - we only fetched what fits
             }
         }
     }
@@ -138,14 +201,18 @@ func (w *Worker) workerLoop(id int) {
 
 ```go
 func (w *Worker) processJob(jobID string) {
-    job, err := w.queue.GetJob(jobID)
+    // 120-second timeout per job
+    ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+    defer cancel()
+    
+    job, err := w.queue.GetJob(ctx, jobID)
     if err != nil {
         log.Error().Str("job", jobID).Err(err).Msg("failed to get job")
         return
     }
     
-    // Mark as processing
-    if err := w.queue.UpdateJobStatus(jobID, "processing"); err != nil {
+    // Mark as processing (job was previously 'queued')
+    if err := w.queue.UpdateJobStatus(ctx, jobID, "processing"); err != nil {
         log.Error().Str("job", jobID).Err(err).Msg("failed to update job status")
         return
     }
@@ -158,9 +225,9 @@ func (w *Worker) processJob(jobID string) {
     
     switch job.Type {
     case "text":
-        notePath, err = w.ingestText(job)
+        notePath, err = w.ingestText(ctx, job)
     case "image":
-        notePath, err = w.ingestImage(job)
+        notePath, err = w.ingestImage(ctx, job)
     case "article":
         notePath, err = w.ingestArticle(job)
     default:

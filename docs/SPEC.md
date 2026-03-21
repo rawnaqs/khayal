@@ -242,8 +242,9 @@ Waits for current job to complete before stopping worker. Never kills mid-proces
   └─────────────────────────────────────────────────────────────┘
 
   ┌─ queue ─────────────────────────────────────────────────────┐
-  │  pending      2    ██░░░░░░░░░░░░░░░░░░░░                   │
   │  processing   1    ██░░░░░░░░░░░░░░░░░░░░  image · abc123   │
+  │  queued       3                                             │
+  │  pending      2    ██░░░░░░░░░░░░░░░░░░░░                   │
   │  done       147                                             │
   │  failed       0                                             │
   └─────────────────────────────────────────────────────────────┘
@@ -1692,7 +1693,7 @@ Format: YAML only. Behavior on missing/malformed: fail hard with actionable erro
 
 vault:
   path: ~/Documents/brain              # required — where markdown notes are written
-   inbox_dir: khayal                     # relative to vault root
+  inbox_dir: khayal                     # relative to vault root
   media:
     default_dir: khayal/media           # fallback for unspecified types
     strategy:
@@ -1705,8 +1706,9 @@ server:
   host: 127.0.0.1                      # never 0.0.0.0 by default
   port: 1133
   token: ""                            # auto-generated on first run if empty
-  log_format: text                     # text | json
-  log_file: ~/.config/khayal/logs/khayal.log
+  max_text_body_mb: 1                  # max request body size for text
+  max_image_body_mb: 10                # max request body size for images
+  shutdown_timeout_s: 30               # graceful shutdown timeout
 
 llm:
   provider: ollama                     # ollama | groq | openai
@@ -1716,6 +1718,10 @@ llm:
   vision_model: moondream
   fallback_provider: ""                # groq | openai | "" (none)
   fallback_api_key: ""
+  truncate_text_tokens: 2000           # max tokens for text content
+  truncate_image_tokens: 3000          # max tokens for image context
+  truncate_article_tokens: 12000       # max tokens for article content
+  max_llm_concurrency: 4               # max concurrent LLM requests
 
 worker:
   max_workers: 1                       # configurable concurrency
@@ -1724,6 +1730,19 @@ worker:
 
 db:
   path: ~/.config/khayal/khayal.db
+
+search:
+  max_results: 50                      # max search results
+  max_excerpt: 500                     # max excerpt length
+  rrf_k: 60                            # reciprocal rank fusion parameter
+  min_semantic_score: 0.3              # minimum semantic search score
+
+log:
+  level: info                          # debug | info | warn | error
+  worker_level: info                   # log level for worker
+  file: ~/.config/khayal/logs/khayal.log
+  rotation_max_size_mb: 10             # max log file size before rotation
+  rotation_max_files: 5                # number of rotated log files to keep
 ```
 
 ### Reserved Directories
@@ -1861,9 +1880,9 @@ GET    /v1/search           → keyword + semantic search
 GET    /v1/health           → dependency status + queue counts
 GET    /v1/queue            → job list with pagination
 GET    /v1/queue/:id        → single job status
+POST   /v1/queue/:id/retry  → retry a failed or pending job
+POST   /v1/queue/:id/discard → discard a job
 ```
-
-Queue retry + delete → v2.
 
 ---
 
@@ -1975,12 +1994,13 @@ Response:
   "status": "ok",
   "version": "0.1.0",
   "dependencies": {
-    "ollama": { "status": "ok", "host": "http://localhost:11434" },
-    "vault":  { "status": "ok", "path": "~/Documents/brain" },
-    "db":     { "status": "ok", "path": "~/.config/khayal/khayal.db" }
+    "db":    { "status": "ok", "path": "~/.config/khayal/khayal.db" },
+    "vault": { "status": "ok", "path": "~/Documents/brain" },
+    "llm":   { "status": "ok", "host": "http://localhost:11434" }
   },
   "queue": {
     "pending":    2,
+    "queued":     3,
     "processing": 1,
     "done":       147,
     "failed":     0
@@ -2000,7 +2020,7 @@ Parameters:
 
 | Param | Default | Options |
 |---|---|---|
-| `status` | all | all \| pending \| processing \| done \| failed |
+| `status` | all | all \| pending \| queued \| processing \| done \| failed |
 | `limit` | 20 | max 100 |
 | `offset` | 0 | — |
 
@@ -2046,9 +2066,9 @@ Response:
 ### Error Responses
 
 ```json
-400 { "error": "missing required field: content", "code": "CAPTURE_004" }
-401 { "error": "invalid token",                    "code": "AUTH_001" }
-500 { "error": "failed to write note to vault",   "code": "VAULT_002" }
+400 { "error": "missing required field: content", "code": "CAPTURE_MISSING_CONTENT" }
+401 { "error": "invalid token",                    "code": "AUTH_TOKEN_INVALID" }
+500 { "error": "failed to write note to vault",   "code": "VAULT_MEDIA_FAILED" }
 ```
 
 See Error Taxonomy section for full code list.
@@ -2057,91 +2077,65 @@ See Error Taxonomy section for full code list.
 
 ## Error Taxonomy
 
-All API errors return consistent JSON with `code` for machine parsing and `hint` for actionable guidance:
+All API errors return consistent JSON with `code` for machine parsing:
 
 ```json
 {
   "error": "human readable message",
-  "code": "VAULT_002",
-  "hint": "check permissions: ls -la ~/brain/khayal/"
+  "code": "VAULT_MEDIA_FAILED"
 }
 ```
 
-`hint` is optional — present only when a specific action is obvious. Codes are stable across versions — never change existing codes, only add new ones.
-
-### Capture errors
-
-| Code | Meaning | Hint |
-|------|---------|------|
-| `CAPTURE_001` | content too long (>50,000 chars) | — |
-| `CAPTURE_002` | file too large (>20MB) | — |
-| `CAPTURE_003` | unsupported file type | — |
-| `CAPTURE_004` | missing required field | — |
-
-### Vault errors
-
-| Code | Meaning | Hint |
-|------|---------|------|
-| `VAULT_001` | vault path not found | check vault.path in config |
-| `VAULT_002` | vault write failed | check permissions: `ls -la <vault>/khayal/` |
-| `VAULT_003` | file modified externally | mtime check failed, user edits protected |
-| `VAULT_004` | filename collision | could not generate unique filename |
-
-### LLM errors
-
-| Code | Meaning | Hint |
-|------|---------|------|
-| `LLM_001` | ollama unreachable | start ollama: `ollama serve` |
-| `LLM_002` | model not found | run: `ollama pull <model>` |
-| `LLM_003` | context length exceeded | content too long for model |
-| `LLM_004` | fallback exhausted | ollama down, no fallback configured |
-
-### Queue errors
-
-| Code | Meaning | Hint |
-|------|---------|------|
-| `QUEUE_001` | queue full | backpressure limit reached |
-| `QUEUE_002` | job not found | invalid job ID |
+Codes are stable across versions — never change existing codes, only add new ones.
 
 ### Auth errors
 
-| Code | Meaning | Hint |
+| Code | Meaning | HTTP |
 |------|---------|------|
-| `AUTH_001` | invalid token | get from: `~/.config/khayal/config.yaml` |
-| `AUTH_002` | token missing | include X-Khayal-Token header |
+| `AUTH_TOKEN_MISSING` | token missing | 401 |
+| `AUTH_TOKEN_INVALID` | invalid token | 401 |
+
+### Capture errors
+
+| Code | Meaning | HTTP |
+|------|---------|------|
+| `CAPTURE_BODY_TOO_LARGE` | request body too large | 413 |
+| `CAPTURE_INVALID_BODY` | invalid request body | 400 |
+| `CAPTURE_MISSING_CONTENT` | missing required field: content | 400 |
+| `CAPTURE_INVALID_FORM` | invalid multipart form | 413 |
+| `CAPTURE_MISSING_FILE` | missing file | 400 |
+| `CAPTURE_READ_FAILED` | failed to read file | 500 |
+
+### Queue errors
+
+| Code | Meaning | HTTP |
+|------|---------|------|
+| `QUEUE_CREATE_FAILED` | failed to create job | 500 |
+| `QUEUE_LIST_FAILED` | failed to list jobs | 500 |
+| `QUEUE_JOB_NOT_FOUND` | job not found | 404 |
+| `QUEUE_INVALID_STATE` | invalid job state for operation | 400 |
+| `QUEUE_UPDATE_FAILED` | failed to update job | 500 |
+| `QUEUE_DELETE_FAILED` | failed to delete job | 500 |
+
+### Vault errors
+
+| Code | Meaning | HTTP |
+|------|---------|------|
+| `VAULT_MEDIA_FAILED` | failed to save media | 500 |
 
 ### Search errors
 
-| Code | Meaning | Hint |
+| Code | Meaning | HTTP |
 |------|---------|------|
-| `SEARCH_001` | query too short | minimum 2 characters |
-| `SEARCH_002` | invalid date range | `from` must be before `to` |
-| `SEARCH_003` | invalid mode | must be hybrid, keyword, or semantic |
+| `SEARCH_MISSING_QUERY` | missing query parameter | 400 |
+| `SEARCH_INVALID_MODE` | invalid search mode | 400 |
+| `SEARCH_FAILED` | search operation failed | 500 |
 
 ### System errors
 
-| Code | Meaning | Hint |
+| Code | Meaning | HTTP |
 |------|---------|------|
-| `SYS_001` | database error | khayal.db unreachable or corrupted |
-| `SYS_002` | config error | config.yaml missing or malformed |
-| `SYS_003` | dep missing | required dependency not installed |
-
-### CLI error mapping
-
-```go
-switch apiErr.Code {
-case "LLM_001":
-    fmt.Println("✗ ollama not running")
-    fmt.Println("  → start ollama: ollama serve")
-case "AUTH_001":
-    fmt.Println("✗ invalid token")
-    fmt.Println("  → get token: cat ~/.config/khayal/config.yaml")
-case "VAULT_002":
-    fmt.Println("✗ cannot write to vault")
-    fmt.Println("  → check permissions: ls -la " + vaultPath)
-// ... etc
-}
-```
+| `COUNT_ERROR` | database error | 500 |
 
 ---
 
@@ -2149,10 +2143,12 @@ case "VAULT_002":
 
 - Configurable concurrency via `worker.max_workers` in config
 - Single goroutine per worker, jobs processed serially within each worker
+- Atomic fetch+lock prevents duplicate job processing
 - Exponential backoff on failure
 - Max 3 retries then permanently failed
-- On permanent failure: note moved to `.khayal-trash/`, media file moved to trash, job marked failed in DB
-- On startup: reset any jobs stuck in `processing` state (crash recovery)
+- 120-second timeout per job
+- On startup: reset any jobs stuck in `processing` or `queued` state (crash recovery)
+- Job status flow: `pending → queued → processing → done/failed`
 
 ### Processing Times (M2 Mac Air)
 

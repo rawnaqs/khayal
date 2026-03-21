@@ -62,7 +62,7 @@ List jobs in queue.
 
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
-| status | No | all | Filter: all, pending, processing, done, failed |
+| status | No | all | Filter: all, pending, queued, processing, done, failed |
 | limit | No | 20 | Max results (max 100) |
 | offset | No | 0 | Pagination offset |
 

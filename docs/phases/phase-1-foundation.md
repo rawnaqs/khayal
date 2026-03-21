@@ -182,7 +182,7 @@ db:
 CREATE TABLE IF NOT EXISTS jobs (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL,           -- "text" | "image" | "article"
-    status TEXT NOT NULL,          -- "pending" | "processing" | "done" | "failed"
+    status TEXT NOT NULL,          -- "pending" | "queued" | "processing" | "done" | "failed"
     note_path TEXT,
     source_url TEXT,
     source_file TEXT,
@@ -241,6 +241,74 @@ CREATE TABLE IF NOT EXISTS chunks (
 );
 
 CREATE INDEX idx_chunks_note ON chunks(note_path);
+```
+
+### SQLite PRAGMAs
+
+Database initialization includes critical PRAGMAs for performance and concurrency:
+
+```go
+func NewQueueWithLogger(dbPath string, logger *slog.Logger) (*Queue, error) {
+    db, err := sql.Open("sqlite", dbPath)
+    if err != nil {
+        return nil, fmt.Errorf("failed to open database: %w", err)
+    }
+
+    // Enable WAL mode for concurrent reads/writes
+    if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+        db.Close()
+        return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
+    }
+
+    // Set busy timeout for automatic lock retry (5 seconds)
+    if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+        db.Close()
+        return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
+    }
+
+    // Limit connections (SQLite only allows 1 writer)
+    db.SetMaxOpenConns(1)
+    db.SetMaxIdleConns(1)
+    db.SetConnMaxLifetime(time.Hour)
+
+    // ... rest of initialization
+}
+```
+
+**WAL Mode Benefits:**
+- Concurrent reads allowed during writes
+- Better performance under load
+- No read/write blocking
+
+**Busy Timeout:**
+- Retries lock acquisition up to 5 seconds
+- Handles transient lock contention
+
+**Lock Retry Logic:**
+Critical write operations include retry logic for SQLite lock errors:
+
+```go
+const maxRetries = 3
+for attempt := 0; attempt < maxRetries; attempt++ {
+    _, err = q.db.ExecContext(ctx, `INSERT INTO jobs ...`)
+    if err == nil {
+        return nil
+    }
+    if isLockError(err) {
+        time.Sleep(100 * time.Millisecond)
+        continue
+    }
+    break  // Non-lock error
+}
+return err
+
+func isLockError(err error) bool {
+    errStr := err.Error()
+    return contains(errStr, "database is locked") ||
+        contains(errStr, "database table is locked") ||
+        contains(errStr, "SQLITE_BUSY") ||
+        contains(errStr, "SQLITE_LOCKED")
+}
 ```
 
 ### Job Struct

@@ -28,6 +28,7 @@ type Dependency struct {
 
 type QueueStats struct {
 	Pending    int `json:"pending"`
+	Queued     int `json:"queued"`
 	Processing int `json:"processing"`
 	Done       int `json:"done"`
 	Failed     int `json:"failed"`
@@ -52,6 +53,7 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pending, _ := s.queue.CountByStatus(ctx, "pending")
+	queued, _ := s.queue.CountByStatus(ctx, "queued")
 	processing, _ := s.queue.CountByStatus(ctx, "processing")
 	done, _ := s.queue.CountByStatus(ctx, "done")
 	failed, _ := s.queue.CountByStatus(ctx, "failed")
@@ -88,6 +90,7 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 		},
 		Queue: QueueStats{
 			Pending:    pending,
+			Queued:     queued,
 			Processing: processing,
 			Done:       done,
 			Failed:     failed,

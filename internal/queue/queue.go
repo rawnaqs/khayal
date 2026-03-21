@@ -49,6 +49,20 @@ func NewQueueWithLogger(dbPath string, logger *slog.Logger) (*Queue, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
+	}
+
+	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
+	}
+
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(time.Hour)
+
 	q := &Queue{db: db, logger: logger}
 	if err := q.initSchema(); err != nil {
 		db.Close()
@@ -175,18 +189,34 @@ func (q *Queue) CreateJob(ctx context.Context, job *Job) error {
 		job.Status = "pending"
 	}
 
-	_, err := q.db.ExecContext(ctx, `
-		INSERT INTO jobs (id, type, status, note_path, source_url, source_file, content, user_context, created_at, processed_at, error, retries)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		job.ID, job.Type, job.Status, job.NotePath, job.SourceURL, job.SourceFile,
-		job.Content, job.UserContext, job.CreatedAt.Format(time.RFC3339),
-		nullableTime(job.ProcessedAt), job.Error, job.Retries)
+	const maxRetries = 3
+	var err error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		_, err = q.db.ExecContext(ctx, `
+			INSERT INTO jobs (id, type, status, note_path, source_url, source_file, content, user_context, created_at, processed_at, error, retries)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			job.ID, job.Type, job.Status, job.NotePath, job.SourceURL, job.SourceFile,
+			job.Content, job.UserContext, job.CreatedAt.Format(time.RFC3339),
+			nullableTime(job.ProcessedAt), job.Error, job.Retries)
 
-	if err == nil {
-		q.logger.Debug("job created",
-			"job_id", job.ID,
-			"type", job.Type,
-		)
+		if err == nil {
+			q.logger.Debug("job created",
+				"job_id", job.ID,
+				"type", job.Type,
+			)
+			return nil
+		}
+
+		if isLockError(err) {
+			q.logger.Warn("sqlite locked, retrying create job",
+				"job_id", job.ID,
+				"attempt", attempt+1,
+				"error", err,
+			)
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		break
 	}
 
 	return err
@@ -223,23 +253,53 @@ func (q *Queue) GetJob(ctx context.Context, id string) (*Job, error) {
 }
 
 func (q *Queue) UpdateJob(ctx context.Context, job *Job) error {
-	_, err := q.db.ExecContext(ctx, `
-		UPDATE jobs SET status = ?, note_path = ?, processed_at = ?, error = ?, retries = ?
-		WHERE id = ?`,
-		job.Status, job.NotePath, nullableTime(job.ProcessedAt), job.Error, job.Retries, job.ID)
+	const maxRetries = 3
+	var err error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		_, err = q.db.ExecContext(ctx, `
+			UPDATE jobs SET status = ?, note_path = ?, processed_at = ?, error = ?, retries = ?
+			WHERE id = ?`,
+			job.Status, job.NotePath, nullableTime(job.ProcessedAt), job.Error, job.Retries, job.ID)
+		if err == nil {
+			return nil
+		}
+		if isLockError(err) {
+			q.logger.Warn("sqlite locked, retrying update job",
+				"job_id", job.ID,
+				"attempt", attempt+1,
+				"error", err,
+			)
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		break
+	}
 	return err
 }
 
 func (q *Queue) UpdateJobStatus(ctx context.Context, id, status string) error {
-	_, err := q.db.ExecContext(ctx, "UPDATE jobs SET status = ? WHERE id = ?", status, id)
-
-	if err == nil {
-		q.logger.Debug("job status changed",
-			"job_id", id,
-			"new_status", status,
-		)
+	const maxRetries = 3
+	var err error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		_, err = q.db.ExecContext(ctx, "UPDATE jobs SET status = ? WHERE id = ?", status, id)
+		if err == nil {
+			q.logger.Debug("job status changed",
+				"job_id", id,
+				"new_status", status,
+			)
+			return nil
+		}
+		if isLockError(err) {
+			q.logger.Warn("sqlite locked, retrying update job status",
+				"job_id", id,
+				"attempt", attempt+1,
+				"error", err,
+			)
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		break
 	}
-
 	return err
 }
 
@@ -334,8 +394,53 @@ func (q *Queue) GetPendingJobs(ctx context.Context, limit int) ([]Job, error) {
 	return jobs, rows.Err()
 }
 
+func (q *Queue) FetchAndLockPendingJobs(ctx context.Context, limit int) ([]Job, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		UPDATE jobs 
+		SET status = 'queued'
+		WHERE id IN (
+			SELECT id FROM jobs 
+			WHERE status = 'pending' 
+			ORDER BY created_at ASC 
+			LIMIT ?
+		)
+		RETURNING id, type, status, note_path, source_url, source_file, content, user_context, created_at, processed_at, error, retries`,
+		limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var jobs []Job
+	for rows.Next() {
+		var job Job
+		var createdAtStr string
+		var processedAtStr sql.NullString
+		if err := rows.Scan(&job.ID, &job.Type, &job.Status, &job.NotePath, &job.SourceURL, &job.SourceFile,
+			&job.Content, &job.UserContext, &createdAtStr, &processedAtStr, &job.Error, &job.Retries); err != nil {
+			return nil, err
+		}
+
+		var parseErr error
+		job.CreatedAt, parseErr = time.Parse(time.RFC3339, createdAtStr)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse created_at: %w", parseErr)
+		}
+		if processedAtStr.Valid {
+			t, err := time.Parse(time.RFC3339, processedAtStr.String)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse processed_at: %w", err)
+			}
+			job.ProcessedAt = &t
+		}
+		jobs = append(jobs, job)
+	}
+
+	return jobs, rows.Err()
+}
+
 func (q *Queue) ResetStuckJobs(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, `UPDATE jobs SET status = 'pending' WHERE status = 'processing'`)
+	_, err := q.db.ExecContext(ctx, `UPDATE jobs SET status = 'pending' WHERE status = 'processing' OR status = 'queued'`)
 	return err
 }
 
@@ -533,98 +638,193 @@ func (q *Queue) SaveChunk(ctx context.Context, notePath string, chunkIdx int, co
 }
 
 func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags string) error {
-	now := time.Now().Format(time.RFC3339)
+	const maxRetries = 3
+	var lastErr error
 
-	_, err := q.db.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath)
-	if err != nil {
-		return err
-	}
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		now := time.Now().Format(time.RFC3339)
 
-	if title != "" {
-		_, err = q.db.ExecContext(ctx, `
-			INSERT OR REPLACE INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
-			VALUES (?, NULL, 'title', ?, ?)`,
-			notePath, title, now)
+		_, err := q.db.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath)
 		if err != nil {
-			return err
-		}
-	}
-
-	if tags != "" {
-		tagList := strings.Split(tags, ",")
-		for _, tag := range tagList {
-			tag = strings.TrimSpace(tag)
-			if tag == "" {
+			lastErr = err
+			if isLockError(err) {
+				q.logger.Warn("sqlite locked, retrying index note",
+					"note_path", notePath,
+					"attempt", attempt+1,
+				)
+				time.Sleep(100 * time.Millisecond)
 				continue
 			}
+			return err
+		}
+
+		if title != "" {
 			_, err = q.db.ExecContext(ctx, `
-				INSERT INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
-				VALUES (?, NULL, 'tag', ?, ?)`,
-				notePath, tag, now)
+				INSERT OR REPLACE INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
+				VALUES (?, NULL, 'title', ?, ?)`,
+				notePath, title, now)
 			if err != nil {
+				lastErr = err
+				if isLockError(err) {
+					time.Sleep(100 * time.Millisecond)
+					continue
+				}
 				return err
 			}
 		}
-	}
 
-	_, err = q.db.ExecContext(ctx, `INSERT INTO notes_fts (note_path, content, title, tags) VALUES (?, ?, ?, ?)`, notePath, content, title, tags)
-	if err != nil && isFTSErr(err) {
+		if tags != "" {
+			tagList := strings.Split(tags, ",")
+			for _, tag := range tagList {
+				tag = strings.TrimSpace(tag)
+				if tag == "" {
+					continue
+				}
+				_, err = q.db.ExecContext(ctx, `
+					INSERT INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
+					VALUES (?, NULL, 'tag', ?, ?)`,
+					notePath, tag, now)
+				if err != nil {
+					lastErr = err
+					if isLockError(err) {
+						time.Sleep(100 * time.Millisecond)
+						break
+					}
+					return err
+				}
+			}
+			if isLockError(lastErr) {
+				continue
+			}
+		}
+
+		_, err = q.db.ExecContext(ctx, `INSERT INTO notes_fts (note_path, content, title, tags) VALUES (?, ?, ?, ?)`, notePath, content, title, tags)
+		if err != nil && isFTSErr(err) {
+			return nil
+		}
+		if err != nil {
+			lastErr = err
+			if isLockError(err) {
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			return err
+		}
 		return nil
 	}
-	return err
+	return lastErr
 }
 
 func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, tags string) error {
-	now := time.Now().Format(time.RFC3339)
+	const maxRetries = 3
+	var lastErr error
 
-	_, err := q.db.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath)
-	if err != nil {
-		return err
-	}
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		now := time.Now().Format(time.RFC3339)
 
-	if title != "" {
-		_, err = q.db.ExecContext(ctx, `
-			INSERT OR REPLACE INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
-			VALUES (?, NULL, 'title', ?, ?)`,
-			notePath, title, now)
+		_, err := q.db.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath)
 		if err != nil {
-			return err
-		}
-	}
-
-	if tags != "" {
-		tagList := strings.Split(tags, ",")
-		for _, tag := range tagList {
-			tag = strings.TrimSpace(tag)
-			if tag == "" {
+			lastErr = err
+			if isLockError(err) {
+				q.logger.Warn("sqlite locked, retrying update note index",
+					"note_path", notePath,
+					"attempt", attempt+1,
+				)
+				time.Sleep(100 * time.Millisecond)
 				continue
 			}
+			return err
+		}
+
+		if title != "" {
 			_, err = q.db.ExecContext(ctx, `
-				INSERT INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
-				VALUES (?, NULL, 'tag', ?, ?)`,
-				notePath, tag, now)
+				INSERT OR REPLACE INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
+				VALUES (?, NULL, 'title', ?, ?)`,
+				notePath, title, now)
 			if err != nil {
+				lastErr = err
+				if isLockError(err) {
+					time.Sleep(100 * time.Millisecond)
+					continue
+				}
 				return err
 			}
 		}
-	}
 
-	if _, err := q.db.ExecContext(ctx, `DELETE FROM notes_fts WHERE note_path = ?`, notePath); err != nil && !isFTSErr(err) {
-		return err
-	}
-	_, err = q.db.ExecContext(ctx, `INSERT INTO notes_fts (note_path, content, title, tags) VALUES (?, ?, ?, ?)`, notePath, content, title, tags)
-	if err != nil && isFTSErr(err) {
+		if tags != "" {
+			tagList := strings.Split(tags, ",")
+			for _, tag := range tagList {
+				tag = strings.TrimSpace(tag)
+				if tag == "" {
+					continue
+				}
+				_, err = q.db.ExecContext(ctx, `
+					INSERT INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
+					VALUES (?, NULL, 'tag', ?, ?)`,
+					notePath, tag, now)
+				if err != nil {
+					lastErr = err
+					if isLockError(err) {
+						time.Sleep(100 * time.Millisecond)
+						break
+					}
+					return err
+				}
+			}
+			if isLockError(lastErr) {
+				continue
+			}
+		}
+
+		if _, err := q.db.ExecContext(ctx, `DELETE FROM notes_fts WHERE note_path = ?`, notePath); err != nil && !isFTSErr(err) {
+			lastErr = err
+			if isLockError(err) {
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			return err
+		}
+		_, err = q.db.ExecContext(ctx, `INSERT INTO notes_fts (note_path, content, title, tags) VALUES (?, ?, ?, ?)`, notePath, content, title, tags)
+		if err != nil && isFTSErr(err) {
+			return nil
+		}
+		if err != nil {
+			lastErr = err
+			if isLockError(err) {
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			return err
+		}
 		return nil
 	}
-	return err
+	return lastErr
 }
 
 func (q *Queue) DeleteFromIndex(ctx context.Context, notePath string) error {
-	_, err := q.db.ExecContext(ctx, `DELETE FROM notes_fts WHERE note_path = ?`, notePath)
-	if err != nil && isFTSErr(err) {
+	const maxRetries = 3
+	var lastErr error
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		_, err := q.db.ExecContext(ctx, `DELETE FROM notes_fts WHERE note_path = ?`, notePath)
+		if err != nil && isFTSErr(err) {
+			return nil
+		}
+		if err != nil {
+			lastErr = err
+			if isLockError(err) {
+				q.logger.Warn("sqlite locked, retrying delete from index",
+					"note_path", notePath,
+					"attempt", attempt+1,
+				)
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			return err
+		}
 		return nil
 	}
-	return err
+	return lastErr
 }
 
 func isFTSErr(err error) bool {
@@ -633,6 +833,17 @@ func isFTSErr(err error) bool {
 	}
 	errStr := err.Error()
 	return contains(errStr, "no such table: notes_fts") || contains(errStr, "no such module")
+}
+
+func isLockError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return contains(errStr, "database is locked") ||
+		contains(errStr, "database table is locked") ||
+		contains(errStr, "SQLITE_BUSY") ||
+		contains(errStr, "SQLITE_LOCKED")
 }
 
 func contains(s, substr string) bool {

@@ -283,7 +283,7 @@ curl -s http://127.0.0.1:1133/v1/health \
     "vault": { "status": "ok" },
     "llm": { "status": "ok", "host": "http://localhost:11434" }
   },
-  "queue": { "pending": 0, "processing": 0, "done": 0, "failed": 0 }
+  "queue": { "pending": 0, "queued": 0, "processing": 0, "done": 0, "failed": 0 }
 }
 ```
 
@@ -341,7 +341,7 @@ curl -s http://127.0.0.1:1133/v1/queue \
   -H "X-Khayal-Token: abc" | jq
 
 # After worker processes (5-10 seconds):
-# - status changes from "pending" → "processing" → "done"
+# - status changes from "pending" → "queued" → "processing" → "done"
 # - note_path is populated
 ```
 

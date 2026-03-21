@@ -65,6 +65,7 @@ type LLMConfig struct {
 	TruncateTextTokens    int    `yaml:"truncate_text_tokens"`
 	TruncateImageTokens   int    `yaml:"truncate_image_tokens"`
 	TruncateArticleTokens int    `yaml:"truncate_article_tokens"`
+	MaxLLMConcurrency     int    `yaml:"max_llm_concurrency"`
 }
 
 type WorkerConfig struct {
@@ -124,6 +125,7 @@ func DefaultConfig() *Config {
 			TruncateTextTokens:    2000,
 			TruncateImageTokens:   3000,
 			TruncateArticleTokens: 12000,
+			MaxLLMConcurrency:     4,
 		},
 		Worker: WorkerConfig{
 			MaxWorkers:   1,

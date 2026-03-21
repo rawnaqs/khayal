@@ -36,7 +36,7 @@ func NewWorker(cfg config.WorkerConfig, q *queue.Queue, v *vault.Writer, l llm.L
 		vault:  v,
 		llm:    l,
 		config: cfg,
-		jobs:   make(chan string, 100),
+		jobs:   make(chan string, 1000),
 		logger: logger,
 	}
 }
@@ -81,17 +81,21 @@ func (w *Worker) jobFetcher() {
 		select {
 		case <-ticker.C:
 			ctx := context.Background()
-			jobs, err := w.queue.GetPendingJobs(ctx, w.config.MaxWorkers)
+
+			// Calculate how many jobs we can fetch based on channel capacity
+			available := cap(w.jobs) - len(w.jobs)
+			if available <= 0 {
+				continue
+			}
+
+			// Fetch and lock jobs atomically - prevents duplicate processing
+			jobs, err := w.queue.FetchAndLockPendingJobs(ctx, available)
 			if err != nil {
 				w.logger.Error("failed to fetch pending jobs", "error", err)
 				continue
 			}
 			for _, job := range jobs {
-				select {
-				case w.jobs <- job.ID:
-				default:
-					w.logger.Warn("job channel full, skipping", "job_id", job.ID)
-				}
+				w.jobs <- job.ID // Safe - we only fetched what fits
 			}
 		}
 	}
@@ -113,7 +117,9 @@ func (w *Worker) workerLoop(id int) {
 }
 
 func (w *Worker) processJob(jobID string) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
 	start := time.Now()
 
 	job, err := w.queue.GetJob(ctx, jobID)

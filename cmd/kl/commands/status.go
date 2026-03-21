@@ -33,6 +33,7 @@ func newStatusCmd() *cobra.Command {
 			fmt.Println(theme.Dim.Render("QUEUE"))
 			keyStyle := theme.Muted.Width(12)
 			fmt.Printf("  %s %s\n", keyStyle.Render("processing"), theme.Primary.Render(fmt.Sprintf("%d", health.Queue.Processing)))
+			fmt.Printf("  %s %s\n", keyStyle.Render("queued"), theme.Primary.Render(fmt.Sprintf("%d", health.Queue.Queued)))
 			fmt.Printf("  %s %s\n", keyStyle.Render("pending"), theme.Primary.Render(fmt.Sprintf("%d", health.Queue.Pending)))
 			fmt.Printf("  %s %s\n", keyStyle.Render("done"), theme.Primary.Render(fmt.Sprintf("%d", health.Queue.Done)))
 			fmt.Printf("  %s %s\n", keyStyle.Render("failed"), theme.Primary.Render(fmt.Sprintf("%d", health.Queue.Failed)))

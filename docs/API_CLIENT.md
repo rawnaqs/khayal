@@ -361,6 +361,7 @@ type Dependency struct {
 
 type QueueStats struct {
     Pending    int `json:"pending"`
+    Queued     int `json:"queued"`
     Processing int `json:"processing"`
     Done       int `json:"done"`
     Failed     int `json:"failed"`

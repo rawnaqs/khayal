@@ -35,6 +35,7 @@ type healthResponse struct {
 	} `json:"dependencies"`
 	Queue struct {
 		Pending    int `json:"pending"`
+		Queued     int `json:"queued"`
 		Processing int `json:"processing"`
 		Done       int `json:"done"`
 		Failed     int `json:"failed"`
@@ -92,6 +93,7 @@ func runStatus() error {
 
 	fmt.Println(theme.Primary.Render("  queue"))
 	fmt.Printf("    %-12s %d\n", "processing", health.Queue.Processing)
+	fmt.Printf("    %-12s %d\n", "queued", health.Queue.Queued)
 	fmt.Printf("    %-12s %d\n", "pending", health.Queue.Pending)
 	fmt.Printf("    %-12s %d\n", "done", health.Queue.Done)
 	fmt.Printf("    %-12s %d\n", "failed", health.Queue.Failed)

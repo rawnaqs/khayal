@@ -61,15 +61,25 @@ type LLMExt interface {
     LLM
     
     // ExtractTags extracts relevant tags from content
-    ExtractTags(content string) ([]string, error)
+    // bucket: "text", "image", or "article" - determines token truncation limit
+    ExtractTags(content string, bucket string) ([]string, error)
     
     // Summarize generates a summary of content
-    Summarize(content string) (string, error)
+    // bucket: "text", "image", or "article" - determines token truncation limit
+    Summarize(content string, bucket string) (string, error)
     
     // ExtractKeyIdeas extracts key ideas as bullet points
-    ExtractKeyIdeas(content string) ([]string, error)
+    // bucket: "text", "image", or "article" - determines token truncation limit
+    ExtractKeyIdeas(content string, bucket string) ([]string, error)
 }
 ```
+
+The `bucket` parameter determines the token truncation limit used when sending content to the LLM. Different content types have different limits:
+- `text`: 2000 tokens
+- `image`: 3000 tokens
+- `article`: 12000 tokens
+
+These limits are configurable via `llm.truncate_text_tokens`, `llm.truncate_image_tokens`, `llm.truncate_article_tokens` in config.yaml.
 
 ### Batch Embedding
 
@@ -111,21 +121,46 @@ func NewLLM(opts Options) (LLM, error)
 
 ```go
 type OllamaClient struct {
-    baseURL    string
-    embedModel string
-    textModel  string
-    visionModel string
-    httpClient *http.Client
+    baseURL               string
+    embedModel            string
+    textModel             string
+    visionModel           string
+    truncateTextTokens    int
+    truncateImageTokens   int
+    truncateArticleTokens int
+    httpClient            *http.Client
+    logger                *slog.Logger
+    semaphore             chan struct{}  // Concurrency limiter
 }
 
 func NewOllamaClient(baseURL, embedModel, textModel, visionModel string) *OllamaClient {
-    return &OllamaClient{
-        baseURL:    strings.TrimSuffix(baseURL, "/"),
-        embedModel: embedModel,
-        textModel:  textModel,
-        visionModel: visionModel,
-        httpClient: &http.Client{Timeout: 120 * time.Second},
+    return NewOllamaClientWithConcurrency(baseURL, embedModel, textModel, visionModel, 4)
+}
+
+func NewOllamaClientWithConcurrency(baseURL, embedModel, textModel, visionModel string, maxConcurrent int) *OllamaClient {
+    if maxConcurrent < 1 {
+        maxConcurrent = 4
     }
+    return &OllamaClient{
+        baseURL:               strings.TrimSuffix(baseURL, "/"),
+        embedModel:            embedModel,
+        textModel:             textModel,
+        visionModel:           visionModel,
+        truncateTextTokens:    2000,
+        truncateImageTokens:   3000,
+        truncateArticleTokens: 12000,
+        httpClient:            &http.Client{Timeout: 120 * time.Second},
+        logger:                slog.Default(),
+        semaphore:             make(chan struct{}, maxConcurrent),
+    }
+}
+
+func NewOllamaClientWithConfig(baseURL, embedModel, textModel, visionModel string, truncateText, truncateImage, truncateArticle int) *OllamaClient {
+    client := NewOllamaClient(baseURL, embedModel, textModel, visionModel)
+    client.truncateTextTokens = truncateText
+    client.truncateImageTokens = truncateImage
+    client.truncateArticleTokens = truncateArticle
+    return client
 }
 
 func (c *OllamaClient) Type() string { return ProviderOllama }
@@ -147,7 +182,39 @@ func (c *OllamaClient) Ping() error {
     return nil
 }
 
+// Concurrency semaphore methods
+func (c *OllamaClient) acquire(ctx context.Context) error {
+    if c.semaphore == nil {
+        return nil
+    }
+    select {
+    case c.semaphore <- struct{}{}:
+        return nil
+    case <-ctx.Done():
+        return ctx.Err()
+    }
+}
+
+func (c *OllamaClient) release() {
+    if c.semaphore == nil {
+        return
+    }
+    <-c.semaphore
+}
+
 func (c *OllamaClient) Embed(text string) ([]float32, error) {
+    // Acquire semaphore before making request
+    ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+    defer cancel()
+    if err := c.acquire(ctx); err != nil {
+        return nil, fmt.Errorf("llm concurrency limit reached: %w", err)
+    }
+    defer c.release()
+    
+    reqBody := map[string]interface{}{
+        "model":   c.embedModel,
+        "prompt":   text,
+    }
     reqBody := map[string]interface{}{
         "model":   c.embedModel,
         "prompt":   text,
