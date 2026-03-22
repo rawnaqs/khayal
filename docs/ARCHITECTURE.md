@@ -142,7 +142,8 @@ Query → API Server → Keyword Search (FTS5)
 - Request logging
 - Job queue management
 - Search orchestration
-- Static file serving (PWA)
+- **Static file serving** (PWA via `embed.FS`)
+- **SPA fallback** (non-API routes serve index.html)
 
 ### API Client (`internal/api/client/`)
 

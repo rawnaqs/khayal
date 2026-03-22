@@ -8,8 +8,8 @@
 - [ ] Capture UI
 - [ ] Search UI
 - [ ] Offline queue (IndexedDB)
-- [ ] Go static serving
-- [ ] SPA fallback
+- [x] Go static serving
+- [x] SPA fallback
 
 ## Directory Structure
 
@@ -613,8 +613,8 @@ npm run build
 - [ ] Queue display
 - [ ] Offline queue (IndexedDB)
 - [ ] Auto-sync on reconnect
-- [ ] Go static serving
-- [ ] SPA fallback
+- [x] Go static serving
+- [x] SPA fallback
 - [ ] PWA manifest
 - [ ] Service worker (optional)
 - [ ] Tests passing

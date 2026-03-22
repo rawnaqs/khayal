@@ -167,17 +167,23 @@ func (q *Queue) initSchema() error {
 }
 
 func (q *Queue) initFTS() error {
-	// Drop existing table if it exists (migration for schema change)
-	q.db.Exec(`DROP TABLE IF EXISTS notes_fts`)
+	// Check if FTS table exists
+	var count int
+	q.db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='notes_fts'").Scan(&count)
 
-	_, err := q.db.Exec(`CREATE VIRTUAL TABLE notes_fts USING fts5(
-		note_path UNINDEXED,
-		content,
-		title,
-		tags,
-		tokenize = 'porter unicode61'
-	)`)
-	return err
+	if count == 0 {
+		_, err := q.db.Exec(`CREATE VIRTUAL TABLE notes_fts USING fts5(
+			note_path UNINDEXED,
+			content,
+			title,
+			tags,
+			tokenize = 'porter unicode61'
+		)`)
+		return err
+	}
+
+	// Table exists - use 'khayal reindex --force' to rebuild if schema changed
+	return nil
 }
 
 func (q *Queue) Close() error {

@@ -146,8 +146,8 @@ Web interface.
 - [ ] Capture form
 - [ ] Search UI
 - [ ] Offline queue (IndexedDB)
-- [ ] Go static serving
-- [ ] SPA fallback
+- [x] Go static serving
+- [x] SPA fallback
 
 **Files Created:** ~20 (React components)
 **Tests:** Component + E2E tests

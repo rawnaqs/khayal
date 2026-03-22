@@ -4,7 +4,7 @@
 *.exe
 
 # Test artifacts
-testdata/khayal.db
+testdata/khayal.db*
 testdata/logs/
 *.test
 testdata/vault/khayal/*.md

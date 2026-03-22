@@ -294,11 +294,11 @@ starting reindex...
 ```
 
 Rules:
-- Progress bar with percentage + estimated time remaining
-- Show each note as it completes (last 4 visible, scrolls)
-- If interrupted (ctrl+c): graceful stop, show progress so far, resumable on next run
-- Never re-embed already indexed notes — check mtime
+- Progress bar with percentage
+- Show each note as it completes
+- If interrupted (ctrl+c): graceful stop, show progress so far
 - `khayal reindex --force` → reindex everything regardless of mtime
+- `khayal reindex --fts-only` → only rebuild FTS index (skip embeddings)
 
 #### khayal logs
 

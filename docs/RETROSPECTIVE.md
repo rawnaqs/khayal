@@ -333,10 +333,10 @@ CREATE VIRTUAL TABLE notes_fts USING fts5(
    - `content`: 1.0 (base weight)
    - `tags`: 1.0 (same as content)
 
-3. **Auto-drop on startup:**
-   - `DROP TABLE IF EXISTS notes_fts` runs on every startup
-   - Ensures schema changes are applied
-   - Requires `khayal reindex --force` to repopulate
+3. **Table persistence:**
+   - FTS table is now persistent (no longer dropped on startup)
+   - Use `khayal reindex --force` to rebuild if needed
+   - `--fts-only` flag for FTS-only rebuild
 
 **Result:** Better search relevance with stemming and weighted ranking.
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -17,6 +18,9 @@ import (
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 )
+
+//go:embed ui/static/*
+var staticFS embed.FS
 
 type Server struct {
 	router *chi.Mux
@@ -60,6 +64,28 @@ func (s *Server) setupRouter() {
 		r.Post("/queue/{id}/retry", s.queueRetryHandler)
 		r.Post("/queue/{id}/discard", s.queueDiscardHandler)
 	})
+
+	// Static file serving (after API routes)
+	s.router.Get("/*", s.staticHandler)
+}
+
+func (s *Server) staticHandler(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Path
+	if path == "/" {
+		path = "/index.html"
+	}
+
+	// Try to serve the file from embedded static FS
+	f, err := staticFS.Open("ui/static" + path)
+	if err != nil {
+		// File not found - SPA fallback to index.html
+		http.ServeFileFS(w, r, staticFS, "ui/static/index.html")
+		return
+	}
+	f.Close()
+
+	// Serve the static file
+	http.ServeFileFS(w, r, staticFS, "ui/static"+path)
 }
 
 func (s *Server) Start() error {
