@@ -43,7 +43,7 @@ func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.
 		tags = []string{"image"}
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	note := &vault.Note{
 		Metadata: vault.NoteMetadata{
 			Created:     job.CreatedAt,
@@ -57,8 +57,14 @@ func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.
 				{At: now, Event: "processed"},
 			},
 		},
-		Title: fmt.Sprintf("Image — %s", job.CreatedAt.Format("2006-01-02")),
-		Raw:   description,
+		Title: func() string {
+			if job.UserContext != "" {
+				return job.UserContext
+			} else {
+				return "Image"
+			}
+		}(),
+		Raw: description,
 	}
 
 	notePath, err := v.WriteNote(note, job.ID)

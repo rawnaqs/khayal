@@ -1,0 +1,336 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,700;1,300&family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,600;12..96,800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#070707;--s1:#0d0d0d;--s2:#141414;--s3:#1c1c1c;
+  --border:rgba(255,255,255,0.05);--border2:rgba(255,255,255,0.09);
+  --gold:#C9933A;--gl:#E8B86D;
+  --text:#f5f5f5;--t2:rgba(245,245,245,0.5);--t3:rgba(245,245,245,0.2);
+  --ok:#3ddc84;--warn:#ffb340;--bad:#ff4d4d;
+  --mono:'IBM Plex Mono',monospace;--bg2:'Bricolage Grotesque',sans-serif;
+}
+body{background:#040404;display:flex;justify-content:center;align-items:flex-start;gap:16px;padding:28px 12px 48px;flex-wrap:wrap;font-family:'Bricolage Grotesque',sans-serif}
+
+.col{display:flex;flex-direction:column;gap:8px;width:320px}
+.cl{font-family:var(--mono);font-size:9px;color:rgba(255,255,255,0.12);letter-spacing:2px;text-transform:uppercase;text-align:center;padding-bottom:2px}
+.sec{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;padding:0 2px}
+
+/* ── Processing item ── */
+.proc-card{
+  background:var(--s2);border:1px solid var(--border);
+  border-radius:18px;padding:14px;position:relative;overflow:hidden;
+}
+.proc-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,var(--warn) 0%,transparent 60%);opacity:0.7}
+.pc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.pc-name{font-size:13px;font-weight:700;color:var(--text);letter-spacing:-0.2px;margin-bottom:3px}
+.pc-meta{font-family:var(--mono);font-size:9px;color:var(--t3)}
+.live-badge{display:flex;align-items:center;gap:5px;background:rgba(255,179,64,0.08);border:1px solid rgba(255,179,64,0.2);border-radius:100px;padding:4px 9px;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--warn);letter-spacing:0.5px}
+.bdot{width:5px;height:5px;border-radius:50%;background:var(--warn);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.steps{display:flex;justify-content:space-between;margin-bottom:6px}
+.step{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:0.3px}
+.step.done{color:var(--warn)}
+.pbar{height:3px;background:rgba(255,255,255,0.05);border-radius:100px;overflow:hidden;margin-bottom:10px}
+.pfill{height:100%;width:65%;background:linear-gradient(90deg,var(--gold),var(--warn));border-radius:100px;position:relative}
+.pfill::after{content:'';position:absolute;right:-1px;top:-2px;width:7px;height:7px;border-radius:50%;background:var(--warn);box-shadow:0 0 8px var(--warn)}
+.chips{display:flex;gap:5px}
+.mc{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:100px;background:rgba(255,255,255,0.04);border:1px solid var(--border2);color:var(--t2)}
+
+/* ── Pending item ── */
+.qi{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:13px;padding:10px 13px;
+  display:flex;align-items:center;gap:10px;
+  cursor:pointer;
+}
+.qi-icon{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;background:rgba(201,147,58,0.07);border:1px solid rgba(201,147,58,0.12)}
+.qi-icon.t{background:rgba(61,220,132,0.07);border-color:rgba(61,220,132,0.12)}
+.qi-icon.u{background:rgba(201,147,58,0.07);border-color:rgba(201,147,58,0.12)}
+.qi-body{flex:1;min-width:0}
+.qi-title{font-size:12px;font-weight:600;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.qi-meta{font-family:var(--mono);font-size:9px;color:var(--t3);margin-top:2px}
+.qi-right{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.qi-ago{font-family:var(--mono);font-size:9px;color:var(--t3)}
+.qi-dot{width:6px;height:6px;border-radius:50%}
+.qi-dot.q{background:var(--warn);box-shadow:0 0 6px rgba(255,179,64,0.35)}
+.qi-dot.p{background:var(--t3)}
+
+/* ── Failed item ── */
+.fail-card{
+  background:rgba(255,77,77,0.04);
+  border:1px solid rgba(255,77,77,0.15);
+  border-radius:16px;
+  overflow:hidden;
+}
+.fail-card::before{content:'';display:block;height:1px;background:linear-gradient(90deg,var(--bad) 0%,transparent 50%);opacity:0.5}
+.fail-main{padding:12px 14px;display:flex;align-items:flex-start;gap:10px}
+.fail-icon{width:30px;height:30px;border-radius:8px;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.18);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.fail-body{flex:1;min-width:0}
+.fail-title{font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+.fail-reason{font-family:var(--mono);font-size:9px;color:var(--bad);opacity:0.7;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fail-time{font-family:var(--mono);font-size:9px;color:var(--t3)}
+.fail-actions{
+  display:flex;border-top:1px solid rgba(255,77,77,0.1);
+}
+.fa{
+  flex:1;padding:9px 0;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  font-size:11px;font-weight:600;cursor:pointer;
+  transition:background 0.15s;
+}
+.fa:first-child{border-right:1px solid rgba(255,77,77,0.1)}
+.fa.retry{color:var(--gold)}
+.fa.retry:hover{background:rgba(201,147,58,0.06)}
+.fa.discard{color:var(--bad);opacity:0.7}
+.fa.discard:hover{background:rgba(255,77,77,0.06)}
+.fa svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── Failed expanded (error detail) ── */
+.fail-expanded{
+  background:rgba(255,77,77,0.04);
+  border:1px solid rgba(255,77,77,0.15);
+  border-radius:16px;overflow:hidden;
+}
+.fail-expanded::before{content:'';display:block;height:1px;background:linear-gradient(90deg,var(--bad) 0%,transparent 50%);opacity:0.5}
+.fe-main{padding:12px 14px;display:flex;align-items:flex-start;gap:10px}
+.fe-body{flex:1;min-width:0}
+.fe-title{font-size:12px;font-weight:700;color:var(--text);margin-bottom:6px}
+.fe-error-box{
+  background:rgba(0,0,0,0.3);border:1px solid rgba(255,77,77,0.12);
+  border-radius:8px;padding:8px 10px;margin-bottom:8px;
+}
+.fe-code{font-family:var(--mono);font-size:9px;color:var(--bad);opacity:0.8;letter-spacing:0.3px;margin-bottom:3px}
+.fe-msg{font-family:var(--mono);font-size:9px;color:var(--t2);line-height:1.5}
+.fe-attempts{font-family:var(--mono);font-size:9px;color:var(--t3)}
+.fail-expanded .fail-actions{border-top:1px solid rgba(255,77,77,0.1)}
+
+/* ── Retry all banner ── */
+.retry-all{
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(201,147,58,0.05);border:1px solid rgba(201,147,58,0.12);
+  border-radius:12px;padding:10px 14px;cursor:pointer;
+}
+.ra-left{display:flex;align-items:center;gap:8px}
+.ra-ct{
+  font-family:var(--mono);font-size:10px;font-weight:700;
+  background:rgba(255,77,77,0.12);border:1px solid rgba(255,77,77,0.2);
+  color:var(--bad);padding:2px 8px;border-radius:100px;
+}
+.ra-txt{font-size:12px;font-weight:600;color:var(--t2)}
+.ra-btn{
+  display:flex;align-items:center;gap:5px;
+  font-size:11px;font-weight:700;color:var(--gold);
+  font-family:var(--mono);letter-spacing:0.5px;
+}
+
+/* ── Done item (collapsed history) ── */
+.done-item{
+  background:var(--s1);border:1px solid var(--border);
+  border-radius:13px;padding:9px 13px;
+  display:flex;align-items:center;gap:10px;
+  opacity:0.7;
+}
+.done-check{width:18px;height:18px;border-radius:50%;background:rgba(61,220,132,0.1);border:1px solid rgba(61,220,132,0.2);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--ok);flex-shrink:0}
+.done-body{flex:1;min-width:0}
+.done-title{font-size:11px;font-weight:600;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.done-meta{font-family:var(--mono);font-size:9px;color:var(--t3);margin-top:1px;opacity:0.6}
+.done-ago{font-family:var(--mono);font-size:9px;color:var(--t3);flex-shrink:0;opacity:0.5}
+
+.divider{height:1px;background:var(--border)}
+</style>
+
+<div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;align-items:flex-start">
+
+<!-- ── COL 1: PROCESSING + PENDING ── -->
+<div class="col">
+  <div class="cl">processing + pending</div>
+
+  <div class="sec">now processing</div>
+  <div class="proc-card">
+    <div class="pc-top">
+      <div>
+        <div class="pc-name">whiteboard-arch.png</div>
+        <div class="pc-meta">image · 1.4MB · 8s ago</div>
+      </div>
+      <div class="live-badge"><div class="bdot"></div>live</div>
+    </div>
+    <div class="steps">
+      <span class="step done">saved</span>
+      <span class="step done">describing</span>
+      <span class="step">tagging</span>
+      <span class="step">writing</span>
+    </div>
+    <div class="pbar"><div class="pfill"></div></div>
+    <div class="chips">
+      <span class="mc">moondream</span>
+      <span class="mc">qwen2.5:7b</span>
+    </div>
+  </div>
+
+  <div class="sec">pending (2)</div>
+  <div class="qi">
+    <div class="qi-icon t">✦</div>
+    <div class="qi-body">
+      <div class="qi-title">"react is broken by design"</div>
+      <div class="qi-meta">text · queued</div>
+    </div>
+    <div class="qi-right">
+      <div class="qi-dot q"></div>
+      <span class="qi-ago">2m</span>
+    </div>
+  </div>
+  <div class="qi">
+    <div class="qi-icon u">⌘</div>
+    <div class="qi-body">
+      <div class="qi-title">fasterthanli.me/articles/a-half-hour</div>
+      <div class="qi-meta">url · queued</div>
+    </div>
+    <div class="qi-right">
+      <div class="qi-dot p"></div>
+      <span class="qi-ago">5m</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── COL 2: FAILED STATES ── -->
+<div class="col">
+  <div class="cl">failed states</div>
+
+  <div class="sec">failed (3)</div>
+
+  <!-- Retry all banner -->
+  <div class="retry-all">
+    <div class="ra-left">
+      <span class="ra-ct">3</span>
+      <span class="ra-txt">jobs failed</span>
+    </div>
+    <div class="ra-btn">
+      <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
+      retry all
+    </div>
+  </div>
+
+  <!-- Failed item — collapsed -->
+  <div class="fail-card">
+    <div class="fail-main">
+      <div class="fail-icon">⚠</div>
+      <div class="fail-body">
+        <div class="fail-title">whiteboard-2.png</div>
+        <div class="fail-reason">LLM_001 · ollama unreachable</div>
+        <div class="fail-time">failed 12m ago · 3 attempts</div>
+      </div>
+    </div>
+    <div class="fail-actions">
+      <div class="fa retry">
+        <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
+        retry
+      </div>
+      <div class="fa discard">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+        discard
+      </div>
+    </div>
+  </div>
+
+  <!-- Failed item — expanded with error detail -->
+  <div class="fail-expanded">
+    <div class="fe-main">
+      <div class="fail-icon">⚠</div>
+      <div class="fe-body">
+        <div class="fe-title">react-notes-screenshot.png</div>
+        <div class="fe-error-box">
+          <div class="fe-code">VAULT_002</div>
+          <div class="fe-msg">cannot write to vault: permission denied on /Users/armedev/brain/inbox</div>
+        </div>
+        <div class="fe-attempts">attempt 3 of 3 · failed 24m ago</div>
+      </div>
+    </div>
+    <div class="fail-actions">
+      <div class="fa retry">
+        <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
+        retry
+      </div>
+      <div class="fa discard">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+        discard
+      </div>
+    </div>
+  </div>
+
+  <!-- Failed item — 3rd -->
+  <div class="fail-card">
+    <div class="fail-main">
+      <div class="fail-icon">⚠</div>
+      <div class="fail-body">
+        <div class="fail-title">"meeting notes from today"</div>
+        <div class="fail-reason">LLM_003 · context length exceeded</div>
+        <div class="fail-time">failed 31m ago · 1 attempt</div>
+      </div>
+    </div>
+    <div class="fail-actions">
+      <div class="fa retry">
+        <svg viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.51"/></svg>
+        retry
+      </div>
+      <div class="fa discard">
+        <svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+        discard
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── COL 3: DONE HISTORY ── -->
+<div class="col">
+  <div class="cl">done history</div>
+
+  <div class="sec">done today (12)</div>
+
+  <div class="done-item">
+    <div class="done-check">✓</div>
+    <div class="done-body">
+      <div class="done-title">whiteboard-arch.png</div>
+      <div class="done-meta">image · #system-design #go</div>
+    </div>
+    <span class="done-ago">8m</span>
+  </div>
+  <div class="done-item">
+    <div class="done-check">✓</div>
+    <div class="done-body">
+      <div class="done-title">"react is broken by design"</div>
+      <div class="done-meta">text · #react #opinion</div>
+    </div>
+    <span class="done-ago">22m</span>
+  </div>
+  <div class="done-item">
+    <div class="done-check">✓</div>
+    <div class="done-body">
+      <div class="done-title">fasterthanli.me/articles/a-half-hour</div>
+      <div class="done-meta">article · #rust #learning</div>
+    </div>
+    <span class="done-ago">1h</span>
+  </div>
+  <div class="done-item">
+    <div class="done-check">✓</div>
+    <div class="done-body">
+      <div class="done-title">"paid contractor for the month"</div>
+      <div class="done-meta">text · #finance</div>
+    </div>
+    <span class="done-ago">2h</span>
+  </div>
+  <div class="done-item">
+    <div class="done-check">✓</div>
+    <div class="done-body">
+      <div class="done-title">morning-standup-notes.png</div>
+      <div class="done-meta">image · #work #standup</div>
+    </div>
+    <span class="done-ago">3h</span>
+  </div>
+
+  <div style="padding:4px 2px">
+    <div style="font-family:var(--mono);font-size:9px;color:var(--t3);text-align:center;letter-spacing:0.5px">7 more · tap to expand</div>
+  </div>
+</div>
+
+</div>

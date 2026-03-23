@@ -150,7 +150,7 @@ func (w *Writer) WriteNote(note *Note, jobID string) (string, error) {
 		return "", fmt.Errorf("note validation failed: %w", err)
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	if note.Metadata.Created.IsZero() {
 		note.Metadata.Created = now
 	}
@@ -200,7 +200,7 @@ func (w *Writer) UpdateNote(notePath string, note *Note) error {
 		return fmt.Errorf("invalid UTF-8 content")
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	note.Metadata.Updated = &now
 
 	if note.Metadata.History == nil {

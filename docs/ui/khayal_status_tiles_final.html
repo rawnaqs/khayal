@@ -1,0 +1,207 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,700;1,300&family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,600;12..96,800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#070707;--s1:#0d0d0d;--s2:#141414;
+  --border:rgba(255,255,255,0.05);--border2:rgba(255,255,255,0.09);
+  --gold:#C9933A;--gl:#E8B86D;
+  --text:#f5f5f5;--t2:rgba(245,245,245,0.5);--t3:rgba(245,245,245,0.2);
+  --ok:#3ddc84;--warn:#ffb340;--bad:#ff4d4d;
+  --mono:'IBM Plex Mono',monospace;
+}
+body{background:#040404;display:flex;justify-content:center;align-items:flex-start;gap:14px;padding:28px 10px 48px;flex-wrap:wrap;font-family:'Bricolage Grotesque',sans-serif}
+
+.cl{font-family:var(--mono);font-size:9px;color:rgba(255,255,255,0.12);letter-spacing:2px;text-transform:uppercase;text-align:center;padding-bottom:4px}
+.col{display:flex;flex-direction:column;align-items:center;gap:6px}
+
+/* Compose box */
+.compose{
+  width:310px;background:var(--s2);
+  border:1px solid rgba(201,147,58,0.2);
+  border-radius:20px;padding:14px;
+  display:flex;flex-direction:column;gap:10px;
+  box-shadow:0 0 0 1px rgba(201,147,58,0.06) inset;
+  position:relative;overflow:hidden;
+}
+.pills{display:flex;gap:5px}
+.tp{padding:4px 10px;border-radius:100px;font-family:var(--mono);font-size:9px;font-weight:700;border:1px solid var(--border2);color:var(--t3);letter-spacing:0.8px;text-transform:uppercase}
+.tp.on{background:var(--gold);color:#000;border-color:var(--gold)}
+.tarea{font-size:15px;font-weight:300;color:var(--t2);line-height:1.5;min-height:52px}
+.csr{display:inline-block;width:2px;height:17px;background:var(--gold);margin-left:1px;vertical-align:middle;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.footer{display:flex;align-items:center;justify-content:space-between;padding-top:6px;border-top:1px solid var(--border)}
+.hint{font-family:var(--mono);font-size:9px;color:var(--t3)}
+.send{width:34px;height:34px;border-radius:50%;background:var(--gold);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(201,147,58,0.3)}
+.send svg{width:13px;height:13px;fill:none;stroke:#000;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── Status tiles ── */
+.tile{
+  width:310px;border-radius:14px;padding:12px 14px;
+  display:flex;align-items:center;gap:12px;
+}
+
+/* Auto-dismiss progress bar — shows time remaining */
+.tile-inner{flex:1;min-width:0}
+.tile-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.tile-title{font-size:13px;font-weight:700;color:var(--text)}
+.tile-dismiss{width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,0.05);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--t3);cursor:pointer;flex-shrink:0}
+.tile-sub{font-family:var(--mono);font-size:9px;color:var(--t3);margin-top:2px}
+.tile-bar{height:2px;background:rgba(255,255,255,0.04);border-radius:100px;margin-top:8px;overflow:hidden}
+.tile-bar-fill{height:100%;border-radius:100px}
+
+/* success */
+.tile-ok{background:rgba(61,220,132,0.05);border:1px solid rgba(61,220,132,0.12)}
+.tile-ok .tile-bar-fill{background:var(--ok);width:60%;animation:drain 3s linear forwards}
+.icon-ok{width:30px;height:30px;border-radius:50%;background:rgba(61,220,132,0.1);border:1px solid rgba(61,220,132,0.18);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.rtag{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:100px;background:rgba(201,147,58,0.08);border:1px solid rgba(201,147,58,0.14);color:var(--gl)}
+
+/* queued */
+.tile-q{background:rgba(255,179,64,0.04);border:1px solid rgba(255,179,64,0.12)}
+.tile-q .tile-bar-fill{background:var(--warn);width:75%;animation:drain 4s linear forwards}
+.icon-q{width:30px;height:30px;border-radius:50%;background:rgba(255,179,64,0.1);border:1px solid rgba(255,179,64,0.18);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;animation:spin 3s linear infinite}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.steps{display:flex;align-items:center;gap:5px;margin-top:6px;flex-wrap:wrap}
+.sd{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.sd.done{background:var(--ok)}
+.sd.act{background:var(--warn);animation:pulse 1s infinite}
+.sd.wait{background:var(--t3)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.sl{font-family:var(--mono);font-size:9px;color:var(--t3)}
+.sl.done{color:var(--t2)}.sl.act{color:var(--warn)}
+.sep{font-size:8px;color:var(--t3)}
+
+/* offline */
+.tile-off{background:rgba(201,147,58,0.04);border:1px solid rgba(201,147,58,0.1)}
+.tile-off .tile-bar-fill{background:var(--gold);opacity:0.4;width:40%;animation:drain 3.5s linear forwards}
+.icon-off{width:30px;height:30px;border-radius:50%;background:rgba(201,147,58,0.08);border:1px solid rgba(201,147,58,0.14);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.off-row{display:flex;align-items:center;gap:7px;margin-top:6px}
+.off-dot{width:5px;height:5px;border-radius:50%;background:var(--gold);opacity:0.5}
+.off-ct{font-family:var(--mono);font-size:9px;color:var(--gold);margin-left:auto}
+
+/* error — no auto dismiss, has actions */
+.tile-err{background:rgba(255,77,77,0.04);border:1px solid rgba(255,77,77,0.15)}
+.icon-err{width:30px;height:30px;border-radius:50%;background:rgba(255,77,77,0.1);border:1px solid rgba(255,77,77,0.18);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.err-box{margin-top:7px;padding:7px 10px;background:rgba(0,0,0,0.25);border-radius:8px;border:1px solid rgba(255,77,77,0.08)}
+.err-code{font-family:var(--mono);font-size:9px;color:var(--bad);opacity:0.8;letter-spacing:0.3px;margin-bottom:2px}
+.err-hint{font-family:var(--mono);font-size:9px;color:var(--t2);line-height:1.5}
+.err-actions{display:flex;gap:6px;margin-top:8px}
+.ea{flex:1;padding:7px 0;border-radius:8px;font-size:11px;font-weight:600;text-align:center;cursor:pointer;border:1px solid var(--border2);color:var(--t2);background:transparent}
+.ea.p{background:rgba(201,147,58,0.08);border-color:rgba(201,147,58,0.2);color:var(--gold)}
+
+@keyframes drain{from{width:100%}to{width:0%}}
+</style>
+
+<div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;align-items:flex-start">
+
+<!-- SUCCESS -->
+<div class="col">
+<div class="cl">success · auto-dismiss 3s</div>
+<div class="compose">
+  <div class="pills"><span class="tp on">txt</span><span class="tp">url</span><span class="tp">img</span><span class="tp">cam</span></div>
+  <div class="tarea">what's on your mind...<span class="csr"></span></div>
+  <div class="footer"><span class="hint">⌘↵ to capture</span><button class="send"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>
+</div>
+<div class="tile tile-ok">
+  <div class="icon-ok">✓</div>
+  <div class="tile-inner">
+    <div class="tile-top">
+      <span class="tile-title">saved</span>
+      <div class="tile-dismiss">✕</div>
+    </div>
+    <div class="tile-sub">text · 84ms</div>
+    <div class="tags">
+      <span class="rtag">#react</span>
+      <span class="rtag">#opinion</span>
+      <span class="rtag">#js</span>
+    </div>
+    <div class="tile-bar"><div class="tile-bar-fill"></div></div>
+  </div>
+</div>
+</div>
+
+<!-- QUEUED -->
+<div class="col">
+<div class="cl">queued · auto-dismiss 4s</div>
+<div class="compose">
+  <div class="pills"><span class="tp">txt</span><span class="tp">url</span><span class="tp on">img</span><span class="tp">cam</span></div>
+  <div style="height:46px;display:flex;align-items:center;gap:8px"><div style="font-size:18px;opacity:0.2">🖼</div><div style="font-family:var(--mono);font-size:9px;color:var(--t3)">tap to choose image</div></div>
+  <div class="footer"><span class="hint">image · moondream will describe</span><button class="send" style="opacity:0.25;background:var(--s2);box-shadow:none"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>
+</div>
+<div class="tile tile-q">
+  <div class="icon-q">⏳</div>
+  <div class="tile-inner">
+    <div class="tile-top">
+      <span class="tile-title">queued</span>
+      <div class="tile-dismiss">✕</div>
+    </div>
+    <div class="tile-sub">whiteboard.png · id: a3f9c2</div>
+    <div class="steps">
+      <div class="sd done"></div><span class="sl done">saved</span>
+      <span class="sep">·</span>
+      <div class="sd act"></div><span class="sl act">describing</span>
+      <span class="sep">·</span>
+      <div class="sd wait"></div><span class="sl">tagging</span>
+      <span class="sep">·</span>
+      <div class="sd wait"></div><span class="sl">writing</span>
+    </div>
+    <div class="tile-bar"><div class="tile-bar-fill"></div></div>
+  </div>
+</div>
+</div>
+
+<!-- OFFLINE -->
+<div class="col">
+<div class="cl">offline · auto-dismiss 3.5s</div>
+<div class="compose">
+  <div class="pills"><span class="tp on">txt</span><span class="tp">url</span><span class="tp">img</span><span class="tp">cam</span></div>
+  <div class="tarea">what's on your mind...<span class="csr"></span></div>
+  <div class="footer"><span class="hint">will save offline</span><button class="send"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>
+</div>
+<div class="tile tile-off">
+  <div class="icon-off">⚡</div>
+  <div class="tile-inner">
+    <div class="tile-top">
+      <span class="tile-title">saved offline</span>
+      <div class="tile-dismiss">✕</div>
+    </div>
+    <div class="tile-sub">will sync when connected</div>
+    <div class="off-row">
+      <div class="off-dot"></div>
+      <span style="font-family:var(--mono);font-size:9px;color:var(--t3)">waiting for server</span>
+      <span class="off-ct">4 pending</span>
+    </div>
+    <div class="tile-bar"><div class="tile-bar-fill"></div></div>
+  </div>
+</div>
+</div>
+
+<!-- ERROR -->
+<div class="col">
+<div class="cl">error · stays until dismissed</div>
+<div class="compose">
+  <div class="pills"><span class="tp on">txt</span><span class="tp">url</span><span class="tp">img</span><span class="tp">cam</span></div>
+  <div class="tarea" style="color:var(--t3)">react itself is dirty avoid it</div>
+  <div class="footer"><span class="hint">⌘↵ to capture</span><button class="send"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button></div>
+</div>
+<div class="tile tile-err">
+  <div class="icon-err">✕</div>
+  <div class="tile-inner">
+    <div class="tile-top">
+      <span class="tile-title">capture failed</span>
+    </div>
+    <div class="tile-sub">VAULT_002 · write failed</div>
+    <div class="err-box">
+      <div class="err-code">VAULT_002</div>
+      <div class="err-hint">cannot write to vault — check permissions on ~/brain/inbox</div>
+    </div>
+    <div class="err-actions">
+      <div class="ea">discard</div>
+      <div class="ea p">retry</div>
+    </div>
+  </div>
+</div>
+</div>
+
+</div>

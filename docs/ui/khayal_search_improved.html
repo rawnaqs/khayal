@@ -1,0 +1,315 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,700;1,300&family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,600;12..96,800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#070707;--s1:#0d0d0d;--s2:#141414;--s3:#1c1c1c;
+  --border:rgba(255,255,255,0.05);--border2:rgba(255,255,255,0.09);
+  --gold:#C9933A;--gl:#E8B86D;
+  --text:#f5f5f5;--t2:rgba(245,245,245,0.5);--t3:rgba(245,245,245,0.2);
+  --ok:#3ddc84;--warn:#ffb340;--bad:#ff4d4d;
+  --mono:'IBM Plex Mono',monospace;--bg2:'Bricolage Grotesque',sans-serif;
+}
+body{background:#040404;display:flex;justify-content:center;align-items:flex-start;gap:12px;padding:24px 8px 48px;flex-wrap:wrap;font-family:'Bricolage Grotesque',sans-serif}
+
+/* Phone */
+.phone{width:358px;height:776px;background:var(--bg);border-radius:44px;border:1px solid var(--border2);overflow:hidden;display:flex;flex-direction:column;position:relative;box-shadow:0 0 0 1px rgba(255,255,255,0.02),0 80px 160px rgba(0,0,0,0.95),inset 0 1px 0 rgba(255,255,255,0.04)}
+.notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:108px;height:27px;background:#000;border-radius:0 0 18px 18px;z-index:30}
+.sb{padding:18px 22px 0;display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11px;color:var(--t3);position:relative;z-index:5;flex-shrink:0}
+.screen{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+
+/* Header */
+.hdr{padding:12px 16px 10px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border);flex-shrink:0}
+.brand{display:flex;align-items:center;gap:8px}
+.mark{width:28px;height:28px;background:var(--gold);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:700;color:#000;box-shadow:0 4px 12px rgba(201,147,58,0.28)}
+.bname{font-size:13px;font-weight:700;color:var(--text);letter-spacing:-0.3px}
+.online{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+
+/* Search bar area */
+.srch-area{padding:12px 14px 0;flex-shrink:0}
+.srch-bar{display:flex;align-items:center;gap:10px;background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:11px 14px;margin-bottom:10px}
+.srch-bar.active{border-color:rgba(201,147,58,0.3);box-shadow:0 0 0 1px rgba(201,147,58,0.08) inset}
+.srch-bar svg{width:14px;height:14px;stroke:var(--t3);stroke-width:2;fill:none;flex-shrink:0}
+.srch-val{font-size:14px;color:var(--text);font-weight:400;flex:1;letter-spacing:-0.2px}
+.srch-ph{font-size:14px;color:var(--t3);flex:1}
+.srch-clear{width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,0.07);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--t3);cursor:pointer;flex-shrink:0}
+
+/* Mode chips */
+.modes{display:flex;gap:5px;padding-bottom:10px;border-bottom:1px solid var(--border)}
+.mc{padding:4px 10px;border-radius:100px;font-family:var(--mono);font-size:9px;font-weight:700;border:1px solid var(--border2);color:var(--t3);cursor:pointer;letter-spacing:0.5px;text-transform:uppercase}
+.mc.on{background:var(--gold);color:#000;border-color:var(--gold)}
+
+/* ── EMPTY STATE ── */
+.empty{flex:1;display:flex;flex-direction:column;padding:16px 14px;gap:0;overflow-y:auto;scrollbar-width:none}
+.empty::-webkit-scrollbar{display:none}
+
+.recent-lbl{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;padding:0 2px;margin-bottom:8px}
+.recent-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s1);border:1px solid var(--border);border-radius:12px;margin-bottom:5px;cursor:pointer}
+.ri-icon{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+.ri-icon.t{background:rgba(61,220,132,0.07);border:1px solid rgba(61,220,132,0.12)}
+.ri-icon.f{background:rgba(201,147,58,0.07);border:1px solid rgba(201,147,58,0.12)}
+.ri-text{font-size:12px;font-weight:500;color:var(--t2);flex:1}
+.ri-ago{font-family:var(--mono);font-size:9px;color:var(--t3)}
+
+.suggestions-lbl{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;padding:0 2px;margin:12px 0 8px}
+.sug-chips{display:flex;gap:6px;flex-wrap:wrap}
+.sc{padding:6px 12px;border-radius:100px;background:var(--s2);border:1px solid var(--border2);font-size:12px;font-weight:500;color:var(--t2);cursor:pointer;transition:border-color 0.15s}
+.sc:hover{border-color:rgba(201,147,58,0.3);color:var(--gl)}
+
+/* ── RESULTS STATE ── */
+.results-header{padding:8px 16px 10px;flex-shrink:0;border-bottom:1px solid var(--border)}
+.rh-row{display:flex;justify-content:space-between;align-items:center}
+.rh-count{font-family:var(--mono);font-size:9px;color:var(--t3)}
+.rh-ms{font-family:var(--mono);font-size:9px;color:var(--ok)}
+.filter-chips{display:flex;gap:5px;margin-top:8px}
+.fc{padding:3px 9px;border-radius:100px;font-family:var(--mono);font-size:9px;font-weight:700;border:1px solid var(--border2);color:var(--t3);cursor:pointer;letter-spacing:0.4px}
+.fc.on{background:rgba(201,147,58,0.1);border-color:rgba(201,147,58,0.25);color:var(--gold)}
+
+.results-list{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:7px;scrollbar-width:none}
+.results-list::-webkit-scrollbar{display:none}
+
+/* Hero result */
+.r1{background:var(--s2);border:1px solid var(--border);border-radius:16px;padding:14px;position:relative;overflow:hidden;cursor:pointer}
+.r1::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,var(--gold) 0%,transparent 55%);opacity:0.6}
+.r1-ghost{position:absolute;right:10px;top:6px;font-size:48px;font-weight:800;color:rgba(201,147,58,0.06);line-height:1;letter-spacing:-3px;pointer-events:none}
+.r1-title{font-size:14px;font-weight:700;color:var(--text);line-height:1.35;margin-bottom:7px;padding-right:28px;letter-spacing:-0.2px}
+/* keyword highlight */
+.hl{color:var(--gl);background:rgba(232,184,109,0.1);border-radius:3px;padding:0 2px}
+.r1-meta{display:flex;gap:5px;align-items:center;margin-bottom:9px;flex-wrap:wrap}
+.rdate{font-family:var(--mono);font-size:9px;color:var(--t3)}
+.rb{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:100px;font-weight:700;letter-spacing:0.4px}
+.rb-t{background:rgba(61,220,132,0.08);color:#3ddc84;border:1px solid rgba(61,220,132,0.14)}
+.rb-a{background:rgba(96,165,250,0.08);color:#60a5fa;border:1px solid rgba(96,165,250,0.14)}
+.rb-tag{background:rgba(201,147,58,0.08);color:var(--gl);border:1px solid rgba(201,147,58,0.14)}
+.r1-ex{font-family:var(--mono);font-size:11px;color:var(--t2);line-height:1.6;font-style:italic;border-left:1.5px solid rgba(201,147,58,0.2);padding-left:9px}
+
+/* Compact result */
+.rc{display:flex;align-items:flex-start;gap:10px;background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:10px 12px;cursor:pointer;transition:background 0.15s}
+.rc:hover{background:var(--s2);border-color:var(--border2)}
+.rc-n{font-size:17px;font-weight:800;color:rgba(255,255,255,0.07);flex-shrink:0;line-height:1.2;padding-top:1px;letter-spacing:-1px;width:18px}
+.rc-body{flex:1;min-width:0}
+.rc-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;line-height:1.3;letter-spacing:-0.1px}
+.rc-meta{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.rc-score{font-family:var(--mono);font-size:10px;color:var(--t3);flex-shrink:0;padding-top:2px}
+
+/* ── NO RESULTS ── */
+.no-results{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;gap:10px}
+.nr-icon{font-size:32px;opacity:0.3}
+.nr-title{font-size:15px;font-weight:700;color:var(--t2);letter-spacing:-0.3px}
+.nr-sub{font-family:var(--mono);font-size:10px;color:var(--t3);text-align:center;line-height:1.6}
+.nr-suggestions{display:flex;flex-direction:column;gap:5px;width:100%;margin-top:8px}
+.nr-sug{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--s2);border:1px solid var(--border);border-radius:10px;cursor:pointer}
+.nr-sug-icon{font-size:11px;color:var(--t3)}
+.nr-sug-txt{font-size:12px;font-weight:500;color:var(--t2)}
+
+/* Nav */
+.nav{display:flex;padding:10px 20px 26px;border-top:1px solid var(--border);background:rgba(7,7,7,0.92);backdrop-filter:blur(20px);flex-shrink:0}
+.nt{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+.nt svg{width:20px;height:20px;stroke:var(--t3);stroke-width:1.5;fill:none}
+.nt.on svg{stroke:var(--gold)}
+.nt-l{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:0.8px}
+.nt.on .nt-l{color:var(--gold)}
+.nt-pip{width:4px;height:4px;border-radius:50%;background:var(--gold);margin:0 auto;opacity:0}
+.nt.on .nt-pip{opacity:1}
+
+.cl{font-family:var(--mono);font-size:9px;color:rgba(255,255,255,0.1);letter-spacing:2px;text-transform:uppercase;text-align:center;margin-bottom:6px}
+</style>
+
+<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+
+<!-- ── EMPTY / IDLE ── -->
+<div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+<div class="cl">idle — recent searches</div>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="sb" style="padding-top:20px"><span>9:41</span><span>●●●●</span></div>
+  <div class="screen">
+    <div class="hdr">
+      <div class="brand"><div class="mark">خ</div><span class="bname">khayal</span></div>
+      <div class="online"></div>
+    </div>
+    <div class="srch-area">
+      <div class="srch-bar">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <span class="srch-ph">search your vault...</span>
+      </div>
+      <div class="modes">
+        <span class="mc on">hybrid</span>
+        <span class="mc">keyword</span>
+        <span class="mc">semantic</span>
+      </div>
+    </div>
+    <div class="empty">
+      <div class="recent-lbl">recent searches</div>
+      <div class="recent-item">
+        <div class="ri-icon t">🕐</div>
+        <span class="ri-text">paid someone money</span>
+        <span class="ri-ago">2h ago</span>
+      </div>
+      <div class="recent-item">
+        <div class="ri-icon t">🕐</div>
+        <span class="ri-text">react performance hooks</span>
+        <span class="ri-ago">yesterday</span>
+      </div>
+      <div class="recent-item">
+        <div class="ri-icon f">🕐</div>
+        <span class="ri-text">meeting with Sarah</span>
+        <span class="ri-ago">2 days ago</span>
+      </div>
+
+      <div class="suggestions-lbl">try searching for</div>
+      <div class="sug-chips">
+        <span class="sc">people</span>
+        <span class="sc">payments</span>
+        <span class="sc">this week</span>
+        <span class="sc">ideas</span>
+        <span class="sc">#react</span>
+        <span class="sc">decisions</span>
+      </div>
+    </div>
+    <div class="nav">
+      <div class="nt"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><div class="nt-pip"></div><span class="nt-l">capture</span></div>
+      <div class="nt on"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><div class="nt-pip"></div><span class="nt-l">search</span></div>
+      <div class="nt"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><div class="nt-pip"></div><span class="nt-l">queue</span></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ── RESULTS ── -->
+<div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+<div class="cl">results + filters + highlights</div>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="sb" style="padding-top:20px"><span>9:41</span><span>●●●●</span></div>
+  <div class="screen">
+    <div class="hdr">
+      <div class="brand"><div class="mark">خ</div><span class="bname">khayal</span></div>
+      <div class="online"></div>
+    </div>
+    <div class="srch-area">
+      <div class="srch-bar active">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <span class="srch-val">paid someone money</span>
+        <div class="srch-clear">✕</div>
+      </div>
+      <div class="modes">
+        <span class="mc on">hybrid</span>
+        <span class="mc">keyword</span>
+        <span class="mc">semantic</span>
+      </div>
+    </div>
+    <div class="results-header">
+      <div class="rh-row">
+        <span class="rh-count">3 results</span>
+        <span class="rh-ms">82ms</span>
+      </div>
+      <div class="filter-chips">
+        <span class="fc on">all</span>
+        <span class="fc">text</span>
+        <span class="fc">article</span>
+        <span class="fc">image</span>
+        <span class="fc">2019</span>
+      </div>
+    </div>
+    <div class="results-list">
+      <div class="r1">
+        <div class="r1-ghost">1</div>
+        <div class="r1-title"><span class="hl">paid</span> john 2k for logo design work</div>
+        <div class="r1-meta">
+          <span class="rdate">Mar 3, 2019</span>
+          <span class="rb rb-t">text</span>
+          <span class="rb rb-tag">#finance</span>
+          <span class="rb rb-tag">#design</span>
+        </div>
+        <div class="r1-ex">...<span class="hl">paid</span> John Doe $2,000 for logo design. Follow-up on brand guidelines next week...</div>
+      </div>
+      <div class="rc">
+        <span class="rc-n">2</span>
+        <div class="rc-body">
+          <div class="rc-title">second <span class="hl">payment</span> to contractor</div>
+          <div class="rc-meta">
+            <span class="rdate">Apr 10, 2019</span>
+            <span class="rb rb-t">text</span>
+            <span class="rb rb-tag">#finance</span>
+          </div>
+        </div>
+        <span class="rc-score">0.81</span>
+      </div>
+      <div class="rc">
+        <span class="rc-n">3</span>
+        <div class="rc-body">
+          <div class="rc-title">react server components mental model</div>
+          <div class="rc-meta">
+            <span class="rdate">Mar 10, 2024</span>
+            <span class="rb rb-a">article</span>
+            <span class="rb rb-tag">#react</span>
+          </div>
+        </div>
+        <span class="rc-score">0.68</span>
+      </div>
+    </div>
+    <div class="nav">
+      <div class="nt"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><div class="nt-pip"></div><span class="nt-l">capture</span></div>
+      <div class="nt on"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><div class="nt-pip"></div><span class="nt-l">search</span></div>
+      <div class="nt"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><div class="nt-pip"></div><span class="nt-l">queue</span></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ── NO RESULTS ── -->
+<div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+<div class="cl">no results</div>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="sb" style="padding-top:20px"><span>9:41</span><span>●●●●</span></div>
+  <div class="screen">
+    <div class="hdr">
+      <div class="brand"><div class="mark">خ</div><span class="bname">khayal</span></div>
+      <div class="online"></div>
+    </div>
+    <div class="srch-area">
+      <div class="srch-bar active">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <span class="srch-val">quantum entanglement</span>
+        <div class="srch-clear">✕</div>
+      </div>
+      <div class="modes">
+        <span class="mc on">hybrid</span>
+        <span class="mc">keyword</span>
+        <span class="mc">semantic</span>
+      </div>
+    </div>
+    <div class="no-results">
+      <div class="nr-icon">◎</div>
+      <div class="nr-title">nothing found</div>
+      <div class="nr-sub">no notes match<br>"quantum entanglement"</div>
+      <div class="nr-suggestions">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;padding:0 2px">try instead</div>
+        <div class="nr-sug">
+          <span class="nr-sug-icon">⌕</span>
+          <span class="nr-sug-txt">quantum entanglement</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--t3);margin-left:auto">keyword</span>
+        </div>
+        <div class="nr-sug">
+          <span class="nr-sug-icon">⌕</span>
+          <span class="nr-sug-txt">quantum entanglement</span>
+          <span style="font-family:var(--mono);font-size:9px;color:var(--t3);margin-left:auto">semantic</span>
+        </div>
+        <div class="nr-sug" style="border-color:rgba(201,147,58,0.15)">
+          <span class="nr-sug-icon" style="color:var(--gold)">+</span>
+          <span class="nr-sug-txt" style="color:var(--gl)">capture a note about this</span>
+        </div>
+      </div>
+    </div>
+    <div class="nav">
+      <div class="nt"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><div class="nt-pip"></div><span class="nt-l">capture</span></div>
+      <div class="nt on"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><div class="nt-pip"></div><span class="nt-l">search</span></div>
+      <div class="nt"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><div class="nt-pip"></div><span class="nt-l">queue</span></div>
+    </div>
+  </div>
+</div>
+</div>
+
+</div>

@@ -57,7 +57,7 @@ func IngestArticle(ctx context.Context, job *queue.Job, v *vault.Writer, q *queu
 		tags = []string{"article"}
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	note := &vault.Note{
 		Metadata: vault.NoteMetadata{
 			Created:   job.CreatedAt,

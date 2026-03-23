@@ -79,7 +79,7 @@ func (s *Server) handleTextCapture(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := context.Background()
-	now := time.Now()
+	now := time.Now().UTC()
 
 	job := &queue.Job{
 		ID:        uuid.New().String(),
@@ -170,7 +170,7 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
 	note := r.FormValue("note")
 
 	ctx := context.Background()
-	now := time.Now()
+	now := time.Now().UTC()
 
 	job := &queue.Job{
 		ID:          uuid.New().String(),

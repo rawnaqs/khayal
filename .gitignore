@@ -27,6 +27,9 @@ Thumbs.db
 # Go
 vendor/
 
+#node
+node_modules
+
 # Environment
 .env
 .env.local

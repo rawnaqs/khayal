@@ -99,7 +99,7 @@ func runStart() error {
 	defer loggerSetup.Sync()
 	cli.PrintAction("log", logFile)
 
-	q, err := queue.NewQueue(dbPath)
+	q, err := queue.NewQueueWithLogger(dbPath, loggerSetup.MainLogger)
 	if err != nil {
 		cli.Fatal(cli.ExitServer, "failed to initialize queue: %v", err)
 		return err

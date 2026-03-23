@@ -1,0 +1,446 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,700;1,300&family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,600;12..96,800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#070707;--s1:#0d0d0d;--s2:#141414;--s3:#1c1c1c;
+  --border:rgba(255,255,255,0.05);--border2:rgba(255,255,255,0.09);
+  --gold:#C9933A;--gl:#E8B86D;--gd:rgba(201,147,58,0.4);
+  --glow:rgba(201,147,58,0.06);--glow2:rgba(201,147,58,0.12);
+  --text:#f5f5f5;--t2:rgba(245,245,245,0.5);--t3:rgba(245,245,245,0.2);
+  --ok:#3ddc84;--warn:#ffb340;--bad:#ff4d4d;
+  --bg2:'Bricolage Grotesque',sans-serif;--mono:'IBM Plex Mono',monospace;
+}
+body{background:#040404;display:flex;justify-content:center;align-items:flex-start;gap:14px;padding:24px 10px 48px;flex-wrap:wrap;font-family:'Bricolage Grotesque',sans-serif}
+
+/* ── Phone shell ── */
+.phone{width:358px;height:776px;background:var(--bg);border-radius:44px;border:1px solid var(--border2);overflow:hidden;display:flex;flex-direction:column;position:relative;box-shadow:0 0 0 1px rgba(255,255,255,0.02),0 80px 160px rgba(0,0,0,0.95),inset 0 1px 0 rgba(255,255,255,0.04),0 0 80px rgba(201,147,58,0.03)}
+.notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:108px;height:27px;background:#000;border-radius:0 0 18px 18px;z-index:30}
+.sb{padding:18px 22px 0;display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11px;color:var(--t3);position:relative;z-index:5;flex-shrink:0}
+.screen{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+
+/* ── Shared: header ── */
+.hdr{padding:13px 18px 11px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;border-bottom:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:9px}
+.mark{width:30px;height:30px;background:var(--gold);border-radius:9px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:12px;font-weight:700;color:#000;box-shadow:0 4px 14px rgba(201,147,58,0.28)}
+.bname{font-size:14px;font-weight:700;color:var(--text);letter-spacing:-0.3px}
+.online{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.ver{font-family:var(--mono);font-size:9px;color:var(--t3);background:var(--s2);border:1px solid var(--border2);padding:3px 8px;border-radius:100px;letter-spacing:0.3px}
+
+/* ── Shared: nav ── */
+.nav{display:flex;padding:10px 20px 26px;border-top:1px solid var(--border);background:rgba(7,7,7,0.92);backdrop-filter:blur(20px);flex-shrink:0}
+.nt{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+.nt svg{width:20px;height:20px;stroke:var(--t3);stroke-width:1.5;fill:none;transition:stroke 0.2s}
+.nt.on svg{stroke:var(--gold)}
+.nt-l{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:0.8px}
+.nt.on .nt-l{color:var(--gold)}
+.nt-pip{width:4px;height:4px;border-radius:50%;background:var(--gold);margin:0 auto;opacity:0}
+.nt.on .nt-pip{opacity:1}
+
+/* ── Shared: section label ── */
+.sec{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;padding:0 2px}
+
+/* ════════════════════════════
+   CAPTURE
+════════════════════════════ */
+.cap-body{flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:10px;overflow:hidden}
+
+/* Bento */
+.bento{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0}
+.bc{background:var(--s2);border:1px solid var(--border);border-radius:16px;padding:14px;position:relative;overflow:hidden}
+.bc.wide{grid-column:1/3}
+.bc.streak{background:linear-gradient(135deg,rgba(201,147,58,0.09) 0%,rgba(201,147,58,0.02) 100%);border-color:rgba(201,147,58,0.14)}
+.bc-lbl{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px}
+.bc-n{font-size:38px;font-weight:800;color:var(--text);line-height:1;letter-spacing:-2px}
+.bc-n.gold{color:var(--gold)}
+.bc-sub{font-family:var(--mono);font-size:10px;color:var(--t2);margin-top:3px}
+.bc-dots{display:flex;gap:3px;margin-top:9px}
+.bcd{width:6px;height:6px;border-radius:50%;background:var(--border2)}
+.bcd.on{background:var(--gold)}
+.bc-online{position:absolute;top:12px;right:12px}
+
+/* Compose */
+.compose{
+  flex:1;background:var(--s2);border:1px solid rgba(201,147,58,0.2);
+  border-radius:20px;padding:16px;display:flex;flex-direction:column;
+  box-shadow:0 0 0 1px rgba(201,147,58,0.06) inset;min-height:0;
+}
+.compose-ph{font-size:17px;font-weight:300;color:var(--t3);line-height:1.5;flex:1}
+.csr{display:inline-block;width:2px;height:20px;background:var(--gold);margin-left:1px;vertical-align:middle;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.compose-footer{display:flex;align-items:center;justify-content:space-between;margin-top:14px}
+.type-pills{display:flex;gap:5px}
+.tp{padding:5px 10px;border-radius:100px;font-family:var(--mono);font-size:9px;font-weight:700;border:1px solid var(--border2);color:var(--t3);cursor:pointer;letter-spacing:0.8px;text-transform:uppercase;transition:all 0.15s}
+.tp.on{background:var(--gold);color:#000;border-color:var(--gold);box-shadow:0 4px 12px rgba(201,147,58,0.25)}
+.send{width:40px;height:40px;border-radius:50%;background:var(--gold);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(201,147,58,0.35)}
+.send svg{width:16px;height:16px;fill:none;stroke:#000;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+
+/* ════════════════════════════
+   SEARCH
+════════════════════════════ */
+.srch-top{padding:12px 16px 12px;border-bottom:1px solid var(--border);flex-shrink:0}
+.srch-eyebrow{display:flex;justify-content:space-between;margin-bottom:10px}
+.srch-ey-l{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:1px;text-transform:uppercase}
+.srch-ms{font-family:var(--mono);font-size:9px;color:var(--ok)}
+.srch-bar{display:flex;align-items:center;gap:10px;background:var(--s2);border:1px solid var(--border2);border-radius:14px;padding:12px 14px}
+.srch-bar svg{width:14px;height:14px;stroke:var(--t3);stroke-width:2;fill:none;flex-shrink:0}
+.srch-val{font-size:15px;color:var(--text);font-weight:400;flex:1;letter-spacing:-0.2px}
+.srch-x{font-family:var(--mono);font-size:10px;color:var(--t3);background:var(--s3);padding:3px 8px;border-radius:100px}
+
+.results{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:7px;scrollbar-width:none}
+.results::-webkit-scrollbar{display:none}
+
+/* Hero result */
+.r1{background:var(--s2);border:1px solid var(--border);border-radius:18px;padding:15px;position:relative;overflow:hidden;cursor:pointer}
+.r1::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,var(--gold) 0%,transparent 55%);opacity:0.65}
+.r1-ghost{position:absolute;right:12px;top:8px;font-size:52px;font-weight:800;color:rgba(201,147,58,0.06);line-height:1;letter-spacing:-3px;pointer-events:none;font-family:'Bricolage Grotesque',sans-serif}
+.r1-title{font-size:14px;font-weight:700;color:var(--text);line-height:1.35;margin-bottom:8px;padding-right:32px;letter-spacing:-0.2px}
+.r1-meta{display:flex;gap:5px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.rdate{font-family:var(--mono);font-size:10px;color:var(--t3)}
+.rb{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:100px;font-weight:700;letter-spacing:0.4px}
+.rb-t{background:rgba(61,220,132,0.08);color:#3ddc84;border:1px solid rgba(61,220,132,0.14)}
+.rb-a{background:rgba(96,165,250,0.08);color:#60a5fa;border:1px solid rgba(96,165,250,0.14)}
+.rb-tag{background:rgba(201,147,58,0.08);color:var(--gl);border:1px solid rgba(201,147,58,0.14)}
+.r1-ex{font-family:var(--mono);font-size:11px;color:var(--t2);line-height:1.6;font-style:italic;border-left:1.5px solid rgba(201,147,58,0.2);padding-left:10px}
+
+/* Compact results */
+.rc{display:flex;align-items:flex-start;gap:11px;background:var(--s1);border:1px solid var(--border);border-radius:13px;padding:11px 13px;cursor:pointer;transition:background 0.15s,border-color 0.15s}
+.rc:hover{background:var(--s2);border-color:var(--border2)}
+.rc-n{font-size:18px;font-weight:800;color:rgba(255,255,255,0.08);flex-shrink:0;line-height:1.2;padding-top:1px;letter-spacing:-1px}
+.rc-body{flex:1;min-width:0}
+.rc-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:5px;line-height:1.3;letter-spacing:-0.1px}
+.rc-meta{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.rc-score{font-family:var(--mono);font-size:11px;color:var(--t3);flex-shrink:0;padding-top:2px}
+
+/* ════════════════════════════
+   QUEUE
+════════════════════════════ */
+.q-body{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;scrollbar-width:none}
+.q-body::-webkit-scrollbar{display:none}
+
+/* Hero processing card */
+.hero-card{background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:16px;position:relative;overflow:hidden}
+.hero-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,var(--warn) 0%,transparent 60%);opacity:0.7}
+.hero-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:13px}
+.hero-filename{font-size:14px;font-weight:700;color:var(--text);letter-spacing:-0.2px;margin-bottom:3px}
+.hero-meta{font-family:var(--mono);font-size:10px;color:var(--t3)}
+.hero-badge{display:flex;align-items:center;gap:5px;background:rgba(255,179,64,0.08);border:1px solid rgba(255,179,64,0.2);border-radius:100px;padding:5px 10px;font-family:var(--mono);font-size:9px;font-weight:700;color:var(--warn);letter-spacing:0.5px}
+.badge-dot{width:5px;height:5px;border-radius:50%;background:var(--warn);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.prog-labels{display:flex;justify-content:space-between;margin-bottom:6px}
+.prog-step{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:0.3px}
+.prog-step.done{color:var(--warn)}
+.prog-bar{height:3px;background:rgba(255,255,255,0.05);border-radius:100px;overflow:hidden;margin-bottom:10px}
+.prog-fill{height:100%;width:65%;background:linear-gradient(90deg,var(--gold),var(--warn));border-radius:100px;position:relative}
+.prog-fill::after{content:'';position:absolute;right:-1px;top:-2px;width:7px;height:7px;border-radius:50%;background:var(--warn);box-shadow:0 0 8px var(--warn)}
+.model-row{display:flex;gap:5px}
+.mc{font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:100px;background:rgba(255,255,255,0.04);border:1px solid var(--border2);color:var(--t2)}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.stat{background:var(--s2);border:1px solid var(--border);border-radius:14px;padding:12px 10px;text-align:center;position:relative;overflow:hidden}
+.stat::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;border-radius:0 0 14px 14px}
+.stat.sw::after{background:var(--warn);opacity:0.4}
+.stat.so::after{background:var(--ok);opacity:0.4}
+.stat.sb::after{background:var(--bad);opacity:0.4}
+.stat-n{font-size:28px;font-weight:800;line-height:1;letter-spacing:-1px;color:var(--text)}
+.stat-n.warn{color:var(--warn)}.stat-n.ok{color:var(--ok)}.stat-n.bad{color:var(--bad)}
+.stat-l{font-family:var(--mono);font-size:8px;color:var(--t3);text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+
+/* Queue list */
+.q-list{display:flex;flex-direction:column;gap:5px}
+.qi{background:var(--s1);border:1px solid var(--border);border-radius:13px;padding:10px 13px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:background 0.15s}
+.qi:hover{background:var(--s2)}
+.qi-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.qi-icon.t{background:rgba(61,220,132,0.07);border:1px solid rgba(61,220,132,0.12)}
+.qi-icon.u{background:rgba(96,165,250,0.07);border:1px solid rgba(96,165,250,0.12)}
+.qi-body{flex:1;min-width:0}
+.qi-title{font-size:12px;font-weight:600;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+.qi-meta{font-family:var(--mono);font-size:9px;color:var(--t3);margin-top:2px}
+.qi-ago{font-family:var(--mono);font-size:9px;color:var(--t3);flex-shrink:0}
+.qi-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.qi-dot.q{background:var(--warn);box-shadow:0 0 6px rgba(255,179,64,0.35)}
+.qi-dot.p{background:var(--t3)}
+
+/* Offline card */
+.off-card{background:linear-gradient(135deg,rgba(201,147,58,0.06),rgba(201,147,58,0.02));border:1px solid rgba(201,147,58,0.14);border-radius:16px;padding:14px}
+.off-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.off-title-row{display:flex;align-items:center;gap:7px}
+.off-icon{font-size:13px}
+.off-title{font-size:13px;font-weight:700;color:var(--gl)}
+.off-ct{font-family:var(--mono);font-size:10px;font-weight:700;background:rgba(201,147,58,0.1);border:1px solid rgba(201,147,58,0.18);color:var(--gold);padding:3px 9px;border-radius:100px}
+.off-list{display:flex;flex-direction:column;gap:4px;margin-bottom:11px}
+.oi{display:flex;align-items:center;gap:8px;padding:7px 10px;background:rgba(0,0,0,0.2);border-radius:9px}
+.oi-bar{width:2px;height:22px;border-radius:1px;background:rgba(201,147,58,0.25);flex-shrink:0}
+.oi-txt{font-size:11px;color:var(--t2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:400}
+.oi-t{font-family:var(--mono);font-size:9px;color:var(--t3);flex-shrink:0}
+.sync-btn{width:100%;padding:10px;background:rgba(201,147,58,0.08);border:1px solid rgba(201,147,58,0.18);border-radius:10px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
+.sync-txt{font-size:12px;font-weight:600;color:var(--gold)}
+.sync-arr{font-size:12px;color:var(--gold)}
+
+.cl{font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(255,255,255,0.1);letter-spacing:2px;text-transform:uppercase;text-align:center;margin-bottom:6px}
+</style>
+
+<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+
+<!-- ── CAPTURE ── -->
+<div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+<div class="cl">capture</div>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="sb" style="padding-top:20px"><span>9:41</span><span>●●●●</span></div>
+  <div class="screen">
+    <div class="hdr">
+      <div class="brand">
+        <div class="mark">خ</div>
+        <span class="bname">khayal</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="online"></div>
+      </div>
+    </div>
+    <div class="cap-body">
+      <div class="bento">
+        <div class="bc streak">
+          <div class="bc-lbl">streak</div>
+          <div class="bc-n gold">12</div>
+          <div class="bc-sub">days</div>
+          <div class="bc-dots">
+            <div class="bcd on"></div><div class="bcd on"></div><div class="bcd on"></div>
+            <div class="bcd on"></div><div class="bcd on"></div><div class="bcd"></div><div class="bcd"></div>
+          </div>
+        </div>
+        <div class="bc">
+          <div class="bc-lbl">today</div>
+          <div class="bc-n">7</div>
+          <div class="bc-sub">captures</div>
+          <div class="bc-online"><div class="online"></div></div>
+        </div>
+        <div class="bc wide" style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div class="bc-lbl">vault</div>
+            <div style="font-size:15px;font-weight:700;color:var(--text);letter-spacing:-0.5px">2,847 <span style="font-size:11px;font-weight:400;color:var(--t3)">notes</span></div>
+          </div>
+          <div style="text-align:right">
+            <div class="bc-lbl">last capture</div>
+            <div style="font-family:var(--mono);font-size:11px;color:var(--t2)">14 min ago</div>
+          </div>
+        </div>
+      </div>
+      <div class="compose">
+        <div class="compose-ph">what's on your mind...<span class="csr"></span></div>
+        <div class="compose-footer">
+          <div class="type-pills">
+            <span class="tp on">txt</span>
+            <span class="tp">url</span>
+            <span class="tp">img</span>
+            <span class="tp">cam</span>
+          </div>
+          <button class="send">
+            <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="nav">
+      <div class="nt on">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <div class="nt-pip"></div><span class="nt-l">capture</span>
+      </div>
+      <div class="nt">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <div class="nt-pip"></div><span class="nt-l">search</span>
+      </div>
+      <div class="nt">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div class="nt-pip"></div><span class="nt-l">queue</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ── SEARCH ── -->
+<div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+<div class="cl">search</div>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="sb" style="padding-top:20px"><span>9:41</span><span>●●●●</span></div>
+  <div class="screen" style="display:flex;flex-direction:column;min-height:0;overflow:hidden">
+    <div class="hdr">
+      <div class="brand">
+        <div class="mark">خ</div>
+        <span class="bname">khayal</span>
+      </div>
+      <div class="online"></div>
+    </div>
+    <div class="srch-top">
+      <div class="srch-eyebrow">
+        <span class="srch-ey-l">3 results · hybrid</span>
+        <span class="srch-ms">82ms</span>
+      </div>
+      <div class="srch-bar">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <span class="srch-val">paid someone money</span>
+        <span class="srch-x">✕</span>
+      </div>
+    </div>
+    <div class="results">
+      <div class="r1">
+        <div class="r1-ghost">1</div>
+        <div class="r1-title">paid john 2k for logo design work</div>
+        <div class="r1-meta">
+          <span class="rdate">Mar 3, 2019</span>
+          <span class="rb rb-t">text</span>
+          <span class="rb rb-tag">#finance</span>
+          <span class="rb rb-tag">#design</span>
+        </div>
+        <div class="r1-ex">...paid John Doe $2,000 for logo design. Follow-up on brand guidelines next week...</div>
+      </div>
+      <div class="rc">
+        <span class="rc-n">2</span>
+        <div class="rc-body">
+          <div class="rc-title">second payment to contractor</div>
+          <div class="rc-meta">
+            <span class="rdate">Apr 10, 2019</span>
+            <span class="rb rb-t">text</span>
+            <span class="rb rb-tag">#finance</span>
+          </div>
+        </div>
+        <span class="rc-score">0.81</span>
+      </div>
+      <div class="rc">
+        <span class="rc-n">3</span>
+        <div class="rc-body">
+          <div class="rc-title">react server components mental model</div>
+          <div class="rc-meta">
+            <span class="rdate">Mar 10, 2024</span>
+            <span class="rb rb-a">article</span>
+            <span class="rb rb-tag">#react</span>
+          </div>
+        </div>
+        <span class="rc-score">0.68</span>
+      </div>
+    </div>
+    <div class="nav">
+      <div class="nt">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <div class="nt-pip"></div><span class="nt-l">capture</span>
+      </div>
+      <div class="nt on">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <div class="nt-pip"></div><span class="nt-l">search</span>
+      </div>
+      <div class="nt">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div class="nt-pip"></div><span class="nt-l">queue</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ── QUEUE ── -->
+<div style="display:flex;flex-direction:column;align-items:center;gap:6px">
+<div class="cl">queue</div>
+<div class="phone">
+  <div class="notch"></div>
+  <div class="sb" style="padding-top:20px"><span>9:41</span><span>●●●●</span></div>
+  <div class="screen">
+    <div class="hdr">
+      <div class="brand">
+        <div class="mark">خ</div>
+        <span class="bname">khayal</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="ver">v0.1.0</span>
+        <div class="online"></div>
+      </div>
+    </div>
+    <div class="q-body">
+      <div class="sec">now processing</div>
+      <div class="hero-card">
+        <div class="hero-top">
+          <div>
+            <div class="hero-filename">whiteboard-arch.png</div>
+            <div class="hero-meta">image · 1.4MB · 8s ago</div>
+          </div>
+          <div class="hero-badge"><div class="badge-dot"></div>live</div>
+        </div>
+        <div class="prog-labels">
+          <span class="prog-step done">saved</span>
+          <span class="prog-step done">describing</span>
+          <span class="prog-step">tagging</span>
+          <span class="prog-step">writing</span>
+        </div>
+        <div class="prog-bar"><div class="prog-fill"></div></div>
+        <div class="model-row">
+          <span class="mc">moondream</span>
+          <span class="mc">qwen2.5:7b</span>
+        </div>
+      </div>
+      <div class="sec">queue</div>
+      <div class="stats-row">
+        <div class="stat sw"><div class="stat-n warn">2</div><div class="stat-l">pending</div></div>
+        <div class="stat so"><div class="stat-n ok">1</div><div class="stat-l">processing</div></div>
+        <div class="stat sb"><div class="stat-n">0</div><div class="stat-l">failed</div></div>
+      </div>
+      <div class="sec">pending</div>
+      <div class="q-list">
+        <div class="qi">
+          <div class="qi-icon t">✦</div>
+          <div class="qi-body">
+            <div class="qi-title">"react is fundamentally broken by design"</div>
+            <div class="qi-meta">text · queued</div>
+          </div>
+          <div class="qi-dot q"></div>
+          <span class="qi-ago">2m</span>
+        </div>
+        <div class="qi">
+          <div class="qi-icon u">⌘</div>
+          <div class="qi-body">
+            <div class="qi-title">fasterthanli.me/articles/a-half-hour-to-learn-rust</div>
+            <div class="qi-meta">url · queued</div>
+          </div>
+          <div class="qi-dot p"></div>
+          <span class="qi-ago">5m</span>
+        </div>
+      </div>
+      <div class="off-card">
+        <div class="off-hdr">
+          <div class="off-title-row">
+            <span class="off-icon">⚡</span>
+            <span class="off-title">offline</span>
+          </div>
+          <span class="off-ct">3 waiting</span>
+        </div>
+        <div class="off-list">
+          <div class="oi"><div class="oi-bar"></div><span class="oi-txt">"paid contractor for the month"</span><span class="oi-t">12m</span></div>
+          <div class="oi"><div class="oi-bar"></div><span class="oi-txt">"new idea for search pipeline"</span><span class="oi-t">18m</span></div>
+          <div class="oi"><div class="oi-bar"></div><span class="oi-txt">github.com/asg017/sqlite-vec/releases</span><span class="oi-t">31m</span></div>
+        </div>
+        <div class="sync-btn">
+          <span class="sync-txt">sync 3 captures</span>
+          <span class="sync-arr">↑</span>
+        </div>
+      </div>
+    </div>
+    <div class="nav">
+      <div class="nt">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <div class="nt-pip"></div><span class="nt-l">capture</span>
+      </div>
+      <div class="nt">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <div class="nt-pip"></div><span class="nt-l">search</span>
+      </div>
+      <div class="nt on">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div class="nt-pip"></div><span class="nt-l">queue</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+</div>

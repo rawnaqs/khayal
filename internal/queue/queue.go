@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
@@ -151,6 +152,11 @@ func (q *Queue) initSchema() error {
 			created_at TEXT NOT NULL
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_chunks_note ON chunks(note_path)`,
+		`CREATE TABLE IF NOT EXISTS stats_cache (
+			key TEXT PRIMARY KEY,
+			value TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`,
 	}
 
 	for _, stmt := range statements {
@@ -195,7 +201,7 @@ func (q *Queue) CreateJob(ctx context.Context, job *Job) error {
 		job.ID = uuid.New().String()
 	}
 	if job.CreatedAt.IsZero() {
-		job.CreatedAt = time.Now()
+		job.CreatedAt = time.Now().UTC()
 	}
 	if job.Status == "" {
 		job.Status = "pending"
@@ -208,7 +214,7 @@ func (q *Queue) CreateJob(ctx context.Context, job *Job) error {
 			INSERT INTO jobs (id, type, status, note_path, source_url, source_file, content, user_context, created_at, processed_at, error, retries)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			job.ID, job.Type, job.Status, job.NotePath, job.SourceURL, job.SourceFile,
-			job.Content, job.UserContext, job.CreatedAt.Format(time.RFC3339),
+			job.Content, job.UserContext, job.CreatedAt.UTC().Format(time.RFC3339),
 			nullableTime(job.ProcessedAt), job.Error, job.Retries)
 
 		if err == nil {
@@ -474,7 +480,7 @@ func (q *Queue) SaveEmbedding(ctx context.Context, jobID, model string, embeddin
 	_, err := q.db.ExecContext(ctx, `
 		INSERT INTO embeddings (id, job_id, vector, model, created_at)
 		VALUES (?, ?, ?, ?, ?)`,
-		id, jobID, blob, model, time.Now().Format(time.RFC3339))
+		id, jobID, blob, model, time.Now().UTC().Format(time.RFC3339))
 	return err
 }
 
@@ -645,7 +651,7 @@ func (q *Queue) SaveChunk(ctx context.Context, notePath string, chunkIdx int, co
 	_, err := q.db.ExecContext(ctx, `
 		INSERT INTO chunks (note_path, chunk_idx, content, embedding, created_at)
 		VALUES (?, ?, ?, ?, ?)`,
-		notePath, chunkIdx, content, blob, time.Now().Format(time.RFC3339))
+		notePath, chunkIdx, content, blob, time.Now().UTC().Format(time.RFC3339))
 	return err
 }
 
@@ -654,7 +660,7 @@ func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags st
 	var lastErr error
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		now := time.Now().Format(time.RFC3339)
+		now := time.Now().UTC().Format(time.RFC3339)
 
 		_, err := q.db.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath)
 		if err != nil {
@@ -732,7 +738,7 @@ func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, t
 	var lastErr error
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		now := time.Now().Format(time.RFC3339)
+		now := time.Now().UTC().Format(time.RFC3339)
 
 		_, err := q.db.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath)
 		if err != nil {
@@ -871,7 +877,7 @@ func nullableTime(t *time.Time) interface{} {
 	if t == nil {
 		return nil
 	}
-	return t.Format(time.RFC3339)
+	return t.UTC().Format(time.RFC3339)
 }
 
 func encodeEmbedding(embedding []float32) []byte {
@@ -946,8 +952,8 @@ func (q *Queue) CountNotesSince(ctx context.Context, since time.Time) (int, erro
 	err := q.db.QueryRowContext(ctx, `
 		SELECT COUNT(DISTINCT note_path) FROM chunks
 		WHERE note_path LIKE 'khayal/%'
-		AND created_at >= ?
-	`, since.Format(time.RFC3339)).Scan(&count)
+		AND datetime(created_at) >= datetime(?)
+	`, since.UTC().Format("2006-01-02T15:04:05")).Scan(&count)
 	return count, err
 }
 
@@ -1026,7 +1032,7 @@ func (q *Queue) GetTopPeople(ctx context.Context, limit int) ([]PersonCount, err
 
 func (q *Queue) GetStreaks(ctx context.Context) (int, int, error) {
 	rows, err := q.db.QueryContext(ctx, `
-		SELECT DISTINCT DATE(created_at) as capture_date
+		SELECT DISTINCT DATE(datetime(created_at, 'utc')) as capture_date
 		FROM jobs
 		WHERE status = 'done'
 		ORDER BY capture_date DESC
@@ -1056,7 +1062,7 @@ func (q *Queue) GetStreaks(ctx context.Context) (int, int, error) {
 		return 0, 0, nil
 	}
 
-	today := time.Now().Truncate(24 * time.Hour)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
 	currentStreak := 0
 	longestStreak := 0
 	streak := 1
@@ -1124,4 +1130,371 @@ func (q *Queue) GetNoteTitle(ctx context.Context, notePath string) (string, erro
 		return "", nil
 	}
 	return title, err
+}
+
+// ── New stats functions ──
+
+func (q *Queue) GetHourlyBreakdown(ctx context.Context, dateStr string) ([24]int, error) {
+	var result [24]int
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT CAST(strftime('%H', datetime(created_at, 'utc')) AS INTEGER) as hour,
+		       COUNT(DISTINCT note_path)
+		FROM chunks
+		WHERE DATE(datetime(created_at, 'utc')) = ?
+		GROUP BY hour
+	`, dateStr)
+	if err != nil {
+		return result, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var hour, count int
+		if err := rows.Scan(&hour, &count); err != nil {
+			return result, err
+		}
+		if hour >= 0 && hour < 24 {
+			result[hour] = count
+		}
+	}
+	return result, rows.Err()
+}
+
+func (q *Queue) GetLast7Days(ctx context.Context) ([7]int, error) {
+	var result [7]int
+	today := time.Now().UTC()
+	startDate := today.AddDate(0, 0, -6).Format("2006-01-02")
+
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT DATE(datetime(created_at, 'utc')) as day,
+		       COUNT(DISTINCT note_path)
+		FROM chunks
+		WHERE DATE(datetime(created_at, 'utc')) >= ?
+		GROUP BY day
+	`, startDate)
+	if err != nil {
+		return result, err
+	}
+	defer rows.Close()
+
+	dayCounts := make(map[string]int)
+	for rows.Next() {
+		var day string
+		var count int
+		if err := rows.Scan(&day, &count); err != nil {
+			return result, err
+		}
+		dayCounts[day] = count
+	}
+	if err := rows.Err(); err != nil {
+		return result, err
+	}
+
+	// Fill array from oldest (index 0) to today (index 6)
+	for i := 0; i < 7; i++ {
+		day := today.AddDate(0, 0, i-6).Format("2006-01-02")
+		result[i] = dayCounts[day]
+	}
+	return result, nil
+}
+
+func (q *Queue) GetLastCapture(ctx context.Context) (string, error) {
+	var lastCapture string
+	err := q.db.QueryRowContext(ctx, `
+		SELECT MAX(created_at) FROM chunks WHERE note_path LIKE 'khayal/%'
+	`).Scan(&lastCapture)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", err
+	}
+	return lastCapture, nil
+}
+
+func (q *Queue) GetAvgPerDay(ctx context.Context, days int) (float64, error) {
+	if days <= 0 {
+		days = 30
+	}
+	since := time.Now().UTC().AddDate(0, 0, -days).Format("2006-01-02")
+	var count int
+	err := q.db.QueryRowContext(ctx, `
+		SELECT COUNT(DISTINCT note_path) FROM chunks
+		WHERE note_path LIKE 'khayal/%'
+		AND DATE(datetime(created_at, 'utc')) >= ?
+	`, since).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return float64(count) / float64(days), nil
+}
+
+func (q *Queue) GetThisWeekStreak(ctx context.Context) ([7]bool, error) {
+	var result [7]bool
+	today := time.Now().UTC()
+	startDate := today.AddDate(0, 0, -6).Format("2006-01-02")
+
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT DISTINCT DATE(datetime(created_at, 'utc')) as day
+		FROM jobs
+		WHERE status = 'done'
+		AND DATE(datetime(created_at, 'utc')) >= ?
+	`, startDate)
+	if err != nil {
+		return result, err
+	}
+	defer rows.Close()
+
+	daysWithData := make(map[string]bool)
+	for rows.Next() {
+		var day string
+		if err := rows.Scan(&day); err != nil {
+			return result, err
+		}
+		daysWithData[day] = true
+	}
+	if err := rows.Err(); err != nil {
+		return result, err
+	}
+
+	// Fill array from oldest (index 0) to today (index 6)
+	for i := 0; i < 7; i++ {
+		day := today.AddDate(0, 0, i-6).Format("2006-01-02")
+		result[i] = daysWithData[day]
+	}
+	return result, nil
+}
+
+func (q *Queue) GetBestStreak(ctx context.Context) (int, error) {
+	var best int
+	err := q.db.QueryRowContext(ctx, `
+		SELECT value FROM stats_cache WHERE key = 'best_streak'
+	`).Scan(&best)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return best, nil
+}
+
+func (q *Queue) UpdateBestStreak(ctx context.Context, current int) error {
+	best, err := q.GetBestStreak(ctx)
+	if err != nil {
+		return err
+	}
+	if current > best {
+		_, err = q.db.ExecContext(ctx, `
+			INSERT OR REPLACE INTO stats_cache (key, value, updated_at)
+			VALUES ('best_streak', ?, ?)
+		`, fmt.Sprintf("%d", current), time.Now().UTC().Format(time.RFC3339))
+		return err
+	}
+	return nil
+}
+
+// ── Stats cache functions ──
+
+type StatsCacheEntry struct {
+	Date      string      `json:"date"`
+	Stats     interface{} `json:"stats"`
+	UpdatedAt string      `json:"updated_at"`
+}
+
+func (q *Queue) SaveStatsCache(ctx context.Context, stats interface{}) error {
+	data, err := json.Marshal(stats)
+	if err != nil {
+		return err
+	}
+	const maxRetries = 3
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		_, err = q.db.ExecContext(ctx, `
+			INSERT OR REPLACE INTO stats_cache (key, value, updated_at)
+			VALUES ('stats', ?, ?)
+		`, string(data), time.Now().UTC().Format(time.RFC3339))
+		if err == nil {
+			return nil
+		}
+		if isLockError(err) {
+			q.logger.Warn("sqlite locked, retrying save stats cache",
+				"attempt", attempt+1,
+				"error", err,
+			)
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		break
+	}
+	return err
+}
+
+func (q *Queue) LoadStatsCache(ctx context.Context) (string, error) {
+	var value string
+	err := q.db.QueryRowContext(ctx, `
+		SELECT value FROM stats_cache WHERE key = 'stats'
+	`).Scan(&value)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil
+		}
+		return "", err
+	}
+
+	// Check date boundary
+	var entry struct {
+		Date string `json:"date"`
+	}
+	if err := json.Unmarshal([]byte(value), &entry); err != nil {
+		// Corrupted cache — delete
+		q.db.ExecContext(ctx, `DELETE FROM stats_cache WHERE key = 'stats'`)
+		return "", nil
+	}
+
+	today := time.Now().UTC().Format("2006-01-02")
+	if entry.Date != today {
+		return "", nil // stale date
+	}
+
+	return value, nil
+}
+
+// ── Stats response types ──
+
+type StreakStats struct {
+	Current         int     `json:"current"`
+	Best            int     `json:"best"`
+	NextMilestone   int     `json:"next_milestone"`
+	DaysToMilestone int     `json:"days_to_milestone"`
+	ThisWeek        [7]bool `json:"this_week"`
+}
+
+type TodayStats struct {
+	Count     int     `json:"count"`
+	ByHour    [24]int `json:"by_hour"`
+	AvgPerDay float64 `json:"avg_per_day"`
+}
+
+type VaultStats struct {
+	TotalNotes    int    `json:"total_notes"`
+	TodayDelta    int    `json:"today_delta"`
+	LastCaptureAt string `json:"last_capture_at"`
+	Last7Days     [7]int `json:"last_7_days"`
+}
+
+type StatsResponse struct {
+	Streak StreakStats `json:"streak"`
+	Today  TodayStats  `json:"today"`
+	Vault  VaultStats  `json:"vault"`
+}
+
+func nextMilestone(current, best int) (int, int) {
+	fixed := []int{7, 14, 21, 30, 50, 75, 100, 150, 200, 365}
+
+	milestones := []int{}
+	if best > 0 {
+		milestones = append(milestones, best)
+	}
+	for _, m := range fixed {
+		if m > best {
+			milestones = append(milestones, m)
+		}
+	}
+	if best >= 365 {
+		next100 := ((best / 100) + 1) * 100
+		milestones = append(milestones, next100)
+	}
+
+	for _, m := range milestones {
+		if m > current {
+			return m, m - current
+		}
+	}
+
+	next := ((current / 100) + 1) * 100
+	return next, next - current
+}
+
+func (q *Queue) RecomputeStats(ctx context.Context) (*StatsResponse, error) {
+	now := time.Now().UTC()
+	todayStr := now.Format("2006-01-02")
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+
+	todayCount, err := q.CountNotesSince(ctx, midnight)
+	if err != nil {
+		return nil, err
+	}
+
+	byHour, err := q.GetHourlyBreakdown(ctx, todayStr)
+	if err != nil {
+		return nil, err
+	}
+
+	avgPerDay, err := q.GetAvgPerDay(ctx, 30)
+	if err != nil {
+		return nil, err
+	}
+
+	totalNotes, err := q.CountNotes(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	lastCaptureAt, err := q.GetLastCapture(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	last7Days, err := q.GetLast7Days(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	currentStreak, _, err := q.GetStreaks(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := q.UpdateBestStreak(ctx, currentStreak); err != nil {
+		q.logger.Warn("failed to update best streak", "error", err)
+	}
+
+	bestStreak, err := q.GetBestStreak(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	thisWeek, err := q.GetThisWeekStreak(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	nextMs, daysToMs := nextMilestone(currentStreak, bestStreak)
+
+	stats := &StatsResponse{
+		Streak: StreakStats{
+			Current:         currentStreak,
+			Best:            bestStreak,
+			NextMilestone:   nextMs,
+			DaysToMilestone: daysToMs,
+			ThisWeek:        thisWeek,
+		},
+		Today: TodayStats{
+			Count:     todayCount,
+			ByHour:    byHour,
+			AvgPerDay: avgPerDay,
+		},
+		Vault: VaultStats{
+			TotalNotes:    totalNotes,
+			TodayDelta:    todayCount,
+			LastCaptureAt: lastCaptureAt,
+			Last7Days:     last7Days,
+		},
+	}
+
+	if err := q.SaveStatsCache(ctx, stats); err != nil {
+		q.logger.Warn("failed to save stats cache", "error", err)
+	}
+
+	return stats, nil
 }

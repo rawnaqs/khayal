@@ -284,25 +284,31 @@ func (c *Client) CheckConnection() error {
 	return nil
 }
 
+type StreakStats struct {
+	Current         int     `json:"current"`
+	Best            int     `json:"best"`
+	NextMilestone   int     `json:"next_milestone"`
+	DaysToMilestone int     `json:"days_to_milestone"`
+	ThisWeek        [7]bool `json:"this_week"`
+}
+
+type TodayStats struct {
+	Count     int     `json:"count"`
+	ByHour    [24]int `json:"by_hour"`
+	AvgPerDay float64 `json:"avg_per_day"`
+}
+
+type VaultStats struct {
+	TotalNotes    int    `json:"total_notes"`
+	TodayDelta    int    `json:"today_delta"`
+	LastCaptureAt string `json:"last_capture_at"`
+	Last7Days     [7]int `json:"last_7_days"`
+}
+
 type StatsResponse struct {
-	Total         int            `json:"total"`
-	ThisWeek      int            `json:"this_week"`
-	ThisMonth     int            `json:"this_month"`
-	ByType        map[string]int `json:"by_type"`
-	TopTags       []TagCount     `json:"top_tags"`
-	TopPeople     []PersonCount  `json:"top_people"`
-	CaptureStreak int            `json:"capture_streak"`
-	LongestStreak int            `json:"longest_streak"`
-}
-
-type TagCount struct {
-	Name  string `json:"name"`
-	Count int    `json:"count"`
-}
-
-type PersonCount struct {
-	Name  string `json:"name"`
-	Count int    `json:"count"`
+	Streak StreakStats `json:"streak"`
+	Today  TodayStats  `json:"today"`
+	Vault  VaultStats  `json:"vault"`
 }
 
 func (c *Client) Stats() (*StatsResponse, error) {

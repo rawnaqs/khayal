@@ -1,0 +1,82 @@
+import { useState, useCallback } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Toaster } from '@/components/ui/toaster'
+import { Header } from '@/components/layout/Header'
+import { BottomNav } from '@/components/layout/BottomNav'
+import { CaptureView } from '@/components/capture/CaptureView'
+import { SearchView } from '@/components/search/SearchView'
+import { QueueView } from '@/components/queue/QueueView'
+import { Onboarding } from '@/components/Onboarding'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+
+export type Tab = 'capture' | 'search' | 'queue'
+
+const pageVariants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -12 },
+}
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState<Tab>('capture')
+  const [captureQuery, setCaptureQuery] = useState<string | undefined>(undefined)
+  const [isConfigured, setIsConfigured] = useState(() => {
+    return !!localStorage.getItem('khayal_token') && !!localStorage.getItem('khayal_host')
+  })
+
+  const handleCaptureQuery = useCallback((query: string) => {
+    setCaptureQuery(query)
+    setActiveTab('capture')
+  }, [])
+
+  const handleCaptureQueryConsumed = useCallback(() => {
+    setCaptureQuery(undefined)
+  }, [])
+
+  if (!isConfigured) {
+    return (
+      <ErrorBoundary>
+        <Onboarding onComplete={() => setIsConfigured(true)} />
+      </ErrorBoundary>
+    )
+  }
+
+  const renderView = () => {
+    switch (activeTab) {
+      case 'capture':
+        return <CaptureView captureQuery={captureQuery} onCaptureQueryConsumed={handleCaptureQueryConsumed} />
+      case 'search':
+        return <SearchView onCaptureQuery={handleCaptureQuery} />
+      case 'queue':
+        return <QueueView />
+      default:
+        return <CaptureView captureQuery={captureQuery} onCaptureQueryConsumed={handleCaptureQueryConsumed} />
+    }
+  }
+
+  return (
+    <ErrorBoundary>
+      <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#040404' }}>
+        <Header />
+        <main className="flex-1 overflow-hidden">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              variants={pageVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="h-full overflow-y-auto"
+              style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 5rem)' }}
+            >
+              {renderView()}
+            </motion.div>
+          </AnimatePresence>
+        </main>
+        <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+        <Toaster />
+      </div>
+    </ErrorBoundary>
+  )
+}

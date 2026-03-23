@@ -1,0 +1,262 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,700;1,300&family=Bricolage+Grotesque:opsz,wght@12..96,300;12..96,400;12..96,600;12..96,800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#070707;--s1:#0d0d0d;--s2:#141414;--s3:#1c1c1c;
+  --border:rgba(255,255,255,0.05);--border2:rgba(255,255,255,0.09);
+  --gold:#C9933A;--gl:#E8B86D;
+  --glow:rgba(201,147,58,0.06);--glow2:rgba(201,147,58,0.12);
+  --text:#f5f5f5;--t2:rgba(245,245,245,0.5);--t3:rgba(245,245,245,0.2);
+  --ok:#3ddc84;
+  --bg2:'Bricolage Grotesque',sans-serif;--mono:'IBM Plex Mono',monospace;
+}
+body{
+  background:#040404;
+  display:flex;justify-content:center;align-items:flex-start;
+  gap:16px;padding:32px 16px 48px;flex-wrap:wrap;
+  font-family:'Bricolage Grotesque',sans-serif;
+}
+
+.col{display:flex;flex-direction:column;align-items:center;gap:8px;width:340px}
+.cl{font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(255,255,255,0.15);letter-spacing:2px;text-transform:uppercase;text-align:center}
+
+/* ── Base compose box ── */
+.box{
+  width:100%;
+  background:var(--s2);
+  border:1px solid rgba(201,147,58,0.2);
+  border-radius:20px;
+  padding:14px 14px 12px;
+  display:flex;flex-direction:column;gap:10px;
+  box-shadow:0 0 0 1px rgba(201,147,58,0.06) inset;
+}
+
+/* Pills row — inside box, at top */
+.pills{display:flex;gap:5px}
+.tp{
+  padding:4px 10px;border-radius:100px;
+  font-family:var(--mono);font-size:9px;font-weight:700;
+  border:1px solid var(--border2);color:var(--t3);
+  cursor:pointer;letter-spacing:0.8px;text-transform:uppercase;
+  transition:all 0.15s;
+}
+.tp.on{background:var(--gold);color:#000;border-color:var(--gold);box-shadow:0 3px 10px rgba(201,147,58,0.25)}
+
+/* Text input area */
+.tarea{
+  font-size:16px;font-weight:300;
+  color:var(--t3);line-height:1.5;
+  min-height:80px;
+}
+.csr{display:inline-block;width:2px;height:18px;background:var(--gold);margin-left:1px;vertical-align:middle;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* Footer row */
+.footer{display:flex;align-items:center;justify-content:space-between;padding-top:4px;border-top:1px solid var(--border)}
+.hint{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:0.3px}
+.send{width:36px;height:36px;border-radius:50%;background:var(--gold);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(201,147,58,0.3);flex-shrink:0}
+.send svg{width:14px;height:14px;fill:none;stroke:#000;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+
+/* URL input row */
+.url-row{
+  display:flex;align-items:center;gap:8px;
+  background:rgba(0,0,0,0.25);
+  border:1px solid var(--border2);
+  border-radius:10px;padding:10px 12px;
+}
+.url-row svg{width:13px;height:13px;stroke:var(--t3);stroke-width:2;fill:none;flex-shrink:0}
+.url-val{font-family:var(--mono);font-size:11px;color:var(--gl);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.url-cursor{display:inline-block;width:2px;height:12px;background:var(--gold);vertical-align:middle;animation:blink 1s infinite}
+
+/* URL preview */
+.url-preview{
+  background:rgba(0,0,0,0.2);
+  border:1px solid var(--border);
+  border-radius:10px;overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.url-thumb{
+  height:60px;
+  background:linear-gradient(135deg,rgba(201,147,58,0.07),rgba(0,0,0,0.3));
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;opacity:0.4;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.url-info{padding:8px 10px}
+.url-domain{font-family:var(--mono);font-size:9px;color:var(--gold);opacity:0.6;margin-bottom:3px;letter-spacing:0.5px}
+.url-title{font-size:12px;font-weight:600;color:var(--t2);line-height:1.3}
+
+/* Note mini input */
+.note-input{
+  display:flex;align-items:center;gap:8px;
+  background:rgba(0,0,0,0.2);
+  border:1px solid var(--border);
+  border-radius:10px;padding:9px 12px;
+}
+.note-ph{font-size:12px;font-weight:300;color:var(--t3);flex:1}
+
+/* Image drop */
+.img-drop{
+  border:1.5px dashed rgba(201,147,58,0.2);
+  border-radius:12px;
+  padding:28px 16px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  cursor:pointer;
+  background:rgba(201,147,58,0.02);
+}
+.img-drop-icon{
+  width:40px;height:40px;border-radius:10px;
+  background:rgba(201,147,58,0.08);border:1px solid rgba(201,147,58,0.15);
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+}
+.img-drop-lbl{font-size:13px;font-weight:600;color:var(--t2)}
+.img-drop-sub{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:0.3px}
+.img-or{display:flex;align-items:center;gap:8px}
+.img-or-line{flex:1;height:1px;background:var(--border)}
+.img-or-txt{font-family:var(--mono);font-size:9px;color:var(--t3);letter-spacing:1px}
+.cam-btn{
+  width:100%;padding:10px;
+  background:rgba(255,255,255,0.03);
+  border:1px solid var(--border2);border-radius:10px;
+  display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;
+}
+.cam-txt{font-size:12px;font-weight:600;color:var(--t2)}
+
+/* Image filled */
+.img-filled{
+  border-radius:12px;overflow:hidden;position:relative;
+  height:120px;
+  background:linear-gradient(135deg,#141020,#0a0810);
+  display:flex;align-items:center;justify-content:center;
+  font-size:36px;opacity:0.5;
+  border:1px solid rgba(201,147,58,0.15);
+}
+.img-overlay{
+  position:absolute;bottom:0;left:0;right:0;
+  padding:8px 10px;
+  background:linear-gradient(transparent,rgba(0,0,0,0.75));
+  display:flex;align-items:center;justify-content:space-between;
+}
+.img-name{font-family:var(--mono);font-size:9px;color:rgba(255,255,255,0.55)}
+.img-size{font-family:var(--mono);font-size:9px;color:rgba(255,255,255,0.35)}
+.img-rm{
+  width:20px;height:20px;border-radius:50%;
+  background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);
+  display:flex;align-items:center;justify-content:center;
+  font-size:9px;color:rgba(255,255,255,0.4);cursor:pointer;
+}
+</style>
+
+<div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap">
+
+<!-- TEXT -->
+<div class="col">
+<div class="cl">text</div>
+<div class="box">
+  <div class="pills">
+    <span class="tp on">txt</span>
+    <span class="tp">url</span>
+    <span class="tp">img</span>
+    <span class="tp">cam</span>
+  </div>
+  <div class="tarea">what's on your mind...<span class="csr"></span></div>
+  <div class="footer">
+    <span class="hint">⌘↵ to capture</span>
+    <button class="send"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+  </div>
+</div>
+</div>
+
+<!-- URL -->
+<div class="col">
+<div class="cl">url</div>
+<div class="box">
+  <div class="pills">
+    <span class="tp">txt</span>
+    <span class="tp on">url</span>
+    <span class="tp">img</span>
+    <span class="tp">cam</span>
+  </div>
+  <div class="url-row">
+    <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+    <span class="url-val">https://fasterthanli.me/articles/a-half-<span class="url-cursor"></span></span>
+  </div>
+  <div class="url-preview">
+    <div class="url-thumb">⌘</div>
+    <div class="url-info">
+      <div class="url-domain">fasterthanli.me</div>
+      <div class="url-title">A half-hour to learn Rust</div>
+    </div>
+  </div>
+  <div class="note-input">
+    <span class="note-ph">add a note... (optional)</span>
+  </div>
+  <div class="footer">
+    <span class="hint">article · will extract content</span>
+    <button class="send"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+  </div>
+</div>
+</div>
+
+<!-- IMAGE EMPTY -->
+<div class="col">
+<div class="cl">image — empty</div>
+<div class="box">
+  <div class="pills">
+    <span class="tp">txt</span>
+    <span class="tp">url</span>
+    <span class="tp on">img</span>
+    <span class="tp">cam</span>
+  </div>
+  <div class="img-drop">
+    <div class="img-drop-icon">🖼</div>
+    <div class="img-drop-lbl">tap to choose</div>
+    <div class="img-drop-sub">jpg · png · webp · heic</div>
+  </div>
+  <div class="img-or">
+    <div class="img-or-line"></div>
+    <span class="img-or-txt">OR</span>
+    <div class="img-or-line"></div>
+  </div>
+  <div class="cam-btn">
+    <span style="font-size:13px">📷</span>
+    <span class="cam-txt">open camera</span>
+  </div>
+  <div class="footer">
+    <span class="hint">image · moondream will describe</span>
+    <button class="send" style="opacity:0.3;pointer-events:none"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+  </div>
+</div>
+</div>
+
+<!-- IMAGE FILLED -->
+<div class="col">
+<div class="cl">image — filled</div>
+<div class="box">
+  <div class="pills">
+    <span class="tp">txt</span>
+    <span class="tp">url</span>
+    <span class="tp on">img</span>
+    <span class="tp">cam</span>
+  </div>
+  <div class="img-filled">
+    🖼
+    <div class="img-overlay">
+      <span class="img-name">whiteboard-arch.png</span>
+      <span class="img-size">1.4 MB</span>
+      <div class="img-rm">✕</div>
+    </div>
+  </div>
+  <div class="note-input">
+    <span class="note-ph">add a note... <span style="display:inline-block;width:2px;height:13px;background:var(--gold);vertical-align:middle;animation:blink 1s infinite"></span></span>
+  </div>
+  <div class="footer">
+    <span class="hint">image · moondream will describe</span>
+    <button class="send"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></button>
+  </div>
+</div>
+</div>
+
+</div>

@@ -157,7 +157,7 @@ func (w *Worker) processJob(jobID string) {
 		return
 	}
 
-	now := time.Now()
+	now := time.Now().UTC()
 	job.NotePath = notePath
 	job.Status = "done"
 	job.ProcessedAt = &now
@@ -166,6 +166,11 @@ func (w *Worker) processJob(jobID string) {
 	if err := w.queue.UpdateJob(ctx, job); err != nil {
 		w.logger.Error("failed to update job", "job_id", jobID, "error", err)
 		return
+	}
+
+	// Recompute stats cache after successful capture
+	if _, err := w.queue.RecomputeStats(ctx); err != nil {
+		w.logger.Warn("stats recompute failed", "error", err)
 	}
 
 	w.logger.Info("job processed",
