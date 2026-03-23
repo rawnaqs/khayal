@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient, type HealthResponse } from '@/lib/api'
+import { TIMEOUTS } from '@/lib/constants'
 
 export type ServerStatus = 'ok' | 'degraded' | 'offline'
 
-export function useServerStatus(pollInterval = 30000) {
+export function useServerStatus(pollInterval = TIMEOUTS.SERVER_STATUS_POLL) {
   const [status, setStatus] = useState<ServerStatus>('offline')
   const [health, setHealth] = useState<HealthResponse | null>(null)
   const [lastChecked, setLastChecked] = useState<Date | null>(null)

@@ -210,7 +210,7 @@ paths:
           description: Filter by job status
           schema:
             type: string
-            enum: [all, pending, processing, done, failed]
+            enum: [all, pending, queued, processing, done, failed]
             default: all
           example: pending
         - name: limit
@@ -408,6 +408,73 @@ components:
         failed:
           type: integer
 
+    # Stats
+    StatsResponse:
+      type: object
+      properties:
+        streak:
+          $ref: '#/components/schemas/StreakStats'
+        today:
+          $ref: '#/components/schemas/TodayStats'
+        vault:
+          $ref: '#/components/schemas/VaultStats'
+
+    StreakStats:
+      type: object
+      properties:
+        current:
+          type: integer
+          description: Current consecutive days streak
+        best:
+          type: integer
+          description: All-time best streak
+        next_milestone:
+          type: integer
+          description: Next milestone target
+        days_to_milestone:
+          type: integer
+          description: Days remaining to next milestone
+        this_week:
+          type: array
+          items:
+            type: boolean
+          description: Mon-Sun, true = had capture that day
+
+    TodayStats:
+      type: object
+      properties:
+        count:
+          type: integer
+          description: Notes captured today
+        by_hour:
+          type: array
+          items:
+            type: integer
+          description: Captures per hour (24 elements, 0-indexed)
+        avg_per_day:
+          type: number
+          format: float
+          description: 30-day rolling average
+
+    VaultStats:
+      type: object
+      properties:
+        total_notes:
+          type: integer
+          description: Total notes in vault
+        today_delta:
+          type: integer
+          description: Notes captured today
+        last_capture_at:
+          type: string
+          format: date-time
+          description: RFC3339 timestamp of last capture
+        last_7_days:
+          type: array
+          items:
+            type: integer
+          description: Captures per day, oldest first (7 elements)
+
     # Capture
     CaptureRequest:
       type: object
@@ -506,7 +573,7 @@ components:
           enum: [text, image, article]
         status:
           type: string
-          enum: [pending, processing, done, failed]
+          enum: [pending, queued, processing, done, failed]
         note_path:
           type: string
           nullable: true

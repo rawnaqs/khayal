@@ -1,5 +1,6 @@
 import { Check, Loader2, Zap, X, AlertTriangle } from 'lucide-react'
 import type { CaptureResponse } from '@/lib/api'
+import { PROCESSING_STEPS } from '@/lib/constants'
 
 interface CaptureResultProps {
   result: CaptureResponse | null
@@ -11,13 +12,8 @@ interface CaptureResultProps {
   onRetry: () => void
 }
 
-function getStepsForType(type: string) {
-  switch (type) {
-    case 'image': return ['saved', 'describing', 'tagging', 'writing']
-    case 'url':
-    case 'article': return ['saved', 'extracting', 'summarizing', 'writing']
-    default: return ['saved', 'tagging', 'summarizing', 'writing']
-  }
+function getStepsForType(type: string): string[] {
+  return PROCESSING_STEPS[type] || PROCESSING_STEPS.text
 }
 
 function parseError(error: string): { code: string; message: string } {

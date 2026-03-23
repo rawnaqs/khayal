@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { createClient, type SearchResponse, type SearchOptions } from '@/lib/api'
+import { LIMITS } from '@/lib/constants'
 
 export function useSearch() {
   const [loading, setLoading] = useState(false)
@@ -19,7 +20,7 @@ export function useSearch() {
       const client = createClient()
       const response = await client.search(query, {
         mode: 'hybrid',
-        limit: 20,
+        limit: LIMITS.SEARCH_RESULTS,
         ...opts,
       })
       setResults(response)

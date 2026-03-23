@@ -1,4 +1,5 @@
 import type { QueueJob } from '@/lib/api'
+import { PROCESSING_STEPS } from '@/lib/constants'
 
 interface ActiveJobCardProps {
   job: QueueJob
@@ -17,29 +18,12 @@ function timeAgo(dateStr: string) {
   }
 }
 
-function getModels(type: string): string[] {
-  switch (type) {
-    case 'text': return ['llama3.2:3b']
-    case 'image': return ['moondream', 'qwen2.5:7b']
-    case 'article': return ['llama3.2:3b', 'nomic-embed-text']
-    default: return []
-  }
-}
-
 function getSteps(type: string): string[] {
-  switch (type) {
-    case 'text': return ['saved', 'tagging', 'summarizing', 'writing']
-    case 'image': return ['saved', 'describing', 'tagging', 'writing']
-    case 'article': return ['saved', 'extracting', 'summarizing', 'writing']
-    default: return ['saved', 'processing']
-  }
+  return PROCESSING_STEPS[type] || ['saved', 'processing']
 }
 
 export function ActiveJobCard({ job }: ActiveJobCardProps) {
   const steps = getSteps(job.type)
-  const models = getModels(job.type)
-  const progress = job.type === 'image' ? 65 : job.type === 'article' ? 40 : 50
-  const activeStep = Math.floor((progress / 100) * steps.length)
 
   return (
     <>
@@ -59,18 +43,13 @@ export function ActiveJobCard({ job }: ActiveJobCardProps) {
         </div>
         <div className="prog-labels">
           {steps.map((step, i) => (
-            <span key={step} className={`prog-step ${i < activeStep ? 'done' : ''}`}>
+            <span key={step} className={`prog-step ${i === 0 ? 'done' : ''}`}>
               {step}
             </span>
           ))}
         </div>
         <div className="prog-bar">
-          <div className="prog-fill" style={{ width: `${progress}%` }} />
-        </div>
-        <div className="model-row">
-          {models.map((model: string) => (
-            <span key={model} className="mc">{model}</span>
-          ))}
+          <div className="prog-fill" style={{ animation: 'indeterminate 2s linear infinite' }} />
         </div>
       </div>
     </>

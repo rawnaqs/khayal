@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rawnaqs/khayal/internal/config"
+	"github.com/rawnaqs/khayal/internal/constants"
 	"github.com/rawnaqs/khayal/internal/ingest"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
@@ -74,7 +75,7 @@ func (w *Worker) Stop() {
 }
 
 func (w *Worker) jobFetcher() {
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(constants.WorkerTickerInterval)
 	defer ticker.Stop()
 
 	for w.running.Load() {
@@ -220,7 +221,7 @@ func (w *Worker) calculateBackoff(retry int) time.Duration {
 	case "immediate":
 		return 0
 	case "fixed":
-		return 5 * time.Second
+		return constants.WorkerRetryBackoff
 	case "exponential":
 		fallthrough
 	default:

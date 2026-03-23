@@ -464,6 +464,42 @@ Key Ideas:`, content)
 }
 ```
 
+## Configurable Prompts
+
+All LLM prompts are configurable via `config.yaml` and the `PromptConfig` struct in `internal/constants/constants.go`.
+
+### PromptConfig struct
+
+```go
+type PromptConfig struct {
+    DescribeImage   string  `json:"describe_image" yaml:"describe_image"`
+    ExtractTags     string  `json:"extract_tags" yaml:"extract_tags"`
+    Summarize       string  `json:"summarize" yaml:"summarize"`
+    ExtractKeyIdeas string  `json:"extract_key_ideas" yaml:"extract_key_ideas"`
+    VisionPrompt    string  `json:"vision_prompt" yaml:"vision_prompt"`
+}
+```
+
+### Default prompts
+
+Defined in `internal/constants/constants.go`:
+- **DescribeImage**: "Describe this image in detail. Include any text visible in the image."
+- **ExtractTags**: 3-5 tags, JSON array format
+- **Summarize**: 2-3 sentences
+- **ExtractKeyIdeas**: 3-5 key ideas, JSON array format
+- **VisionPrompt**: Same as DescribeImage
+
+### Temperature
+
+Configurable via `llm.temperature` in config.yaml (default: 0.7).
+
+### Flow
+
+1. Config loads `PromptConfig` from `config.yaml`
+2. Factory (`internal/llm/factory.go`) passes prompts to `NewOllamaClientWithConfig`
+3. OllamaClient stores prompts and uses them in `ExtractTags`, `Summarize`, `ExtractKeyIdeas`, `DescribeImage`
+4. If prompts not configured, defaults from `constants.DefaultPrompts` are used
+
 ## Step 4.3: Groq Client
 
 **File:** `internal/llm/groq.go`

@@ -702,32 +702,28 @@ Rules:
 ```
 $ kl stats
 
-  vault · ~/brain
+  notes        2,847
+  today           +7
+  last 7d         34
 
-  total         2,847
-  this week        23
-  this month       94
+  TODAY
+  captures          7
+  avg/day         5.2
 
-  TOP TAGS
-  #react      142
-  #go          98
-  #work        87
-  #finance     34
-  #distributed 28
-
-  TOP PEOPLE
-  John Doe      34 mentions
-  Sarah Chen    18 mentions
-  Robert Kim     6 mentions
-
-  capture streak  12 days
-  longest streak   34 days
+  STREAK
+  current          12 days
+  best             14 days
+  next goal      2 days to 14
+  this week    M T W T F S S
+               ● ● ● ● ● ● ◐
 ```
 
 Rules:
-- Top 5 tags, top 3 people — not exhaustive
-- Capture streak — motivates consistent use
-- No processing stats here — that's khayal status
+- Nested response: streak, today, vault
+- Milestones: best streak first, then [7, 14, 21, 30, 50, 75, 100, 150, 200, 365]
+- Stats cached after every capture, served from cache on read
+- Date boundary checked at midnight (stale cache triggers recompute)
+- All timestamps in UTC
 - Pure SQL, no LLM, runs in milliseconds
 
 #### kl status — lightweight, not admin
@@ -1464,22 +1460,14 @@ CREATE VIRTUAL TABLE chunks_vec USING vec0(
 ```
 v1.1  → Chunking + Entity extraction + connections (similar, person, amount) + backup
 v1.2  → connections (contradiction, follow_up, revisit) + voice notes + PDF
-v1.3  → YouTube / video ingestion
-v1.4  → Browser extension (github.com/rawnaqs/khayal-browser)
-v1.5  → Raycast extension (github.com/rawnaqs/khayal-raycast)
-v1.6  → iOS Shortcuts (github.com/rawnaqs/khayal-ios)
+v1.3  → Graph connections, backlinks
+v1.4  → YouTube / video ingestion
+v1.5  → Browser extension (github.com/rawnaqs/khayal-browser)
+v1.6  → Raycast extension (github.com/rawnaqs/khayal-raycast)
+v1.7  → iOS Shortcuts (github.com/rawnaqs/khayal-ios)
 v2.0  → Setup wizard UI for non-technical users
-v2.1  → Graph connections, backlinks
-v2.2  → Windows support
-v2.3  → Mobile app (github.com/rawnaqs/khayal-mobile)
-```
-v1.4  → Browser extension (github.com/rawnaqs/khayal-browser)
-v1.5  → Raycast extension (github.com/rawnaqs/khayal-raycast)
-v1.6  → iOS Shortcuts (github.com/rawnaqs/khayal-ios)
-v2.0  → Setup wizard UI for non-technical users
-v2.1  → Graph connections, backlinks
-v2.2  → Windows support
-v2.3  → Mobile app (github.com/rawnaqs/khayal-mobile)
+v2.1  → Windows support
+v2.2  → Mobile app (github.com/rawnaqs/khayal-mobile)
 ```
 
 **v1.1 Details:**
@@ -1723,6 +1711,33 @@ llm:
   truncate_image_tokens: 3000          # max tokens for image context
   truncate_article_tokens: 12000       # max tokens for article content
   max_llm_concurrency: 4               # max concurrent LLM requests
+  temperature: 0.7                     # LLM generation temperature
+  prompts:                             # customizable prompts (optional)
+    describe_image: "Describe this image in detail. Include any text visible in the image."
+    extract_tags: |
+      Extract 3-5 relevant tags for the following content.
+      Return only a JSON array of strings, nothing else. No markdown.
+
+      Content:
+      %s
+
+      Tags:
+    summarize: |
+      Summarize the following content in 2-3 sentences.
+
+      Content:
+      %s
+
+      Summary:
+    extract_key_ideas: |
+      Extract 3-5 key ideas from the following content.
+      Return only a JSON array of strings, nothing else. No markdown.
+
+      Content:
+      %s
+
+      Key Ideas:
+    vision_prompt: "Describe this image in detail. Include any text visible in the image."
 
 worker:
   max_workers: 1                       # configurable concurrency

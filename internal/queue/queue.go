@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rawnaqs/khayal/internal/constants"
 	_ "modernc.org/sqlite"
 )
 
@@ -207,7 +208,7 @@ func (q *Queue) CreateJob(ctx context.Context, job *Job) error {
 		job.Status = "pending"
 	}
 
-	const maxRetries = 3
+	const maxRetries = constants.SQLiteMaxRetries
 	var err error
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		_, err = q.db.ExecContext(ctx, `
@@ -231,7 +232,7 @@ func (q *Queue) CreateJob(ctx context.Context, job *Job) error {
 				"attempt", attempt+1,
 				"error", err,
 			)
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(constants.SQLiteRetrySleep)
 			continue
 		}
 		break
@@ -271,7 +272,7 @@ func (q *Queue) GetJob(ctx context.Context, id string) (*Job, error) {
 }
 
 func (q *Queue) UpdateJob(ctx context.Context, job *Job) error {
-	const maxRetries = 3
+	const maxRetries = constants.SQLiteMaxRetries
 	var err error
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		_, err = q.db.ExecContext(ctx, `
@@ -287,7 +288,7 @@ func (q *Queue) UpdateJob(ctx context.Context, job *Job) error {
 				"attempt", attempt+1,
 				"error", err,
 			)
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(constants.SQLiteRetrySleep)
 			continue
 		}
 		break
@@ -296,7 +297,7 @@ func (q *Queue) UpdateJob(ctx context.Context, job *Job) error {
 }
 
 func (q *Queue) UpdateJobStatus(ctx context.Context, id, status string) error {
-	const maxRetries = 3
+	const maxRetries = constants.SQLiteMaxRetries
 	var err error
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		_, err = q.db.ExecContext(ctx, "UPDATE jobs SET status = ? WHERE id = ?", status, id)
@@ -313,7 +314,7 @@ func (q *Queue) UpdateJobStatus(ctx context.Context, id, status string) error {
 				"attempt", attempt+1,
 				"error", err,
 			)
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(constants.SQLiteRetrySleep)
 			continue
 		}
 		break
@@ -656,7 +657,7 @@ func (q *Queue) SaveChunk(ctx context.Context, notePath string, chunkIdx int, co
 }
 
 func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags string) error {
-	const maxRetries = 3
+	const maxRetries = constants.SQLiteMaxRetries
 	var lastErr error
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
@@ -670,7 +671,7 @@ func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags st
 					"note_path", notePath,
 					"attempt", attempt+1,
 				)
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(constants.SQLiteRetrySleep)
 				continue
 			}
 			return err
@@ -684,7 +685,7 @@ func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags st
 			if err != nil {
 				lastErr = err
 				if isLockError(err) {
-					time.Sleep(100 * time.Millisecond)
+					time.Sleep(constants.SQLiteRetrySleep)
 					continue
 				}
 				return err
@@ -705,7 +706,7 @@ func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags st
 				if err != nil {
 					lastErr = err
 					if isLockError(err) {
-						time.Sleep(100 * time.Millisecond)
+						time.Sleep(constants.SQLiteRetrySleep)
 						break
 					}
 					return err
@@ -723,7 +724,7 @@ func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags st
 		if err != nil {
 			lastErr = err
 			if isLockError(err) {
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(constants.SQLiteRetrySleep)
 				continue
 			}
 			return err
@@ -734,7 +735,7 @@ func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags st
 }
 
 func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, tags string) error {
-	const maxRetries = 3
+	const maxRetries = constants.SQLiteMaxRetries
 	var lastErr error
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
@@ -748,7 +749,7 @@ func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, t
 					"note_path", notePath,
 					"attempt", attempt+1,
 				)
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(constants.SQLiteRetrySleep)
 				continue
 			}
 			return err
@@ -762,7 +763,7 @@ func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, t
 			if err != nil {
 				lastErr = err
 				if isLockError(err) {
-					time.Sleep(100 * time.Millisecond)
+					time.Sleep(constants.SQLiteRetrySleep)
 					continue
 				}
 				return err
@@ -783,7 +784,7 @@ func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, t
 				if err != nil {
 					lastErr = err
 					if isLockError(err) {
-						time.Sleep(100 * time.Millisecond)
+						time.Sleep(constants.SQLiteRetrySleep)
 						break
 					}
 					return err
@@ -797,7 +798,7 @@ func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, t
 		if _, err := q.db.ExecContext(ctx, `DELETE FROM notes_fts WHERE note_path = ?`, notePath); err != nil && !isFTSErr(err) {
 			lastErr = err
 			if isLockError(err) {
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(constants.SQLiteRetrySleep)
 				continue
 			}
 			return err
@@ -809,7 +810,7 @@ func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, t
 		if err != nil {
 			lastErr = err
 			if isLockError(err) {
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(constants.SQLiteRetrySleep)
 				continue
 			}
 			return err
@@ -820,7 +821,7 @@ func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, t
 }
 
 func (q *Queue) DeleteFromIndex(ctx context.Context, notePath string) error {
-	const maxRetries = 3
+	const maxRetries = constants.SQLiteMaxRetries
 	var lastErr error
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
@@ -835,7 +836,7 @@ func (q *Queue) DeleteFromIndex(ctx context.Context, notePath string) error {
 					"note_path", notePath,
 					"attempt", attempt+1,
 				)
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(constants.SQLiteRetrySleep)
 				continue
 			}
 			return err
@@ -1032,7 +1033,7 @@ func (q *Queue) GetTopPeople(ctx context.Context, limit int) ([]PersonCount, err
 
 func (q *Queue) GetStreaks(ctx context.Context) (int, int, error) {
 	rows, err := q.db.QueryContext(ctx, `
-		SELECT DISTINCT DATE(datetime(created_at, 'utc')) as capture_date
+		SELECT DISTINCT DATE(datetime(created_at, 'localtime')) as capture_date
 		FROM jobs
 		WHERE status = 'done'
 		ORDER BY capture_date DESC
@@ -1048,7 +1049,7 @@ func (q *Queue) GetStreaks(ctx context.Context) (int, int, error) {
 		if err := rows.Scan(&dateStr); err != nil {
 			return 0, 0, err
 		}
-		t, err := time.Parse("2006-01-02", dateStr)
+		t, err := time.ParseInLocation("2006-01-02", dateStr, time.Local)
 		if err != nil {
 			continue
 		}
@@ -1062,7 +1063,9 @@ func (q *Queue) GetStreaks(ctx context.Context) (int, int, error) {
 		return 0, 0, nil
 	}
 
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
 	currentStreak := 0
 	longestStreak := 0
 	streak := 1
@@ -1082,7 +1085,7 @@ func (q *Queue) GetStreaks(ctx context.Context) (int, int, error) {
 		longestStreak = streak
 	}
 
-	if len(dates) > 0 && dates[0].Equal(today) || dates[0].Equal(today.AddDate(0, 0, -1)) {
+	if len(dates) > 0 && (dates[0].Equal(today) || dates[0].Equal(today.AddDate(0, 0, -1))) {
 		streak = 1
 		for i := 0; i < len(dates)-1; i++ {
 			diff := dates[i].Sub(dates[i+1]).Hours() / 24
@@ -1137,10 +1140,10 @@ func (q *Queue) GetNoteTitle(ctx context.Context, notePath string) (string, erro
 func (q *Queue) GetHourlyBreakdown(ctx context.Context, dateStr string) ([24]int, error) {
 	var result [24]int
 	rows, err := q.db.QueryContext(ctx, `
-		SELECT CAST(strftime('%H', datetime(created_at, 'utc')) AS INTEGER) as hour,
+		SELECT CAST(strftime('%H', datetime(created_at, 'localtime')) AS INTEGER) as hour,
 		       COUNT(DISTINCT note_path)
 		FROM chunks
-		WHERE DATE(datetime(created_at, 'utc')) = ?
+		WHERE DATE(datetime(created_at, 'localtime')) = ?
 		GROUP BY hour
 	`, dateStr)
 	if err != nil {
@@ -1162,14 +1165,14 @@ func (q *Queue) GetHourlyBreakdown(ctx context.Context, dateStr string) ([24]int
 
 func (q *Queue) GetLast7Days(ctx context.Context) ([7]int, error) {
 	var result [7]int
-	today := time.Now().UTC()
+	today := time.Now()
 	startDate := today.AddDate(0, 0, -6).Format("2006-01-02")
 
 	rows, err := q.db.QueryContext(ctx, `
-		SELECT DATE(datetime(created_at, 'utc')) as day,
+		SELECT DATE(datetime(created_at, 'localtime')) as day,
 		       COUNT(DISTINCT note_path)
 		FROM chunks
-		WHERE DATE(datetime(created_at, 'utc')) >= ?
+		WHERE DATE(datetime(created_at, 'localtime')) >= ?
 		GROUP BY day
 	`, startDate)
 	if err != nil {
@@ -1201,7 +1204,7 @@ func (q *Queue) GetLast7Days(ctx context.Context) ([7]int, error) {
 func (q *Queue) GetLastCapture(ctx context.Context) (string, error) {
 	var lastCapture string
 	err := q.db.QueryRowContext(ctx, `
-		SELECT MAX(created_at) FROM chunks WHERE note_path LIKE 'khayal/%'
+		SELECT MAX(datetime(created_at, "localtime")) FROM chunks WHERE note_path LIKE 'khayal/%'
 	`).Scan(&lastCapture)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -1216,12 +1219,12 @@ func (q *Queue) GetAvgPerDay(ctx context.Context, days int) (float64, error) {
 	if days <= 0 {
 		days = 30
 	}
-	since := time.Now().UTC().AddDate(0, 0, -days).Format("2006-01-02")
+	since := time.Now().AddDate(0, 0, -days).Format("2006-01-02")
 	var count int
 	err := q.db.QueryRowContext(ctx, `
 		SELECT COUNT(DISTINCT note_path) FROM chunks
 		WHERE note_path LIKE 'khayal/%'
-		AND DATE(datetime(created_at, 'utc')) >= ?
+		AND DATE(datetime(created_at, 'localtime')) >= ?
 	`, since).Scan(&count)
 	if err != nil {
 		return 0, err
@@ -1231,14 +1234,14 @@ func (q *Queue) GetAvgPerDay(ctx context.Context, days int) (float64, error) {
 
 func (q *Queue) GetThisWeekStreak(ctx context.Context) ([7]bool, error) {
 	var result [7]bool
-	today := time.Now().UTC()
+	today := time.Now()
 	startDate := today.AddDate(0, 0, -6).Format("2006-01-02")
 
 	rows, err := q.db.QueryContext(ctx, `
-		SELECT DISTINCT DATE(datetime(created_at, 'utc')) as day
+		SELECT DISTINCT DATE(datetime(created_at, 'localtime')) as day
 		FROM jobs
 		WHERE status = 'done'
-		AND DATE(datetime(created_at, 'utc')) >= ?
+		AND DATE(datetime(created_at, 'localtime')) >= ?
 	`, startDate)
 	if err != nil {
 		return result, err
@@ -1303,16 +1306,22 @@ type StatsCacheEntry struct {
 }
 
 func (q *Queue) SaveStatsCache(ctx context.Context, stats interface{}) error {
-	data, err := json.Marshal(stats)
+	now := time.Now().UTC()
+	entry := StatsCacheEntry{
+		Date:      now.Format("2006-01-02"),
+		Stats:     stats,
+		UpdatedAt: now.Format(time.RFC3339),
+	}
+	data, err := json.Marshal(entry)
 	if err != nil {
 		return err
 	}
-	const maxRetries = 3
+	const maxRetries = constants.SQLiteMaxRetries
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		_, err = q.db.ExecContext(ctx, `
 			INSERT OR REPLACE INTO stats_cache (key, value, updated_at)
 			VALUES ('stats', ?, ?)
-		`, string(data), time.Now().UTC().Format(time.RFC3339))
+		`, string(data), now.Format(time.RFC3339))
 		if err == nil {
 			return nil
 		}
@@ -1321,7 +1330,7 @@ func (q *Queue) SaveStatsCache(ctx context.Context, stats interface{}) error {
 				"attempt", attempt+1,
 				"error", err,
 			)
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(constants.SQLiteRetrySleep)
 			continue
 		}
 		break
@@ -1341,22 +1350,26 @@ func (q *Queue) LoadStatsCache(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	// Check date boundary
-	var entry struct {
-		Date string `json:"date"`
-	}
+	// Unwrap the cache entry
+	var entry StatsCacheEntry
 	if err := json.Unmarshal([]byte(value), &entry); err != nil {
 		// Corrupted cache — delete
 		q.db.ExecContext(ctx, `DELETE FROM stats_cache WHERE key = 'stats'`)
 		return "", nil
 	}
 
+	// Check date boundary
 	today := time.Now().UTC().Format("2006-01-02")
 	if entry.Date != today {
-		return "", nil // stale date
+		return "", nil // stale date — triggers recompute
 	}
 
-	return value, nil
+	// Return just the stats portion, not the wrapper
+	statsData, err := json.Marshal(entry.Stats)
+	if err != nil {
+		return "", nil
+	}
+	return string(statsData), nil
 }
 
 // ── Stats response types ──
@@ -1389,7 +1402,7 @@ type StatsResponse struct {
 }
 
 func nextMilestone(current, best int) (int, int) {
-	fixed := []int{7, 14, 21, 30, 50, 75, 100, 150, 200, 365}
+	fixed := constants.Milestones
 
 	milestones := []int{}
 	if best > 0 {
@@ -1416,11 +1429,12 @@ func nextMilestone(current, best int) (int, int) {
 }
 
 func (q *Queue) RecomputeStats(ctx context.Context) (*StatsResponse, error) {
-	now := time.Now().UTC()
+	now := time.Now()
 	todayStr := now.Format("2006-01-02")
-	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	midnight := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	midnightUtc := midnight.UTC()
 
-	todayCount, err := q.CountNotesSince(ctx, midnight)
+	todayCount, err := q.CountNotesSince(ctx, midnightUtc)
 	if err != nil {
 		return nil, err
 	}

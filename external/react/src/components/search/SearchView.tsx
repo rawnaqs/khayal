@@ -6,14 +6,15 @@ import { ResultCompact } from './ResultCompact'
 import { useSearch } from '@/hooks/useSearch'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
+import { STORAGE_KEYS, SEARCH_SUGGESTIONS, LIMITS, TYPE_FILTERS, SEARCH_MODES } from '@/lib/constants'
 
-type SearchMode = 'hybrid' | 'keyword' | 'semantic'
-type TypeFilter = 'all' | 'text' | 'article' | 'image'
+type SearchMode = typeof SEARCH_MODES[number]
+type TypeFilter = typeof TYPE_FILTERS[number]
 
-const RECENT_KEY = 'khayal-recent-searches'
-const MAX_RECENT = 5
+const RECENT_KEY = STORAGE_KEYS.RECENT_SEARCHES
+const MAX_RECENT = LIMITS.RECENT_SEARCHES
 
-const SUGGESTIONS = ['people', 'payments', 'this week', 'ideas', 'decisions', 'meetings']
+const SUGGESTIONS = SEARCH_SUGGESTIONS
 
 function getRecentSearches(): string[] {
   try {

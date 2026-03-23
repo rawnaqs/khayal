@@ -67,6 +67,9 @@ khayal/
 │   │       ├── auth.go             # Token authentication
 │   │       └── log.go              # Request logging
 │   │
+│   ├── constants/
+│   │   └── constants.go            # Shared constants (retry, milestones, prompts, timeouts)
+│   │
 │   ├── worker/
 │   │   └── worker.go               # Job processor, concurrency, retry
 │   │

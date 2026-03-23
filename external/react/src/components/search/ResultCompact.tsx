@@ -1,4 +1,5 @@
 import type { SearchResult } from '@/lib/api'
+import { LIMITS } from '@/lib/constants'
 
 interface ResultCompactProps {
   result: SearchResult
@@ -43,7 +44,7 @@ export function ResultCompact({ result, rank, query }: ResultCompactProps) {
         <div className="rc-meta">
           <span className="rdate">{formatDate(result.created_at)}</span>
           <span className={`rb ${getTypeBadgeClass(result.type)}`}>{result.type}</span>
-          {result.tags?.slice(0, 2)?.map((tag) => (
+          {result.tags?.slice(0, LIMITS.TAGS_COMPACT)?.map((tag) => (
             <span key={tag} className="rb rb-tag">#{tag}</span>
           ))}
         </div>

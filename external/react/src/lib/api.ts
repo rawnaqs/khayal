@@ -1,3 +1,5 @@
+import { STORAGE_KEYS } from './constants'
+
 export interface CaptureRequest {
   type: 'text' | 'url' | 'image'
   content: string
@@ -198,7 +200,7 @@ export class KhayalClient {
 
 export function createClient(): KhayalClient {
   // Auto-detect: same origin in production, proxy in dev
-  const host = localStorage.getItem('khayal_host') || window.location.origin
-  const token = localStorage.getItem('khayal_token') || ''
+  const host = localStorage.getItem(STORAGE_KEYS.HOST) || window.location.origin
+  const token = localStorage.getItem(STORAGE_KEYS.TOKEN) || ''
   return new KhayalClient(host, token)
 }

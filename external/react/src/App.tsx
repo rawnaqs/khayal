@@ -8,6 +8,7 @@ import { SearchView } from '@/components/search/SearchView'
 import { QueueView } from '@/components/queue/QueueView'
 import { Onboarding } from '@/components/Onboarding'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { STORAGE_KEYS } from '@/lib/constants'
 
 export type Tab = 'capture' | 'search' | 'queue'
 
@@ -21,7 +22,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('capture')
   const [captureQuery, setCaptureQuery] = useState<string | undefined>(undefined)
   const [isConfigured, setIsConfigured] = useState(() => {
-    return !!localStorage.getItem('khayal_token') && !!localStorage.getItem('khayal_host')
+    return !!localStorage.getItem(STORAGE_KEYS.TOKEN) && !!localStorage.getItem(STORAGE_KEYS.HOST)
   })
 
   const handleCaptureQuery = useCallback((query: string) => {

@@ -1,6 +1,6 @@
 # Khayal API Reference
 
-> Complete API reference for Khayal v1. Updated: 2026-03-17
+> Complete API reference for Khayal v1. Updated: 2026-03-24
 
 ## Base URL
 
@@ -25,32 +25,44 @@ See [AUTH.md](AUTH.md) for detailed authentication guide.
 
 ### GET /stats
 
-Get vault statistics.
+Get vault statistics. Cached after every successful capture.
 
 **Response:**
 ```json
 {
-  "total": 2847,
-  "this_week": 23,
-  "this_month": 94,
-  "by_type": {
-    "text": 1420,
-    "article": 890,
-    "image": 537
+  "streak": {
+    "current": 12,
+    "best": 14,
+    "next_milestone": 14,
+    "days_to_milestone": 2,
+    "this_week": [true, true, true, true, true, true, true]
   },
-  "top_tags": [
-    { "name": "react", "count": 142 },
-    { "name": "go", "count": 98 },
-    { "name": "work", "count": 87 }
-  ],
-  "top_people": [
-    { "name": "John Doe", "count": 34 },
-    { "name": "Sarah Chen", "count": 18 }
-  ],
-  "capture_streak": 12,
-  "longest_streak": 34
+  "today": {
+    "count": 7,
+    "by_hour": [0,0,0,0,0,0,1,2,3,1,2,1,1,1,0,0,0,0,0,0,0,0,0,0],
+    "avg_per_day": 5.2
+  },
+  "vault": {
+    "total_notes": 2847,
+    "today_delta": 7,
+    "last_capture_at": "2026-03-23T09:00:00Z",
+    "last_7_days": [5, 8, 3, 12, 7, 9, 7]
+  }
 }
 ```
+
+**Caching:**
+- Recomputed after every successful capture
+- Date boundary checked (stale at midnight, triggers recompute)
+- No recompute on read (cache hit served directly)
+- Corrupted cache auto-deleted and recomputed
+
+**Milestones:**
+Fixed list: `[7, 14, 21, 30, 50, 75, 100, 150, 200, 365]`
+- Best streak is always first milestone
+- Beyond 365: next multiple of 100
+- `next_milestone`: first number > current streak
+- `days_to_milestone`: difference between next_milestone and current
 
 ---
 

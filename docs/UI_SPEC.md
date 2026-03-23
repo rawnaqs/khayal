@@ -309,6 +309,151 @@ Font size:         minimum 16px on inputs — prevents iOS auto-zoom
 
 ---
 
+## Search view — mode chips, recent searches, filters
+
+```tsx
+// SearchView.tsx
+// Mode chips below search bar
+const modes = ['hybrid', 'keyword', 'semantic']
+// active mode: gold background
+// inactive: border only
+
+// Recent searches (idle state)
+// stored in localStorage under 'khayal-recent-searches'
+// max 10 entries, newest first, deduplicated
+// shown when no active search
+
+// Suggestion chips (idle state)
+// static list: ['people', 'payments', 'this week', 'ideas', 'decisions', 'meetings']
+// click triggers search
+
+// Filter chips (results state)
+// types: all, text, article, image
+// client-side filtering (no API change)
+// visible even when filter returns empty results
+
+// Keyword highlighting
+// .hl class on matched terms in title and excerpt
+// gold color (#E8B86D) with subtle background
+```
+
+---
+
+## Search results — hero + compact
+
+```tsx
+// Hero result (first result, score > 0.9)
+// .r1 class — gold gradient top line, ghost number
+// title + excerpt with keyword highlighting
+
+// Compact results (rest)
+// .rc class — numbered, type badge, tags, score
+// hover state: background change
+
+// No results state
+// mode suggestions (try keyword/semantic)
+// capture link (navigates to capture with query)
+```
+
+---
+
+## Capture result tiles — 4 states
+
+```tsx
+// Success tile (.tile-ok)
+// green border, checkmark icon
+// title: "saved", subtitle: "{type} · {processingTime}ms"
+// auto-dismiss 3s with drain bar animation
+
+// Queued tile (.tile-q)
+// yellow border, spinning Loader2 icon
+// title: "queued", subtitle: "{note_path} · {id}"
+// step progress dots: done (green) / active (yellow pulsing) / waiting (gray)
+// auto-dismiss 4s with drain bar
+
+// Offline tile (.tile-off)
+// gold border, Zap icon
+// title: "saved offline", subtitle: "will sync when connected"
+// auto-dismiss 3.5s with drain bar
+
+// Error tile (.tile-err)
+// red border, AlertTriangle icon
+// title: "capture failed"
+// error box with code + message
+// actions: retry + discard buttons
+// NO auto-dismiss (stays until dismissed)
+```
+
+---
+
+## Bento grid stats — 3 tiles
+
+```tsx
+// Streak tile (.bt-streak)
+// gold gradient background
+// SVG arc progress (current / next_milestone)
+// big number + "day streak" + goal text
+// week dots bar (7 dots, this_week data)
+
+// Today tile (.bt)
+// big number + "captures"
+// hourly mini bars (24 bars, by_hour data)
+// current hour gets special styling (.hb.now)
+// footer: avg/day + last capture time
+
+// Vault tile (.bt wide)
+// big number + "notes" + delta badge (+8 today)
+// center stat: last 7d total
+// 7-day sparkline bars (last_7_days data)
+```
+
+---
+
+## Frontend constants
+
+```ts
+// lib/constants.ts
+export const STORAGE_KEYS = {
+  TOKEN: 'khayal_token',
+  HOST: 'khayal_host',
+  RECENT_SEARCHES: 'khayal-recent-searches',
+}
+
+export const SEARCH_SUGGESTIONS = ['people', 'payments', 'this week', 'ideas', 'decisions', 'meetings']
+
+export const PROCESSING_STEPS = {
+  text: ['saved', 'tagging', 'summarizing', 'writing'],
+  image: ['saved', 'describing', 'tagging', 'writing'],
+  article: ['saved', 'extracting', 'summarizing', 'writing'],
+}
+
+export const LIMITS = {
+  SEARCH_RESULTS: 20,
+  QUEUE_JOBS: 50,
+  RECENT_SEARCHES: 10,
+  DONE_JOBS_SHOWN: 5,
+  TAGS_HERO: 3,
+  TAGS_COMPACT: 2,
+  HERO_SCORE_THRESHOLD: 0.9,
+}
+
+export const TIMEOUTS = {
+  CAPTURE_DISMISS: 3500,
+  STATS_POLL: 60000,
+  SERVER_STATUS_POLL: 30000,
+}
+
+export const GREETINGS = [
+  { maxHour: 5, text: 'late night thoughts?' },
+  { maxHour: 12, text: 'good morning' },
+  { maxHour: 17, text: 'good afternoon' },
+  { maxHour: 21, text: 'good evening' },
+  { maxHour: 24, text: 'late night thoughts?' },
+]
+```
+
+---
+
 ## What NOT to build
 
 ```

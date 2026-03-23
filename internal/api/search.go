@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/rawnaqs/khayal/internal/constants"
 	"github.com/rawnaqs/khayal/internal/queue"
 )
 
@@ -96,7 +97,7 @@ func (s *Server) searchSemantic(ctx context.Context, query string, limit int) ([
 }
 
 func (s *Server) searchHybrid(ctx context.Context, query string, limit int) ([]queue.SearchResult, error) {
-	keywordResults, err := s.queue.SearchKeyword(ctx, query, limit*2)
+	keywordResults, err := s.queue.SearchKeyword(ctx, query, limit*constants.SearchOverFetchMultiplier)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +107,7 @@ func (s *Server) searchHybrid(ctx context.Context, query string, limit int) ([]q
 		return nil, err
 	}
 
-	semanticResults, err := s.queue.SearchSemantic(ctx, embedding, limit*2, s.config.Search.MinSemanticScore)
+	semanticResults, err := s.queue.SearchSemantic(ctx, embedding, limit*constants.SearchOverFetchMultiplier, s.config.Search.MinSemanticScore)
 	if err != nil {
 		return nil, err
 	}

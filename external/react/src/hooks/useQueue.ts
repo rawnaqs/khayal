@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient, type QueueJob } from '@/lib/api'
+import { LIMITS } from '@/lib/constants'
 
 export function useQueue() {
   const [loading, setLoading] = useState(false)
@@ -13,7 +14,7 @@ export function useQueue() {
 
     try {
       const client = createClient()
-      const response = await client.queue({ status, limit: 50 })
+      const response = await client.queue({ status, limit: LIMITS.QUEUE_JOBS })
       setJobs(response.jobs || [])
       setTotal(response.total)
     } catch (err) {

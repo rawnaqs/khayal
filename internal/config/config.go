@@ -55,17 +55,27 @@ type ServerConfig struct {
 }
 
 type LLMConfig struct {
-	Provider              string `yaml:"provider"`
-	OllamaHost            string `yaml:"ollama_host"`
-	EmbedModel            string `yaml:"embed_model"`
-	TextModel             string `yaml:"text_model"`
-	VisionModel           string `yaml:"vision_model"`
-	FallbackProvider      string `yaml:"fallback_provider"`
-	FallbackAPIKey        string `yaml:"fallback_api_key"`
-	TruncateTextTokens    int    `yaml:"truncate_text_tokens"`
-	TruncateImageTokens   int    `yaml:"truncate_image_tokens"`
-	TruncateArticleTokens int    `yaml:"truncate_article_tokens"`
-	MaxLLMConcurrency     int    `yaml:"max_llm_concurrency"`
+	Provider              string        `yaml:"provider"`
+	OllamaHost            string        `yaml:"ollama_host"`
+	EmbedModel            string        `yaml:"embed_model"`
+	TextModel             string        `yaml:"text_model"`
+	VisionModel           string        `yaml:"vision_model"`
+	FallbackProvider      string        `yaml:"fallback_provider"`
+	FallbackAPIKey        string        `yaml:"fallback_api_key"`
+	TruncateTextTokens    int           `yaml:"truncate_text_tokens"`
+	TruncateImageTokens   int           `yaml:"truncate_image_tokens"`
+	TruncateArticleTokens int           `yaml:"truncate_article_tokens"`
+	MaxLLMConcurrency     int           `yaml:"max_llm_concurrency"`
+	Temperature           float64       `yaml:"temperature"`
+	Prompts               *PromptConfig `yaml:"prompts"`
+}
+
+type PromptConfig struct {
+	DescribeImage   string `yaml:"describe_image"`
+	ExtractTags     string `yaml:"extract_tags"`
+	Summarize       string `yaml:"summarize"`
+	ExtractKeyIdeas string `yaml:"extract_key_ideas"`
+	VisionPrompt    string `yaml:"vision_prompt"`
 }
 
 type WorkerConfig struct {

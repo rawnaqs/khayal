@@ -11,6 +11,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/rawnaqs/khayal/internal/constants"
 )
 
 type OllamaClient struct {
@@ -24,6 +26,8 @@ type OllamaClient struct {
 	httpClient            *http.Client
 	logger                *slog.Logger
 	semaphore             chan struct{}
+	temperature           float64
+	prompts               constants.PromptConfig
 }
 
 func NewOllamaClient(baseURL, embedModel, textModel, visionModel string) *OllamaClient {
@@ -32,21 +36,66 @@ func NewOllamaClient(baseURL, embedModel, textModel, visionModel string) *Ollama
 
 func NewOllamaClientWithConcurrency(baseURL, embedModel, textModel, visionModel string, maxConcurrent int) *OllamaClient {
 	if maxConcurrent < 1 {
-		maxConcurrent = 4
+		maxConcurrent = constants.DefaultMaxConcurrent
 	}
 	return &OllamaClient{
 		baseURL:               strings.TrimSuffix(baseURL, "/"),
 		embedModel:            embedModel,
 		textModel:             textModel,
 		visionModel:           visionModel,
-		truncateTextTokens:    2000,
-		truncateImageTokens:   3000,
-		truncateArticleTokens: 12000,
+		truncateTextTokens:    constants.DefaultTruncateTextTokens,
+		truncateImageTokens:   constants.DefaultTruncateImageTokens,
+		truncateArticleTokens: constants.DefaultTruncateArticleTokens,
 		httpClient: &http.Client{
-			Timeout: 120 * time.Second,
+			Timeout: constants.OllamaClientTimeout,
 		},
-		logger:    slog.Default(),
-		semaphore: make(chan struct{}, maxConcurrent),
+		logger:      slog.Default(),
+		semaphore:   make(chan struct{}, maxConcurrent),
+		temperature: constants.DefaultTemperature,
+		prompts:     constants.DefaultPrompts,
+	}
+}
+
+func NewOllamaClientWithConfig(baseURL, embedModel, textModel, visionModel string, maxConcurrent int, temperature float64, prompts *constants.PromptConfig) *OllamaClient {
+	if maxConcurrent < 1 {
+		maxConcurrent = constants.DefaultMaxConcurrent
+	}
+	if temperature <= 0 {
+		temperature = constants.DefaultTemperature
+	}
+	p := constants.DefaultPrompts
+	if prompts != nil {
+		if prompts.DescribeImage != "" {
+			p.DescribeImage = prompts.DescribeImage
+		}
+		if prompts.ExtractTags != "" {
+			p.ExtractTags = prompts.ExtractTags
+		}
+		if prompts.Summarize != "" {
+			p.Summarize = prompts.Summarize
+		}
+		if prompts.ExtractKeyIdeas != "" {
+			p.ExtractKeyIdeas = prompts.ExtractKeyIdeas
+		}
+		if prompts.VisionPrompt != "" {
+			p.VisionPrompt = prompts.VisionPrompt
+		}
+	}
+	return &OllamaClient{
+		baseURL:               strings.TrimSuffix(baseURL, "/"),
+		embedModel:            embedModel,
+		textModel:             textModel,
+		visionModel:           visionModel,
+		truncateTextTokens:    constants.DefaultTruncateTextTokens,
+		truncateImageTokens:   constants.DefaultTruncateImageTokens,
+		truncateArticleTokens: constants.DefaultTruncateArticleTokens,
+		httpClient: &http.Client{
+			Timeout: constants.OllamaClientTimeout,
+		},
+		logger:      slog.Default(),
+		semaphore:   make(chan struct{}, maxConcurrent),
+		temperature: temperature,
+		prompts:     p,
 	}
 }
 
@@ -56,14 +105,6 @@ func NewOllamaClientWithLogger(baseURL, embedModel, textModel, visionModel strin
 		c.logger = logger
 	}
 	return c
-}
-
-func NewOllamaClientWithConfig(baseURL, embedModel, textModel, visionModel string, truncateText, truncateImage, truncateArticle int) *OllamaClient {
-	client := NewOllamaClient(baseURL, embedModel, textModel, visionModel)
-	client.truncateTextTokens = truncateText
-	client.truncateImageTokens = truncateImage
-	client.truncateArticleTokens = truncateArticle
-	return client
 }
 
 func (c *OllamaClient) truncateLimit(bucket string) int {
@@ -213,7 +254,7 @@ func (c *OllamaClient) generateWithModel(model, prompt string) (string, error) {
 		"model":       model,
 		"prompt":      prompt,
 		"stream":      false,
-		"temperature": 0.7,
+		"temperature": c.temperature,
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -280,7 +321,7 @@ func (c *OllamaClient) DescribeImage(imagePath string) (string, error) {
 
 	reqBody := map[string]any{
 		"model":  c.visionModel,
-		"prompt": "Describe this image in detail. Include any text visible in the image.",
+		"prompt": c.prompts.VisionPrompt,
 		"images": []string{base64Img},
 		"stream": false,
 	}
@@ -339,13 +380,7 @@ func (c *OllamaClient) DescribeImage(imagePath string) (string, error) {
 func (c *OllamaClient) ExtractTags(content string, bucket string) ([]string, error) {
 	truncated := truncateForLLM(content, c.truncateLimit(bucket))
 
-	prompt := fmt.Sprintf(`Extract 3-5 relevant tags for the following content. 
-Return only a JSON array of strings, nothing else. No markdown.
-
-Content:
-%s
-
-Tags:`, truncated)
+	prompt := fmt.Sprintf(c.prompts.ExtractTags, truncated)
 
 	result, err := c.Generate(prompt)
 	if err != nil {
@@ -386,12 +421,7 @@ Tags:`, truncated)
 func (c *OllamaClient) Summarize(content string, bucket string) (string, error) {
 	truncated := truncateForLLM(content, c.truncateLimit(bucket))
 
-	prompt := fmt.Sprintf(`Summarize the following content in 2-3 sentences.
-
-Content:
-%s
-
-Summary:`, truncated)
+	prompt := fmt.Sprintf(c.prompts.Summarize, truncated)
 
 	result, err := c.Generate(prompt)
 	if err != nil {
@@ -404,13 +434,7 @@ Summary:`, truncated)
 func (c *OllamaClient) ExtractKeyIdeas(content string, bucket string) ([]string, error) {
 	truncated := truncateForLLM(content, c.truncateLimit(bucket))
 
-	prompt := fmt.Sprintf(`Extract 3-5 key ideas from the following content.
-Return only a JSON array of strings, nothing else. No markdown.
-
-Content:
-%s
-
-Key Ideas:`, truncated)
+	prompt := fmt.Sprintf(c.prompts.ExtractKeyIdeas, truncated)
 
 	result, err := c.Generate(prompt)
 	if err != nil {

@@ -8,6 +8,7 @@ import { FailedJobExpanded } from './FailedJobExpanded'
 import { RetryAllBanner } from './RetryAllBanner'
 import { DoneItem } from './DoneItem'
 import { OfflineSection } from './OfflineSection'
+import { LIMITS } from '@/lib/constants'
 import { useQueue } from '@/hooks/useQueue'
 import { useToast } from '@/hooks/use-toast'
 import { getOfflineQueue } from '@/lib/offline'
@@ -165,7 +166,7 @@ export function QueueView() {
           <div className="divider" />
           <div className="sec">done today ({doneJobs.length})</div>
           <div className="q-list">
-            {doneJobs.slice(0, 5).map((job, index) => (
+            {doneJobs.slice(0, LIMITS.DONE_JOBS_SHOWN).map((job, index) => (
               <motion.div
                 key={job.id}
                 initial={{ opacity: 0, y: 4 }}

@@ -1,4 +1,5 @@
 import type { SearchResult } from '@/lib/api'
+import { LIMITS } from '@/lib/constants'
 
 interface ResultHeroProps {
   result: SearchResult
@@ -41,7 +42,7 @@ export function ResultHero({ result, query }: ResultHeroProps) {
       <div className="r1-meta">
         <span className="rdate">{formatDate(result.created_at)}</span>
         <span className={`rb ${getTypeBadgeClass(result.type)}`}>{result.type}</span>
-        {result.tags.slice(0, 3).map((tag) => (
+        {result.tags.slice(0, LIMITS.TAGS_HERO).map((tag) => (
           <span key={tag} className="rb rb-tag">#{tag}</span>
         ))}
       </div>

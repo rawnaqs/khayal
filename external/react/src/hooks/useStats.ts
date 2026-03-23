@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient, type StatsResponse } from '@/lib/api'
+import { TIMEOUTS } from '@/lib/constants'
 
-export function useStats(pollInterval = 60000) {
+export function useStats(pollInterval = TIMEOUTS.STATS_POLL) {
   const [stats, setStats] = useState<StatsResponse | null>(null)
   const [loading, setLoading] = useState(true)
 

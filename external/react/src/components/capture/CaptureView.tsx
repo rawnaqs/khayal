@@ -9,16 +9,16 @@ import { CaptureStats } from './CaptureStats'
 import { useCapture } from '@/hooks/useCapture'
 import { useStats } from '@/hooks/useStats'
 import { cn } from '@/lib/utils'
+import { TIMEOUTS, GREETINGS } from '@/lib/constants'
 
 type CaptureMode = 'text' | 'url' | 'image'
 
 function getGreeting(): string {
   const hour = new Date().getHours()
-  if (hour < 5) return 'late night thoughts?'
-  if (hour < 12) return 'good morning'
-  if (hour < 17) return 'good afternoon'
-  if (hour < 21) return 'good evening'
-  return 'late night thoughts?'
+  for (const greeting of GREETINGS) {
+    if (hour < greeting.maxHour) return greeting.text
+  }
+  return GREETINGS[GREETINGS.length - 1].text
 }
 
 interface CaptureViewProps {
@@ -49,7 +49,7 @@ export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureVie
 
   useEffect(() => {
     if (result || isOffline) {
-      const timer = setTimeout(() => clear(), 3500)
+      const timer = setTimeout(() => clear(), TIMEOUTS.CAPTURE_DISMISS)
       return () => clearTimeout(timer)
     }
   }, [result, isOffline, clear])
