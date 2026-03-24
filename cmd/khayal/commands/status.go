@@ -7,6 +7,8 @@ import (
 	"time"
 
 	cli "github.com/rawnaqs/khayal/cmd/khayal/internal"
+	"github.com/rawnaqs/khayal/internal/config"
+	"github.com/rawnaqs/khayal/internal/updater"
 	"github.com/rawnaqs/theme"
 	"github.com/spf13/cobra"
 )
@@ -33,17 +35,10 @@ type healthResponse struct {
 			Host   string `json:"host"`
 		} `json:"llm"`
 	} `json:"dependencies"`
-	Queue struct {
-		Pending    int `json:"pending"`
-		Queued     int `json:"queued"`
-		Processing int `json:"processing"`
-		Done       int `json:"done"`
-		Failed     int `json:"failed"`
-	} `json:"queue"`
 }
 
 func runStatus() error {
-	cfg, _, err := cli.LoadConfig()
+	cfg, configPath, err := cli.LoadConfig()
 	if err != nil {
 		cli.Fatal(cli.ExitUser, "failed to load config: %v", err)
 		return err
@@ -69,8 +64,9 @@ func runStatus() error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		logPath := config.MakeAbsolute(cfg.Log.File, configPath)
 		cli.ErrorWithHint(fmt.Sprintf("server returned status %d", resp.StatusCode), []string{
-			"check logs:       khayal logs",
+			"check logs:       tail " + logPath,
 		})
 		return fmt.Errorf("server error")
 	}
@@ -80,36 +76,27 @@ func runStatus() error {
 		return fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	uptime := getUptime(pid)
-
 	fmt.Println()
-	fmt.Printf("  %s %s %s %s\n",
+	fmt.Printf("  %s %s %s\n",
 		theme.SuccessStyle.Render("✓"),
 		theme.Primary.Render("khayal"),
 		theme.Muted.Render(health.Version),
-		theme.Primary.Render(fmt.Sprintf("· %s:%d", cfg.Server.Host, cfg.Server.Port)),
 	)
-	fmt.Println()
-
-	fmt.Println(theme.Primary.Render("  queue"))
-	fmt.Printf("    %-12s %d\n", "processing", health.Queue.Processing)
-	fmt.Printf("    %-12s %d\n", "queued", health.Queue.Queued)
-	fmt.Printf("    %-12s %d\n", "pending", health.Queue.Pending)
-	fmt.Printf("    %-12s %d\n", "done", health.Queue.Done)
-	fmt.Printf("    %-12s %d\n", "failed", health.Queue.Failed)
 	fmt.Println()
 
 	fmt.Println(theme.Primary.Render("  system"))
 	fmt.Printf("    %-12s %d\n", "pid", pid)
-	fmt.Printf("    %-12s %s\n", "uptime", theme.Muted.Render(uptime))
 	fmt.Printf("    %-12s %s\n", "db", health.Dependencies.DB.Status)
 	fmt.Printf("    %-12s %s\n", "vault", health.Dependencies.Vault.Status)
 	fmt.Printf("    %-12s %s (%s)\n", "llm", health.Dependencies.LLM.Status, health.Dependencies.LLM.Host)
 	fmt.Println()
 
-	return nil
-}
+	// Check for updates
+	updateInfo := updater.CheckForUpdate()
+	if updateInfo.Available {
+		fmt.Println(theme.Dim.Render(fmt.Sprintf("  ↑ update khayal to v%s", updateInfo.Latest)))
+		fmt.Println()
+	}
 
-func getUptime(pid int) string {
-	return "N/A"
+	return nil
 }

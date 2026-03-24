@@ -43,7 +43,7 @@ func runStop(force bool) error {
 	process, err := os.FindProcess(pid)
 	if err != nil {
 		cli.ErrorWithHint("cannot find khayal process", []string{
-			"remove stale PID: rm ~/.config/khayal/khayal.pid",
+			fmt.Sprintf("remove stale PID: rm %s", cli.PidFilePath()),
 			"start khayal:     khayal start",
 		})
 		return err

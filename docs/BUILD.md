@@ -63,6 +63,32 @@ The build uses `vite-plugin-pwa` which:
 3. Generates `sw.js` with Workbox precache + runtime caching
 4. Generates `registerSW.js` for service worker registration
 
+## Release
+
+```bash
+# Tag and push to trigger release
+git tag v0.1.0
+git push origin v0.1.0
+
+# GitHub Actions runs goreleaser:
+# 1. Builds React PWA
+# 2. Builds khayal + kl (darwin/linux, amd64/arm64)
+# 3. Creates GitHub release with archives
+# 4. Updates rawnaqs/homebrew-tap
+```
+
+### Homebrew Install
+
+```bash
+brew install rawnaqs/tap/khayal
+```
+
+### One-liner Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rawnaqs/khayal/main/install.sh | sh
+```
+
 ## Requirements
 
 ### Go
@@ -76,39 +102,3 @@ None! Pure Go dependencies with no external requirements.
 ### Frontend
 - Node.js 18+
 - npm
-
-## Phase 7 Files
-
-When Phase 7 is implemented, add build commands to:
-
-- **Makefile**
-  ```
-  .PHONY: build test
-  build: go build -o khayal ./cmd/khayal
-  test: go test ./...
-  ```
-
-- **.goreleaser.yml**
-  ```yaml
-  builds:
-    - id: khayal
-      main: ./cmd/khayal
-  ```
-
-- **.github/workflows/ci.yml**
-  ```yaml
-  - name: Run Go tests
-    run: go test -v ./...
-
-  - name: Install frontend dependencies
-    run: cd external/react && npm ci
-
-  - name: Run frontend tests
-    run: cd external/react && npm run test:run
-
-  - name: Build frontend
-    run: cd external/react && npm run build
-
-  - name: Build binary (includes embedded PWA)
-    run: go build -o khayal ./cmd/khayal
-  ```

@@ -51,11 +51,10 @@ func (s *Server) setupRouter() {
 
 	s.router.Use(middleware.RequestLogger(s.logger))
 
-	s.router.Get("/v1/health", s.healthHandler)
-
 	s.router.Route("/v1", func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware(s.config.Server.Token, WriteError))
 
+		r.Get("/health", s.healthHandler)
 		r.Post("/capture", s.captureHandler)
 		r.Get("/search", s.searchHandler)
 		r.Get("/stats", s.statsHandler)

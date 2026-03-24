@@ -35,9 +35,9 @@ func ErrorWithHint(title string, hints []string) {
 func ServerUnreachable(host string) {
 	ActionableError(
 		fmt.Sprintf("cannot reach khayal at %s", host),
-		"is khayal running?    ssh mac-air khayal start",
+		"is khayal running?",
 		"wrong address?        kl config set host <address>",
-		"check logs            ssh mac-air khayal logs",
+		"check logs in khayal",
 	)
 }
 

@@ -46,7 +46,7 @@ func ActionableError(title string, hints []string) {
 
 func ServerUnreachable(host string) {
 	ActionableError("cannot reach khayal at "+host, []string{
-		"is khayal running?    ssh mac-air khayal start",
+		"is khayal running?",
 		"wrong address?        kl config set host <address>",
 		"check status          kl status",
 	})

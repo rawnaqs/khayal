@@ -267,7 +267,7 @@ func (c *Client) Status() (*HealthResponse, error) {
 }
 
 func (c *Client) CheckConnection() error {
-	resp, err := c.client.Get(c.Host + "/v1/health")
+	resp, err := c.doRequest("GET", "/v1/health", nil)
 	if err != nil {
 		return fmt.Errorf("cannot reach server: %w", err)
 	}

@@ -25,7 +25,7 @@ func LoadConfig() (*Config, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, fmt.Errorf("config not found: %s (run 'kl init' first)", configPath)
+			return nil, fmt.Errorf("kl is not configured. run 'kl init' to connect to khayal")
 		}
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}

@@ -144,6 +144,9 @@ func runStart() error {
 	fmt.Println()
 	fmt.Println(theme.Bold.Render("khayal is running."))
 	fmt.Println(theme.Dim.Render("press ctrl+c to stop"))
+	fmt.Println()
+	fmt.Println(theme.Dim.Render("open the web UI:"))
+	fmt.Printf("    http://%s:%d\n", cfg.Server.Host, cfg.Server.Port)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

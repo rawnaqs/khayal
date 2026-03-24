@@ -28,7 +28,6 @@ Server management:
 Management:
   khayal status    Interactive dashboard
   khayal reindex   Rebuild embeddings
-  khayal logs      Tail logs
 
 Configuration:
   khayal config    View configuration
@@ -46,7 +45,6 @@ Configuration:
 		newStatusCmd(),
 		newReindexCmd(),
 		newVersionCmd(),
-		newLogsCmd(),
 		newConfigCmd(),
 	)
 

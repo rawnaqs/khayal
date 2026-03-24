@@ -47,7 +47,7 @@ paths:
         - Ollama connectivity
         - Vault directory existence
         - Database connectivity
-        - Job queue counts
+        - Update availability
       responses:
         '200':
           description: Health status
@@ -382,8 +382,15 @@ components:
               $ref: '#/components/schemas/DependencyStatus'
             db:
               $ref: '#/components/schemas/DependencyStatus'
-        queue:
-          $ref: '#/components/schemas/QueueStats'
+        update:
+          type: object
+          properties:
+            available:
+              type: boolean
+            latest:
+              type: string
+            server_version:
+              type: string
     
     DependencyStatus:
       type: object
@@ -395,18 +402,6 @@ components:
           type: string
         path:
           type: string
-
-    QueueStats:
-      type: object
-      properties:
-        pending:
-          type: integer
-        processing:
-          type: integer
-        done:
-          type: integer
-        failed:
-          type: integer
 
     # Stats
     StatsResponse:

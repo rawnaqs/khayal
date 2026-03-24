@@ -7,9 +7,11 @@ import (
 
 func NewRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "kl",
-		Short: "Your private second brain",
-		Args:  cobra.ArbitraryArgs,
+		Use:           "kl",
+		Short:         "Your private second brain",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+		Args:          cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) == 0 {
 				return cmd.Help()

@@ -290,7 +290,7 @@ Auth: X-Khayal-Token: <token>
 |--------|------|-------------|
 | POST | /v1/capture | Capture text, URL, or image |
 | GET | /v1/search | Keyword + semantic search |
-| GET | /v1/health | Dependency status + queue counts |
+| GET | /v1/health | Dependency status + update check |
 | GET | /v1/queue | Job list with pagination |
 | GET | /v1/queue/:id | Single job status |
 

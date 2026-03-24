@@ -9,15 +9,25 @@ import (
 	"github.com/rawnaqs/theme"
 )
 
-func LoadConfig() (*config.Config, string, error) {
+// ConfigPath returns the config file path, respecting KHAYAL_CONFIG env var.
+func ConfigPath() string {
 	cfgPath := os.Getenv("KHAYAL_CONFIG")
 	if cfgPath == "" {
 		cfgPath = config.DefaultConfigPath
 	}
+	return config.ExpandTilde(cfgPath)
+}
 
-	cfg, absCfgPath, err := config.LoadFromPath(cfgPath)
+// ConfigDir returns the directory containing the config file.
+func ConfigDir() string {
+	abs, _ := filepath.Abs(ConfigPath())
+	return filepath.Dir(abs)
+}
+
+func LoadConfig() (*config.Config, string, error) {
+	cfg, absCfgPath, err := config.LoadFromPath(ConfigPath())
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to load config: %w", err)
+		return nil, "", err
 	}
 
 	return cfg, absCfgPath, nil

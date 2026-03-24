@@ -9,8 +9,8 @@ import (
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.Vault.Path != "~/Documents/brain" {
-		t.Errorf("expected default vault path ~/Documents/brain, got %s", cfg.Vault.Path)
+	if cfg.Vault.Path != "" {
+		t.Errorf("expected empty vault path, got %s", cfg.Vault.Path)
 	}
 	if cfg.Server.Port != 1133 {
 		t.Errorf("expected default port 1133, got %d", cfg.Server.Port)

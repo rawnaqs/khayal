@@ -27,10 +27,9 @@ khayal/
 │   │       ├── start.go           # Start server + deps check
 │   │       ├── stop.go            # Graceful shutdown
 │   │       ├── restart.go          # Stop + start
-│   │       ├── status.go          # Bubble Tea TUI dashboard
+│   │       ├── status.go          # Server status + update check
 │   │       ├── reindex.go         # Progress bar reindex
 │   │       ├── version.go         # Version info
-│   │       ├── logs.go            # Log tail
 │   │       └── config.go          # View config
 │   │
 │   └── kl/                          # Client CLI
@@ -109,8 +108,23 @@ khayal/
 │   ├── config/
 │   │   └── config.go                   # Config loader, validation
 │   │
-│   └── version/
-│       └── version.go                  # Version info (set by goreleaser)
+│   ├── version/
+│   │   └── version.go                  # Version info (set by goreleaser)
+│   │
+│   └── updater/
+│       └── check.go                    # GitHub release version check
+│
+├── .goreleaser.yml                      # Release config (2 binaries)
+├── .github/
+│   └── workflows/
+│       ├── ci.yml                       # Test + lint on PRs
+│       └── release.yml                  # GoReleaser on v* tags
+├── install.sh                           # One-liner curl installer
+├── docker-compose.yml                   # khayal + ollama
+├── config.example.yaml                  # Full config reference
+├── Dockerfile                           # Go-only multi-stage
+├── README.md
+├── CONTRIBUTING.md
 │
 ├── external/
 │   └── react/                          # Vite + React PWA project

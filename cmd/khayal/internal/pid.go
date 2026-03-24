@@ -6,25 +6,23 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
-
-	"github.com/rawnaqs/khayal/internal/config"
 )
 
 const pidFileName = "khayal.pid"
 
 func getPidFilePath() (string, error) {
-	cfgPath := os.Getenv("KHAYAL_CONFIG")
-	if cfgPath == "" {
-		cfgPath = config.ExpandTilde("~/.config/khayal/config.yaml")
-	}
-
-	absPath, err := filepath.Abs(cfgPath)
+	absPath, err := filepath.Abs(ConfigPath())
 	if err != nil {
 		return "", err
 	}
 
 	dir := filepath.Dir(absPath)
 	return filepath.Join(dir, pidFileName), nil
+}
+
+func PidFilePath() string {
+	p, _ := getPidFilePath()
+	return p
 }
 
 func WritePID() (int, error) {

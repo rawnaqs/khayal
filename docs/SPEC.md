@@ -104,14 +104,14 @@ kl recent                 # recent captures
 kl recent --days 7        # last 7 days
 kl recent --type image    # recent images only
 kl stats                  # vault statistics (read-only)
-kl status                 # lightweight — server reachable, queue health
+kl status                 # lightweight — server reachable, update check
 kl init                   # setup ~/.config/khayal/kl.yaml (client config only)
 kl config                 # view/set client config (host, token)
 kl completion             # generate shell completion scripts
 kl version               # kl version + connected khayal server version
 ```
 
-**Removed from kl:** vault maintenance, reindex, logs — these require server access and belong in khayal.
+**Removed from kl:** vault maintenance, reindex — these require server access and belong in khayal.
 
 ### khayal commands — server administration only
 
@@ -124,7 +124,6 @@ khayal status       # full admin dashboard (Bubble Tea TUI)
 khayal reindex      # rebuild all chunk embeddings from vault
 khayal backup      # backup vault, db + config (v1.1)
 khayal restore      # restore from backup (v1.1)
-khayal logs         # tail server logs
 khayal config       # view current config (token redacted)
 khayal version      # version + build info
 khayal completion   # generate shell completion scripts
@@ -139,24 +138,23 @@ khayal vault        # vault maintenance subcommands
 
 #### khayal init
 
-Generates `~/.config/khayal/config.yaml` with 600 permissions. Generates token. Prints token once — never again.
+Creates config directory, writes config.yaml with vault path and token. Token shown once — never again.
 
 ```
-khayal init
+? Vault path (your notes directory): ~/Documents/brain
+generating token...       a3f9c2e1d7b4f892...
 
-creating config directory...  ~/.config/khayal/
-generating token...           a3f9c2e1d7b4f892... (save this — shown once)
-writing config...             ~/.config/khayal/config.yaml (600)
-creating log directory...     ~/.config/khayal/logs/
+  ✓ config: ~/.config/khayal/config.yaml
+  ✓ token:  a3f9c2e... (shown once)
 
-next steps:
-  1. edit ~/.config/khayal/config.yaml
-     set vault.path to your vault location
+  get started:
+    khayal start
+    kl init --token a3f9c2e1d7b4f892...
+```
 
-  2. khayal start
-
-  3. on client machines:
-     kl init → enter server address + token
+Non-interactive:
+```
+khayal init --vault ~/brain --token mytoken
 ```
 
 #### khayal start
@@ -173,7 +171,6 @@ checking dependencies...
   ✓ vault         /absolute/path/to/vault
   ✓ db            /absolute/path/to/khayal.db
   ✓ log           /absolute/path/to/logs/khayal.log
-  ✓ queue         ready
   ✓ llm           ollama
   ✓ worker        started
   ✓ server        127.0.0.1:1133
@@ -181,7 +178,11 @@ checking dependencies...
 
 khayal is running.
 press ctrl+c to stop
-press ctrl+c to stop
+
+connect a client:
+    kl init --token a3f9c2e1d7b4...
+open the web UI:
+    http://127.0.0.1:1133
 ```
 
 **Vault auto-scan on start:**
@@ -299,24 +300,6 @@ Rules:
 - If interrupted (ctrl+c): graceful stop, show progress so far
 - `khayal reindex --force` → reindex everything regardless of mtime
 - `khayal reindex --fts-only` → only rebuild FTS index (skip embeddings)
-
-#### khayal logs
-
-```
-khayal logs
-
-  tailing ~/.config/khayal/logs/khayal.log
-  ctrl+c to stop
-
-  2024-03-16T14:23:01 POST /v1/capture 200 47ms
-  2024-03-16T14:23:04 worker: processed text abc123 3.2s
-  2024-03-16T14:23:18 POST /v1/capture 200 52ms
-  2024-03-16T14:23:19 worker: queued image def456
-  2024-03-16T14:24:01 worker: processed image def456 11.4s
-  2024-03-16T14:25:33 GET /v1/search 200 89ms
-```
-
-Simple log tail. No flags needed. ctrl+c to exit.
 
 #### khayal version
 
@@ -602,7 +585,7 @@ The most used command. Output must be instant and minimal.
 
   → is khayal running?     ssh mac-air khayal start
   → wrong address?         kl config set host <address>
-  → check logs             ssh mac-air khayal logs
+  → check logs             ssh mac-air tail ~/.config/khayal/logs/khayal.log
 ```
 
 Rules:
@@ -847,7 +830,7 @@ Examples:
 ✗ cannot reach khayal at http://100.x.x.x:1133
   → is khayal running?    ssh mac-air khayal start
   → wrong address?        kl config set host <address>
-  → check logs            ssh mac-air khayal logs
+  → check logs            ssh mac-air tail ~/.config/khayal/logs/khayal.log
 
 # Auth failed
 ✗ unauthorized · invalid token
@@ -1859,26 +1842,17 @@ server:
 - Request body (capture content)
 - Note content
 
-**khayal logs command:**
-
-```bash
-khayal logs           # tail human readable log
-khayal logs --json    # tail JSON log, pipe to jq
-khayal logs --level error  # only show errors
-khayal logs --since 1h     # last hour only
-```
-
 **jq examples:**
 
 ```bash
 # average search latency
-khayal logs --json | jq 'select(.path=="/v1/search") | .latency_ms' | awk '{sum+=$1; n++} END {print sum/n}'
+tail -f ~/.config/khayal/logs/khayal.log | jq 'select(.path=="/v1/search") | .latency_ms' | awk '{sum+=$1; n++} END {print sum/n}'
 
 # all errors in last hour
-khayal logs --json --since 1h | jq 'select(.level=="ERROR")'
+tail -f ~/.config/khayal/logs/khayal.log | jq 'select(.level=="ERROR")'
 
 # capture count by type today
-khayal logs --json | jq 'select(.path=="/v1/capture") | .type' | sort | uniq -c
+tail -f ~/.config/khayal/logs/khayal.log | jq 'select(.path=="/v1/capture") | .type' | sort | uniq -c
 ```
 
 ---
@@ -1893,7 +1867,7 @@ Auth: `X-Khayal-Token: <token>` on every request
 ```
 POST   /v1/capture          → capture anything
 GET    /v1/search           → keyword + semantic search
-GET    /v1/health           → dependency status + queue counts
+GET    /v1/health           → dependency status + update check
 GET    /v1/queue            → job list with pagination
 GET    /v1/queue/:id        → single job status
 POST   /v1/queue/:id/retry  → retry a failed or pending job
@@ -2354,7 +2328,7 @@ kl "thought"                     # capture text → ✓ saved · #tag · 3ms
 kl --url https://...             # capture URL  → ⏳ queued · article · id: abc123
 kl --image ~/screenshot.png      # capture image → ⏳ queued · image · id: def456
 kl search "distributed systems"  # search → Glamour renders excerpts
-kl status                        # lightweight — server reachable, queue health
+kl status                 # lightweight — server reachable, update check
 kl recent                        # show recent captures
 kl browse                        # browse by tag, person, amount
 kl stats                        # show vault statistics

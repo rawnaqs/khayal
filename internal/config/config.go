@@ -15,7 +15,15 @@ const (
 	DefaultConfigPath = "~/.config/khayal/config.yaml"
 	DefaultDBPath     = "~/.config/khayal/khayal.db"
 	DefaultLogPath    = "~/.config/khayal/logs/khayal.log"
+
+	DefaultServerHost = "127.0.0.1"
+	DefaultServerPort = 1133
+	DefaultOllamaHost = "http://localhost:11434"
 )
+
+func DefaultServerURL() string {
+	return fmt.Sprintf("http://%s:%d", DefaultServerHost, DefaultServerPort)
+}
 
 type Config struct {
 	Vault  VaultConfig  `yaml:"vault"`
@@ -106,7 +114,6 @@ type LogConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Vault: VaultConfig{
-			Path:     "~/Documents/brain",
 			InboxDir: "khayal",
 			Media: MediaConfig{
 				DefaultDir: "media",
@@ -119,8 +126,8 @@ func DefaultConfig() *Config {
 			},
 		},
 		Server: ServerConfig{
-			Host:             "127.0.0.1",
-			Port:             1133,
+			Host:             DefaultServerHost,
+			Port:             DefaultServerPort,
 			Token:            "",
 			MaxTextBodyMB:    1,
 			MaxImageBodyMB:   10,
@@ -128,7 +135,7 @@ func DefaultConfig() *Config {
 		},
 		LLM: LLMConfig{
 			Provider:              "ollama",
-			OllamaHost:            "http://localhost:11434",
+			OllamaHost:            DefaultOllamaHost,
 			EmbedModel:            "nomic-embed-text",
 			TextModel:             "llama3.2:3b",
 			VisionModel:           "moondream",
@@ -168,7 +175,7 @@ func LoadFromPath(path string) (*Config, string, error) {
 	data, err := os.ReadFile(absPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return cfg, absPath, nil
+			return nil, "", fmt.Errorf("config not found: %s (run 'khayal init' first)", absPath)
 		}
 		return nil, "", fmt.Errorf("failed to read config: %w", err)
 	}
@@ -197,7 +204,7 @@ func (c *Config) ApplyDefaults() {
 		c.Server.MaxImageBodyMB = 10
 	}
 	if c.Server.Port == 0 {
-		c.Server.Port = 1133
+		c.Server.Port = DefaultServerPort
 	}
 	if c.Server.ShutdownTimeoutS == 0 {
 		c.Server.ShutdownTimeoutS = 30
