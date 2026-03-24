@@ -16,7 +16,7 @@ const tabs = [
 
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   return (
-    <nav className="nav" style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 26px)' }}>
+    <nav className="nav">
       {tabs.map((tab) => {
         const Icon = tab.icon
         const isActive = activeTab === tab.id

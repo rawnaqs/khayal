@@ -1,46 +1,47 @@
-import { useState } from 'react'
-import { motion } from 'framer-motion'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { STORAGE_KEYS } from "@/lib/constants";
 
 interface OnboardingProps {
-  onComplete: () => void
+  onComplete: () => void;
 }
 
 export function Onboarding({ onComplete }: OnboardingProps) {
-  const [token, setToken] = useState('')
-  const [error, setError] = useState('')
-  const [testing, setTesting] = useState(false)
+  const [token, setToken] = useState("");
+  const [error, setError] = useState("");
+  const [testing, setTesting] = useState(false);
 
   const testConnection = async () => {
     if (!token) {
-      setError('Please enter your token')
-      return
+      setError("Please enter your token");
+      return;
     }
 
-    setTesting(true)
-    setError('')
+    setTesting(true);
+    setError("");
 
     try {
-      const host = window.location.origin
+      const host = window.location.origin;
       const response = await fetch(`${host}/v1/health`, {
-        headers: { 'X-Khayal-Token': token },
-      })
+        headers: { "X-Khayal-Token": token },
+      });
 
       if (!response.ok) {
-        throw new Error('Invalid token')
+        throw new Error("Invalid token");
       }
 
-      localStorage.setItem('khayal_host', host)
-      localStorage.setItem('khayal_token', token)
-      onComplete()
+      localStorage.setItem(STORAGE_KEYS.HOST, host);
+      localStorage.setItem(STORAGE_KEYS.TOKEN, token);
+      onComplete();
     } catch {
-      setError('Cannot connect. Check your token.')
+      setError("Cannot connect. Check your token.");
     } finally {
-      setTesting(false)
+      setTesting(false);
     }
-  }
+  };
 
   return (
     <div className="flex flex-col items-center justify-center h-screen p-6 bg-background">
@@ -59,7 +60,9 @@ export function Onboarding({ onComplete }: OnboardingProps) {
             >
               <img src="/icon.svg" alt="khayal" className="w-16 h-16" />
             </motion.div>
-            <CardTitle className="text-2xl font-bold tracking-tight">khayal</CardTitle>
+            <CardTitle className="text-2xl font-bold tracking-tight">
+              khayal
+            </CardTitle>
             <p className="text-caption mt-1">private second brain</p>
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
@@ -69,8 +72,8 @@ export function Onboarding({ onComplete }: OnboardingProps) {
               value={token}
               onChange={(e) => setToken(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  testConnection()
+                if (e.key === "Enter") {
+                  testConnection();
                 }
               }}
               className="glass input-glow transition-all duration-300"
@@ -93,7 +96,7 @@ export function Onboarding({ onComplete }: OnboardingProps) {
                 {testing ? (
                   <span className="animate-pulse">connecting...</span>
                 ) : (
-                  'connect'
+                  "connect"
                 )}
               </Button>
             </motion.div>
@@ -101,5 +104,5 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         </Card>
       </motion.div>
     </div>
-  )
+  );
 }

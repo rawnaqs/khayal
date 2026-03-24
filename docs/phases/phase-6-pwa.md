@@ -1,15 +1,17 @@
 # Phase 6: PWA
 
-> Web interface with React. Updated: 2026-03-17
+> Web interface with React. Updated: 2026-03-24
 
 ## Goals
 
-- [ ] Vite + React setup
-- [ ] Capture UI
-- [ ] Search UI
-- [ ] Offline queue (IndexedDB)
+- [x] Vite + React setup
+- [x] Capture UI
+- [x] Search UI
+- [x] Offline queue (IndexedDB)
 - [x] Go static serving
 - [x] SPA fallback
+- [x] Service worker (Full offline PWA)
+- [x] Tests (Vitest + Playwright)
 
 ## Directory Structure
 
@@ -606,18 +608,18 @@ npm run build
 
 ## Checklist
 
-- [ ] Vite + React setup
-- [ ] Theme CSS integration
-- [ ] Capture form (text, url, image)
-- [ ] Search UI
-- [ ] Queue display
-- [ ] Offline queue (IndexedDB)
-- [ ] Auto-sync on reconnect
+- [x] Vite + React setup
+- [x] Theme CSS integration
+- [x] Capture form (text, url, image)
+- [x] Search UI
+- [x] Queue display
+- [x] Offline queue (IndexedDB)
+- [x] Auto-sync on reconnect
 - [x] Go static serving
 - [x] SPA fallback
-- [ ] PWA manifest
-- [ ] Service worker (optional)
-- [ ] Tests passing
+- [x] PWA manifest
+- [x] Service worker (Full offline PWA with Workbox)
+- [x] Tests passing (71 unit tests, 3 E2E test files)
 
 ## Next Phase
 

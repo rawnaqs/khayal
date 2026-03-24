@@ -57,7 +57,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#040404' }}>
+      <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#070707' }}>
         <Header />
         <main className="flex-1 overflow-hidden">
           <AnimatePresence mode="wait">
@@ -69,7 +69,7 @@ export default function App() {
               exit="exit"
               transition={{ duration: 0.2, ease: "easeOut" }}
               className="h-full overflow-y-auto"
-              style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 5rem)' }}
+              style={{ paddingBottom: '1rem' }}
             >
               {renderView()}
             </motion.div>

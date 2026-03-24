@@ -18,12 +18,8 @@ export const TextCapture = forwardRef<TextCaptureRef, TextCaptureProps>(
     useEffect(() => {
       if (initialContent && textareaRef.current) {
         textareaRef.current.value = initialContent
-        textareaRef.current.focus()
-        // Move cursor to end
         textareaRef.current.selectionStart = textareaRef.current.value.length
         textareaRef.current.selectionEnd = textareaRef.current.value.length
-      } else {
-        textareaRef.current?.focus()
       }
     }, [initialContent])
 
@@ -34,7 +30,6 @@ export const TextCapture = forwardRef<TextCaptureRef, TextCaptureProps>(
         await onSubmit(content)
         if (textareaRef.current) {
           textareaRef.current.value = ''
-          textareaRef.current.focus()
         }
       },
       getContent: () => textareaRef.current?.value || '',
