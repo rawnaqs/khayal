@@ -10,41 +10,85 @@
 - [x] Offline queue (IndexedDB)
 - [x] Go static serving
 - [x] SPA fallback
-- [x] Service worker (Full offline PWA)
-- [x] Tests (Vitest + Playwright)
+- [x] Service worker (Full offline PWA with Workbox)
+- [x] Tests (71 unit + 60 E2E)
 
 ## Directory Structure
 
 ```
-ui/
-├── react/                    # Separate npm project
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── index.html
-│   ├── src/
-│   │   ├── main.tsx
-│   │   ├── App.tsx
-│   │   ├── components/
-│   │   │   ├── Capture.tsx
-│   │   │   ├── Search.tsx
-│   │   │   ├── Queue.tsx
-│   │   │   └── Layout.tsx
-│   │   ├── lib/
-│   │   │   ├── api.ts
-│   │   │   ├── offline.ts
-│   │   │   └── store.ts
-│   │   └── styles/
-│   │       └── global.css
-│   └── public/
-│       └── manifest.json
-└── static/                    # Built files (after npm build)
-    ├── assets/
-    └── index.html
+external/react/               # Separate npm project
+├── package.json
+├── vite.config.ts             # Vite + PWA plugin (Workbox)
+├── vitest.config.ts           # Unit test config
+├── playwright.config.ts       # E2E test config
+├── tailwind.config.js
+├── index.html
+├── src/
+│   ├── main.tsx               # Entry point + SW registration
+│   ├── App.tsx                # Root component, tab routing
+│   ├── index.css              # All styles (single CSS file)
+│   ├── sw.ts                  # Service worker (Workbox + bg sync)
+│   ├── components/
+│   │   ├── capture/
+│   │   │   ├── CaptureView.tsx
+│   │   │   ├── TextCapture.tsx
+│   │   │   ├── UrlCapture.tsx
+│   │   │   ├── ImageCapture.tsx
+│   │   │   ├── CaptureResult.tsx
+│   │   │   ├── CaptureStats.tsx
+│   │   │   └── __tests__/
+│   │   ├── search/
+│   │   │   ├── SearchView.tsx
+│   │   │   ├── SearchInput.tsx
+│   │   │   ├── ResultCard.tsx
+│   │   │   ├── ResultHero.tsx
+│   │   │   ├── ResultCompact.tsx
+│   │   │   └── __tests__/
+│   │   ├── queue/
+│   │   │   ├── QueueView.tsx
+│   │   │   ├── QueueMetrics.tsx
+│   │   │   ├── ActiveJobCard.tsx
+│   │   │   ├── FailedJobCard.tsx
+│   │   │   ├── FailedJobExpanded.tsx
+│   │   │   ├── DoneItem.tsx
+│   │   │   ├── OfflineSection.tsx
+│   │   │   └── RetryAllBanner.tsx
+│   │   ├── layout/
+│   │   │   ├── BottomNav.tsx
+│   │   │   └── Header.tsx
+│   │   ├── ui/                # shadcn/ui components
+│   │   ├── Onboarding.tsx
+│   │   └── ErrorBoundary.tsx
+│   ├── hooks/
+│   │   ├── useCapture.ts
+│   │   ├── useSearch.ts
+│   │   ├── useStats.ts
+│   │   ├── useQueue.ts
+│   │   ├── useServerStatus.ts
+│   │   ├── useSubmitLock.ts
+│   │   └── __tests__/
+│   ├── lib/
+│   │   ├── api.ts             # KhayalClient
+│   │   ├── offline.ts         # IndexedDB + bg sync
+│   │   ├── constants.ts       # Shared constants
+│   │   ├── utils.ts
+│   │   └── __tests__/
+│   └── test/
+│       ├── setup.ts           # Vitest setup (mocks)
+│       └── utils.tsx          # Render helper
+├── e2e/
+│   ├── helpers.ts
+│   ├── capture.spec.ts
+│   ├── search.spec.ts
+│   └── offline.spec.ts
+└── public/
+    ├── icon-192.png
+    └── icon-512.png
 ```
 
 ## Step 6.1: Vite + React Setup
 
-**File:** `ui/react/package.json`
+**File:** `external/react/package.json`
 
 ```json
 {
@@ -74,7 +118,7 @@ ui/
 }
 ```
 
-**File:** `ui/react/vite.config.ts`
+**File:** `external/react/vite.config.ts`
 
 ```ts
 import { defineConfig } from 'vite'
@@ -97,22 +141,35 @@ export default defineConfig({
 
 ### Layout
 
-**File:** `ui/react/src/components/Layout.tsx`
+**File:** `external/react/src/components/layout/BottomNav.tsx` and `Header.tsx`
+
+The layout is split into two components:
+- `BottomNav.tsx` — Tab navigation with safe area handling
+- `Header.tsx` — Top bar with safe area padding
 
 ```tsx
-import { ReactNode } from 'react'
+// BottomNav.tsx — tab navigation
+import { motion } from 'framer-motion'
+import { PenLine, Search, Clock } from 'lucide-react'
 
-export function Layout({ children }: { children: ReactNode }) {
+const tabs = [
+  { id: 'capture', label: 'capture', icon: PenLine },
+  { id: 'search', label: 'search', icon: Search },
+  { id: 'queue', label: 'queue', icon: Clock },
+]
+
+export function BottomNav({ activeTab, onTabChange }) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <header className="p-4 border-b border-border">
-        <h1 className="text-xl font-bold">Khayal</h1>
-        <nav className="flex gap-4 mt-2">
-          <a href="/" className="text-muted-foreground hover:text-foreground">Capture</a>
-          <a href="/search" className="text-muted-foreground hover:text-foreground">Search</a>
-          <a href="/queue" className="text-muted-foreground hover:text-foreground">Queue</a>
-        </nav>
-      </header>
+    <nav className="nav safe-area-bottom">
+      {tabs.map(tab => (
+        <div onClick={() => onTabChange(tab.id)} className={cn('nt', activeTab === tab.id && 'on')}>
+          <tab.icon />
+          <span>{tab.label}</span>
+        </div>
+      ))}
+    </nav>
+  )
+}
       <main className="p-4">
         {children}
       </main>
@@ -123,7 +180,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
 ### Capture Form
 
-**File:** `ui/react/src/components/Capture.tsx`
+**File:** `external/react/src/components/capture/CaptureView.tsx`
 
 ```tsx
 import { useState } from 'react'
@@ -240,7 +297,7 @@ export function Capture() {
 
 ### Search UI
 
-**File:** `ui/react/src/components/Search.tsx`
+**File:** `external/react/src/components/search/SearchView.tsx`
 
 ```tsx
 import { useState } from 'react'
@@ -313,7 +370,7 @@ interface SearchResult {
 
 ## Step 6.3: Offline Support
 
-**File:** `ui/react/src/lib/offline.ts`
+**File:** `external/react/src/lib/offline.ts`
 
 ```ts
 import { get, set, del, keys } from 'idb-keyval'
@@ -391,7 +448,7 @@ export function setupOfflineSync(apiHost: string, token: string) {
 
 ## Step 6.4: API Client
 
-**File:** `ui/react/src/lib/api.ts`
+**File:** `external/react/src/lib/api.ts`
 
 ```ts
 const API_BASE = import.meta.env.VITE_API_BASE || ''
@@ -567,7 +624,7 @@ func (s *Server) staticHandler(w http.ResponseWriter, r *http.Request) {
 
 ## Step 6.6: Build Integration
 
-In `ui/react/src/main.tsx`:
+In `external/react/src/main.tsx`:
 
 ```tsx
 import React from 'react'
@@ -598,11 +655,20 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
 - [ ] Component tests (Vitest)
 - [ ] E2E tests (Playwright)
-- [ ] Offline queue tests
+## Testing
 
 ```bash
-cd ui/react
-npm test
+cd external/react
+
+# Unit tests (Vitest)
+npm run test          # Watch mode
+npm run test:run      # Single run
+
+# E2E tests (Playwright)
+npm run test:e2e      # Headless
+npm run test:e2e:ui   # With UI
+
+# Build
 npm run build
 ```
 

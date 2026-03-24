@@ -1,6 +1,6 @@
 # Repository Structure
 
-> Complete file tree for Khayal v1. Updated: 2026-03-17
+> Complete file tree for Khayal v1. Updated: 2026-03-24
 
 ## Two Binaries
 
@@ -112,61 +112,140 @@ khayal/
 │   └── version/
 │       └── version.go                  # Version info (set by goreleaser)
 │
-├── cli/
-│   ├── main.go                         # CLI entry point
-│   ├── root.go                         # Cobra root command
-│   ├── capture.go                      # kl "text", --url, --image
-│   ├── search.go                       # kl search (dynamic dividers)
-│   ├── recent.go                       # kl recent
-│   ├── stats.go                        # kl stats
-│   ├── status.go                       # kl status (lightweight, read-only)
-│   ├── init.go                         # kl init (Huh wizard)
-│   └── config.go                       # kl config set/get/view
-│
-├── ui/
-│   ├── react/                          # Vite + React project
-│   │   ├── package.json
-│   │   ├── vite.config.ts
-│   │   ├── index.html
-│   │   ├── tsconfig.json
-│   │   ├── src/
-│   │   │   ├── main.tsx                # Entry point
-│   │   │   ├── App.tsx                 # Routes
-│   │   │   ├── components/
-│   │   │   │   ├── Layout.tsx          # Main layout
-│   │   │   │   ├── Capture.tsx         # Capture form
-│   │   │   │   ├── Search.tsx          # Search UI
-│   │   │   │   ├── Queue.tsx           # Queue display
-│   │   │   │   └── OfflineIndicator.tsx
-│   │   │   ├── lib/
-│   │   │   │   ├── api.ts              # API client
-│   │   │   │   ├── offline.ts          # IndexedDB queue
-│   │   │   │   └── store.ts            # Zustand store
-│   │   │   └── styles/
-│   │   │       └── global.css          # Global styles
-│   │   └── public/
-│   │       └── manifest.json           # PWA manifest
-│   │
-│   └── static/                         # Built React app (generated)
+├── external/
+│   └── react/                          # Vite + React PWA project
+│       ├── package.json
+│       ├── vite.config.ts              # Vite + PWA plugin config
+│       ├── vitest.config.ts            # Unit test config
+│       ├── playwright.config.ts        # E2E test config
+│       ├── tailwind.config.js
+│       ├── postcss.config.js
+│       ├── tsconfig.json
+│       ├── tsconfig.node.json
 │       ├── index.html
-│       ├── assets/
-│       └── ...
+│       ├── components.json             # shadcn/ui config
+│       ├── public/
+│       │   ├── icon-192.png            # PWA icon (small)
+│       │   ├── icon-512.png            # PWA icon (large)
+│       │   ├── icon.png                # Source icon
+│       │   └── icon.svg                # SVG icon
+│       ├── src/
+│       │   ├── main.tsx                # Entry point + SW registration
+│       │   ├── App.tsx                 # Root component, tab routing
+│       │   ├── index.css               # All styles (single CSS file)
+│       │   ├── sw.ts                   # Service worker (Workbox + background sync)
+│       │   ├── vite-env.d.ts
+│       │   ├── components/
+│       │   │   ├── capture/
+│       │   │   │   ├── CaptureView.tsx      # Main capture screen
+│       │   │   │   ├── TextCapture.tsx      # Text input
+│       │   │   │   ├── UrlCapture.tsx       # URL input
+│       │   │   │   ├── ImageCapture.tsx     # File upload
+│       │   │   │   ├── CaptureResult.tsx    # Success/queued/offline/error tiles
+│       │   │   │   ├── CaptureStats.tsx     # Bento grid stats
+│       │   │   │   └── __tests__/
+│       │   │   │       └── CaptureView.test.tsx
+│       │   │   ├── search/
+│       │   │   │   ├── SearchView.tsx       # Search with mode chips, filters
+│       │   │   │   ├── SearchInput.tsx      # Search bar
+│       │   │   │   ├── ResultCard.tsx       # Generic result card
+│       │   │   │   ├── ResultHero.tsx       # Hero result (high score)
+│       │   │   │   ├── ResultCompact.tsx    # Compact result (rest)
+│       │   │   │   └── __tests__/
+│       │   │   │       └── SearchView.test.tsx
+│       │   │   ├── queue/
+│       │   │   │   ├── QueueView.tsx        # Queue with metrics
+│       │   │   │   ├── QueueMetrics.tsx     # Queue stats
+│       │   │   │   ├── ActiveJobCard.tsx    # Processing job
+│       │   │   │   ├── FailedJobCard.tsx    # Failed job
+│       │   │   │   ├── FailedJobExpanded.tsx # Expanded failed
+│       │   │   │   ├── DoneItem.tsx         # Completed job
+│       │   │   │   ├── OfflineSection.tsx   # Offline queue items
+│       │   │   │   └── RetryAllBanner.tsx   # Retry all failed
+│       │   │   ├── layout/
+│       │   │   │   ├── BottomNav.tsx        # Tab navigation
+│       │   │   │   └── Header.tsx           # Top bar
+│       │   │   ├── ui/                      # shadcn/ui components
+│       │   │   │   ├── button.tsx
+│       │   │   │   ├── input.tsx
+│       │   │   │   ├── textarea.tsx
+│       │   │   │   ├── badge.tsx
+│       │   │   │   ├── card.tsx
+│       │   │   │   ├── separator.tsx
+│       │   │   │   ├── toast.tsx
+│       │   │   │   ├── toaster.tsx
+│       │   │   │   ├── tabs.tsx
+│       │   │   │   ├── skeleton.tsx
+│       │   │   │   ├── sheet.tsx
+│       │   │   │   └── dialog.tsx
+│       │   │   ├── Onboarding.tsx           # First-run setup
+│       │   │   └── ErrorBoundary.tsx        # Error catching
+│       │   ├── hooks/
+│       │   │   ├── useCapture.ts            # Capture with offline fallback
+│       │   │   ├── useSearch.ts             # Search execution
+│       │   │   ├── useStats.ts              # Polling stats
+│       │   │   ├── useQueue.ts              # Queue polling
+│       │   │   ├── useServerStatus.ts       # Health polling
+│       │   │   ├── useSubmitLock.ts         # Prevent double-submit
+│       │   │   ├── use-toast.ts             # Toast notifications
+│       │   │   └── __tests__/
+│       │   │       ├── useCapture.test.tsx
+│       │   │       ├── useSearch.test.tsx
+│       │   │       └── useStats.test.tsx
+│       │   ├── lib/
+│       │   │   ├── api.ts                   # KhayalClient, type definitions
+│       │   │   ├── offline.ts               # IndexedDB queue + background sync
+│       │   │   ├── constants.ts             # Shared constants (storage keys, limits, timeouts)
+│       │   │   ├── utils.ts                 # Utility functions (cn, etc.)
+│       │   │   └── __tests__/
+│       │   │       ├── offline.test.ts
+│       │   │       ├── api.test.ts
+│       │   │       └── constants.test.ts
+│       │   └── test/
+│       │       ├── setup.ts                 # Vitest setup (mocks, jest-dom)
+│       │       └── utils.tsx                # Render helper
+│       └── e2e/
+│           ├── helpers.ts                   # Playwright fixtures
+│           ├── capture.spec.ts              # Capture flow E2E
+│           ├── search.spec.ts               # Search flow E2E
+│           └── offline.spec.ts              # Offline/PWA E2E
 │
-├── install/
-│   └── check.go                        # Dependency checker
-│
-├── .github/
-│   └── workflows/
-│       ├── ci.yml                      # Test, vet, lint
-│       └── release.yml                  # GoReleaser
+├── internal/api/ui/                         # Built PWA (generated)
+│   └── static/
+│       ├── index.html
+│       ├── manifest.webmanifest             # PWA manifest (generated by VitePWA)
+│       ├── registerSW.js                    # SW registration
+│       ├── sw.js                            # Workbox service worker
+│       ├── workbox-*.js                     # Workbox runtime
+│       └── assets/
+│           ├── index-*.css                  # Bundled CSS
+│           └── index-*.js                   # Bundled JS
 │
 ├── docs/
-│   ├── BUILD.md                       # Build tags and requirements
-│   ├── khayal-spec.md                  # Master specification
-│   ├── TECH_STACK.md                    # Technology decisions
-│   ├── ARCHITECTURE.md                  # System design
-│   ├── PLAN.md                          # Implementation overview
-│   ├── REPO_STRUCTURE.md                # This file
+│   ├── SPEC.md                              # Master specification
+│   ├── API/
+│   │   ├── REFERENCE.md                     # API endpoint reference
+│   │   ├── openapi.yaml                     # OpenAPI 3.0 spec
+│   │   ├── AUTH.md                          # Authentication guide
+│   │   └── PLUGINS.md                       # Plugin development
+│   ├── BUILD.md                             # Build instructions
+│   ├── ARCHITECTURE.md                      # System design
+│   ├── TECH_STACK.md                        # Technology decisions
+│   ├── PLAN.md                              # Implementation overview
+│   ├── REPO_STRUCTURE.md                    # This file
+│   ├── RULES.md                             # Memory management rules
+│   ├── UI_SPEC.md                           # PWA implementation spec
+│   ├── VAULT.md                             # Vault structure and safety
+│   ├── CLI_RULES.md                         # CLI color rules
+│   ├── MANUAL_TESTING.md                    # Manual testing guide
+│   ├── RETROSPECTIVE.md                     # Decision history
+│   ├── ui/                                  # HTML mockups
+│   │   ├── khayal_search_improved.html
+│   │   ├── khayal_bento_option_d.html
+│   │   ├── khayal_status_tiles_final.html
+│   │   ├── khayal_queue_states.html
+│   │   ├── khayal_compose_boxes.html
+│   │   └── khayal_pwa_2025.html
 │   └── phases/
 │       ├── phase-1-foundation.md
 │       ├── phase-2-api.md
@@ -176,18 +255,11 @@ khayal/
 │       ├── phase-6-pwa.md
 │       └── phase-7-polish.md
 │
-├── ui/react/                            # npm dependencies for PWA
-│
-├── docker-compose.yml                   # Local development
-├── Dockerfile                           # Docker build
-├── .goreleaser.yml                       # Release config
-├── .gitignore
-├── LICENSE                              # AGPLv3
-├── README.md
-├── CONTRIBUTING.md
-├── config.example.yaml                  # Safe to commit, no secrets
 ├── go.mod
-└── go.sum
+├── go.sum
+├── .gitignore
+├── LICENSE                                  # AGPLv3
+└── config.example.yaml                      # Safe to commit, no secrets
 ```
 
 ---
@@ -207,27 +279,37 @@ Private application code. Not importable by external packages.
 | Directory | Purpose |
 |-----------|---------|
 | `api/` | HTTP handlers, middleware, routing |
+| `constants/` | Shared constants (retry, milestones, prompts) |
 | `worker/` | Background job processing |
 | `ingest/` | Content processing (text, image, article) |
 | `llm/` | AI integration |
 | `vault/` | Markdown file writing |
 | `queue/` | SQLite database operations |
 | `search/` | Search algorithms |
+| `connections/` | Proactive connections |
 | `config/` | Configuration management |
 | `version/` | Version info |
-| `log/` | Structured logging (file only, no stdout) |
 
-### `ui/`
+### `external/react/`
 
-Frontend code. `react/` is source, `static/` is built output.
+Frontend PWA project. Built with Vite + React + Tailwind + shadcn/ui.
 
-### `install/`
+| Directory | Purpose |
+|-----------|---------|
+| `src/components/capture/` | Capture UI (text, url, image, result, stats) |
+| `src/components/search/` | Search UI (view, input, results) |
+| `src/components/queue/` | Queue display (jobs, metrics) |
+| `src/components/layout/` | Navigation (bottom nav, header) |
+| `src/components/ui/` | shadcn/ui components |
+| `src/hooks/` | Custom React hooks |
+| `src/lib/` | API client, offline queue, constants |
+| `src/test/` | Vitest setup and utilities |
+| `src/sw.ts` | Service worker (Workbox + background sync) |
+| `e2e/` | Playwright E2E tests |
 
-Installation helpers (dependency checker).
+### `internal/api/ui/static/`
 
-### `docs/`
-
-Documentation. See individual phase files for detailed implementation guides.
+Built PWA output. Generated by `npm run build` in `external/react/`. Embedded into Go binary at compile time.
 
 ---
 
@@ -237,8 +319,9 @@ Documentation. See individual phase files for detailed implementation guides.
 |------|------------|---------|
 | Go source | `snake_case.go` | `config.go`, `auth.go` |
 | Go test | `*_test.go` | `config_test.go` |
-| React components | `PascalCase.tsx` | `Capture.tsx`, `Search.tsx` |
-| React utilities | `camelCase.ts` | `api.ts`, `offline.ts` |
+| React components | `PascalCase.tsx` | `CaptureView.tsx`, `SearchView.tsx` |
+| React hooks | `camelCase.ts` | `useCapture.ts`, `useSearch.ts` |
+| React utilities | `camelCase.ts` | `api.ts`, `offline.ts`, `constants.ts` |
 | Config | `kebab-case.yaml` | `config.example.yaml` |
 
 ---
@@ -318,8 +401,11 @@ func (c *Client) Health(ctx context.Context) (*HealthResponse, error)
 | POST | /v1/capture | capture.go |
 | GET | /v1/search | search.go |
 | GET | /v1/health | health.go |
+| GET | /v1/stats | stats.go |
 | GET | /v1/queue | queue.go |
 | GET | /v1/queue/:id | queue.go |
+| POST | /v1/queue/:id/retry | queue.go |
+| POST | /v1/queue/:id/discard | queue.go |
 | GET | /\* | static.go (SPA) |
 
 ---
@@ -331,6 +417,8 @@ func (c *Client) Health(ctx context.Context) (*HealthResponse, error)
 | `kl` | root.go | Root (capture) |
 | `kl capture` | capture.go | Capture text/url/image |
 | `kl search` | search.go | Search knowledge base |
+| `kl recent` | recent.go | Recent captures |
+| `kl stats` | stats.go | Vault statistics |
 | `kl status` | status.go | Queue dashboard |
 | `kl init` | init.go | Setup wizard |
 | `kl config` | config.go | Config management |
@@ -378,6 +466,16 @@ CREATE TABLE embeddings (
     vector BLOB NOT NULL,
     model TEXT NOT NULL,
     created_at TEXT NOT NULL
+);
+```
+
+### stats_cache table
+
+```sql
+CREATE TABLE stats_cache (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
 );
 ```
 
