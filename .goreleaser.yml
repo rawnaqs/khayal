@@ -1,0 +1,113 @@
+version: 2
+
+project_name: khayal
+
+before:
+  hooks:
+    - npm --prefix external/react version {{.Version}} --no-git-tag-version
+    - npm --prefix external/react ci
+    - npm --prefix external/react run build
+
+builds:
+  - id: khayal
+    main: ./cmd/khayal
+    binary: khayal
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/rawnaqs/khayal/internal/version.Version={{.Version}}
+
+  - id: kl
+    main: ./cmd/kl
+    binary: kl
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+archives:
+  - id: khayal
+    builds:
+      - khayal
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+
+  - id: kl
+    builds:
+      - kl
+    name_template: "{{ .ProjectName }}-client_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: rawnaqs
+    name: khayal
+  draft: false
+  prerelease: auto
+
+brews:
+  - name: khayal
+    repository:
+      owner: rawnaqs
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/rawnaqs/khayal"
+    description: "Your private treasury of thought. Local, secure, yours."
+    license: "AGPL-3.0"
+    install: |
+      bin.install "khayal"
+      generate_completions_from_executable(bin/"khayal", "completion")
+    service: |
+      run [opt_bin/"khayal", "start"]
+      keep_alive true
+    test: |
+      system "#{bin}/khayal", "version"
+
+  - name: kl
+    repository:
+      owner: rawnaqs
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    directory: Formula
+    homepage: "https://github.com/rawnaqs/khayal"
+    description: "Khayal CLI client — capture, search, status."
+    license: "AGPL-3.0"
+    install: |
+      bin.install "kl"
+      generate_completions_from_executable(bin/"kl", "completion")
+    test: |
+      system "#{bin}/kl", "--help"

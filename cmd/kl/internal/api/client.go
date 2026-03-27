@@ -30,8 +30,14 @@ type CaptureResponse struct {
 type HealthResponse struct {
 	Status       string       `json:"status"`
 	Version      string       `json:"version"`
+	Update       *UpdateInfo  `json:"update,omitempty"`
 	Dependencies Dependencies `json:"dependencies"`
-	Queue        QueueStats   `json:"queue"`
+}
+
+type UpdateInfo struct {
+	Available     bool   `json:"available"`
+	Latest        string `json:"latest"`
+	ServerVersion string `json:"server_version"`
 }
 
 type Dependencies struct {
@@ -44,14 +50,6 @@ type Dependency struct {
 	Status string `json:"status"`
 	Path   string `json:"path,omitempty"`
 	Host   string `json:"host,omitempty"`
-}
-
-type QueueStats struct {
-	Pending    int `json:"pending"`
-	Queued     int `json:"queued"`
-	Processing int `json:"processing"`
-	Done       int `json:"done"`
-	Failed     int `json:"failed"`
 }
 
 type SearchResult struct {

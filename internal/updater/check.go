@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/rawnaqs/khayal/internal/version"
@@ -21,21 +22,40 @@ type releaseResponse struct {
 	TagName string `json:"tag_name"`
 }
 
-// CheckForUpdate fetches the latest release from GitHub and compares it
-// with the current binary version.
+var (
+	cacheMu      sync.Mutex
+	cacheLatest  string
+	cacheChecked time.Time
+)
+
+// CheckForUpdate checks for updates with a 24-hour in-memory cache.
 func CheckForUpdate() *UpdateInfo {
 	current := version.Get()
-
 	info := &UpdateInfo{
-		Available:     false,
 		Latest:        current,
 		ServerVersion: current,
 	}
+
+	cacheMu.Lock()
+	if time.Since(cacheChecked) < 24*time.Hour && cacheLatest != "" {
+		info.Latest = cacheLatest
+		if isNewer(cacheLatest, current) {
+			info.Available = true
+		}
+		cacheMu.Unlock()
+		return info
+	}
+	cacheMu.Unlock()
 
 	latest, err := fetchLatestRelease()
 	if err != nil {
 		return info
 	}
+
+	cacheMu.Lock()
+	cacheLatest = latest
+	cacheChecked = time.Now()
+	cacheMu.Unlock()
 
 	info.Latest = latest
 	if isNewer(latest, current) {

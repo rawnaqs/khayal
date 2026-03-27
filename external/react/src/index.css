@@ -166,6 +166,13 @@
     letter-spacing: 0.3px;
   }
 
+  .update-icon {
+    color: #3ddc84;
+    cursor: pointer;
+    transition: color 0.2s;
+    flex-shrink: 0;
+  }
+
   /* Navigation */
   .nav {
     display: flex;

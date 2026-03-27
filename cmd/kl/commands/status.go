@@ -5,6 +5,7 @@ import (
 
 	"github.com/rawnaqs/khayal/cmd/kl/internal"
 	klapi "github.com/rawnaqs/khayal/cmd/kl/internal/api"
+	"github.com/rawnaqs/khayal/internal/version"
 	"github.com/rawnaqs/theme"
 	"github.com/spf13/cobra"
 )
@@ -12,7 +13,7 @@ import (
 func newStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
-		Short: "Quick server + queue check",
+		Short: "Server status + update check",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := internal.LoadConfig()
 			if err != nil {
@@ -30,16 +31,38 @@ func newStatusCmd() *cobra.Command {
 			fmt.Println()
 			internal.Successf("khayal %s · %s", health.Version, cfg.Host)
 			fmt.Println()
-			fmt.Println(theme.Dim.Render("QUEUE"))
-			keyStyle := theme.Muted.Width(12)
-			fmt.Printf("  %s %s\n", keyStyle.Render("processing"), theme.Primary.Render(fmt.Sprintf("%d", health.Queue.Processing)))
-			fmt.Printf("  %s %s\n", keyStyle.Render("queued"), theme.Primary.Render(fmt.Sprintf("%d", health.Queue.Queued)))
-			fmt.Printf("  %s %s\n", keyStyle.Render("pending"), theme.Primary.Render(fmt.Sprintf("%d", health.Queue.Pending)))
-			fmt.Printf("  %s %s\n", keyStyle.Render("done"), theme.Primary.Render(fmt.Sprintf("%d", health.Queue.Done)))
-			fmt.Printf("  %s %s\n", keyStyle.Render("failed"), theme.Primary.Render(fmt.Sprintf("%d", health.Queue.Failed)))
-			fmt.Println()
+
+			// Update messaging
+			if health.Update != nil {
+				msg := getUpdateMessage(version.Get(), health.Update)
+				if msg != "" {
+					fmt.Println(theme.Dim.Render(fmt.Sprintf("  %s", msg)))
+					fmt.Println()
+				}
+			}
 
 			return nil
 		},
+	}
+}
+
+func getUpdateMessage(klVersion string, update *klapi.UpdateInfo) string {
+	if !update.Available {
+		return ""
+	}
+
+	klIsCurrent := klVersion == update.Latest
+	serverIsCurrent := update.ServerVersion == update.Latest
+
+	switch {
+	case klIsCurrent:
+		// kl is current, server is behind
+		return fmt.Sprintf("↑ update khayal server to v%s", update.Latest)
+	case serverIsCurrent:
+		// server is current, kl is behind
+		return fmt.Sprintf("↑ update kl to v%s", update.Latest)
+	default:
+		// both are behind
+		return fmt.Sprintf("↑ update khayal server + kl to v%s", update.Latest)
 	}
 }

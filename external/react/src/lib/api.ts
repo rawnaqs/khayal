@@ -45,17 +45,15 @@ export interface SearchResponse {
 export interface HealthResponse {
   status: string
   version: string
+  update?: {
+    available: boolean
+    latest: string
+    server_version: string
+  }
   dependencies: {
     db: { status: string }
     vault: { status: string }
     llm: { status: string; host?: string }
-  }
-  queue: {
-    pending: number
-    queued: number
-    processing: number
-    done: number
-    failed: number
   }
 }
 

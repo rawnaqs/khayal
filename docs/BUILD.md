@@ -71,11 +71,19 @@ git tag v0.1.0
 git push origin v0.1.0
 
 # GitHub Actions runs goreleaser:
-# 1. Builds React PWA
+# 1. Builds React PWA (syncs version from git tag to package.json)
 # 2. Builds khayal + kl (darwin/linux, amd64/arm64)
 # 3. Creates GitHub release with archives
 # 4. Updates rawnaqs/homebrew-tap
 ```
+
+### Version Sync
+
+GoReleaser reads the version from the git tag (`{{.Version}}`) and:
+- Sets Go binary version via ldflags: `-X github.com/rawnaqs/khayal/internal/version.Version={{.Version}}`
+- Updates package.json version: `npm version {{.Version}} --no-git-tag-version`
+
+This ensures both Go and PWA binaries have matching versions.
 
 ### Homebrew Install
 
@@ -83,10 +91,32 @@ git push origin v0.1.0
 brew install rawnaqs/tap/khayal
 ```
 
+### Homebrew Service (Background)
+
+```bash
+# Start as a background service
+brew services start khayal
+
+# Check status
+brew services list | grep khayal
+
+# View logs
+tail -f ~/.config/khayal/logs/khayal.log
+
+# Stop service
+brew services stop khayal
+```
+
 ### One-liner Install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/rawnaqs/khayal/main/install.sh | sh
+```
+
+### Docker
+
+```bash
+docker compose up
 ```
 
 ## Requirements

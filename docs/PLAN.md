@@ -122,7 +122,6 @@ Local AI integration.
   - [x] `khayal status` - Bubble Tea TUI dashboard
   - [x] `khayal reindex` - Progress bar reindex
   - [x] `khayal version` - Version info
-  - [x] `khayal logs` - Log tail
   - [x] `khayal config` - View config (token redacted)
 - [x] kl commands:
   - [x] `kl "text"` - capture text (default)

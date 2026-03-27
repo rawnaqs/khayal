@@ -157,6 +157,30 @@ Non-interactive:
 khayal init --vault ~/brain --token mytoken
 ```
 
+#### Homebrew Service (macOS/Linux)
+
+```bash
+# Run khayal as a background service
+brew services start khayal
+
+# Check service status
+brew services list
+
+# View logs
+tail -f ~/.config/khayal/logs/khayal.log
+
+# Stop service
+brew services stop khayal
+
+# Restart after config changes
+brew services restart khayal
+```
+
+The service:
+- Runs on login (launchd on macOS, systemd on Linux)
+- Auto-restarts on crash
+- Logs to `~/.config/khayal/logs/khayal.log`
+
 #### khayal start
 
 Verbose. Every check shown. User knows exactly what happened.
@@ -347,6 +371,31 @@ khayal config
     max_retries 3
     backoff     exponential
 ```
+
+#### Update Notifications
+
+khayal includes automatic update checking via GitHub releases:
+
+**kl status output:**
+```
+✓ khayal v0.1.0 · 127.0.0.1:1133
+
+↑ update khayal server + kl to v0.2.0
+```
+
+**PWA Header:**
+- Shows server version (not PWA build version)
+- Displays update icon (↑) when new version available
+- Clicking icon opens GitHub releases page
+
+**Update check behavior:**
+- Checks GitHub releases at most once per 24 hours
+- Cached in-memory (resets on server restart)
+- Compares current version against latest release
+- Shows specific message for which binary needs update:
+  - Server behind: "↑ update khayal server to vX.Y.Z"
+  - kl behind: "↑ update kl to vX.Y.Z"
+  - Both behind: "↑ update khayal server + kl to vX.Y.Z"
 
 #### khayal vault — vault maintenance subcommands
 
@@ -716,12 +765,23 @@ $ kl status
 
   ✓ khayal v0.1.0 · http://100.x.x.x:1133
 
-  queue
-    processing   1   image
-    pending      2
-    failed       0
-
   last capture  14:23 · useEffect cleanup runs after...
+```
+
+**With update available:**
+```
+$ kl status
+
+  ✓ khayal v0.1.0 · http://100.x.x.x:1133
+
+  ↑ update khayal server + kl to v0.2.0
+```
+
+**Update messages by scenario:**
+```
+↑ update khayal server to v0.2.0      # server behind
+↑ update kl to v0.2.0                 # kl behind
+↑ update khayal server + kl to v0.2.0 # both behind
 ```
 
 If server unreachable:
@@ -733,9 +793,10 @@ $ kl status
 ```
 
 Rules:
+- Shows update notification when new version available
+- Compares kl version with server version and latest release
 - 6 lines maximum — this is a quick check, not a dashboard
 - No memory, no db size, no pid — that's khayal's job
-- Failed > 0 → shown in error color with hint to check khayal status
 - Server version shown — helps debug version mismatch issues
 
 #### kl init — Huh wizard
@@ -1451,12 +1512,67 @@ v1.7  → iOS Shortcuts (github.com/rawnaqs/khayal-ios)
 v2.0  → Setup wizard UI for non-technical users
 v2.1  → Windows support
 v2.2  → Mobile app (github.com/rawnaqs/khayal-mobile)
+v2.3  → Nix + NixOS distribution
 ```
+
+**v2.0 Setup Wizard:**
+- First-launch UI (no CLI required)
+- Web-based setup: vault path, token, LLM config
+- Auto-detects dependencies (Ollama, models)
+
+**v2.3 Nix + NixOS:**
+- Flake with multi-platform packages (linux/darwin, amd64/arm64)
+- NixOS module for declarative server config
+- One-line spin-up: `services.khayal = { enable = true; vaultPath = "..."; };`
+- Auto-config generation (no `khayal init` needed)
+- Ollama model provisioning via systemd oneshot
+- Data persistence via `StateDirectory`
 
 **v1.1 Details:**
 - Chunk-level embeddings (150-200 words, 30-50 overlap)
 - Entity extraction (people, amounts, dates, places, orgs, urls)
 - Advanced search: temporal detection, query rewriting, HyDE, reranking
+
+---
+
+## v1 Stable Contract
+
+These are frozen for v1. Changes require a major version bump or config_version increment.
+
+### Config
+
+- Can add new fields with defaults (safe — old configs still work)
+- Cannot rename or remove existing fields without config_version bump
+- Unknown fields in config are ignored (forward-compatible)
+
+### API
+
+- Path prefix `/v1/` is locked
+- Can add new response fields (safe — clients ignore unknown fields)
+- Cannot remove or rename response fields
+- Auth: `X-Khayal-Token` header format unchanged
+- Health endpoint shape stable (status, version, update, dependencies)
+
+### Database
+
+- Schema changes require migrations (schema_version table)
+- New tables/indexes are safe additions
+- Existing table changes require migration
+- Migrations run on startup, idempotent
+
+### Vault
+
+- khayal only writes to `<inbox_dir>/` directory
+- Never modifies user files outside inbox
+- Never creates invalid YAML/UTF-8
+- Soft-delete only (to `.khayal-trash/`)
+- Atomic writes (temp file + rename)
+
+### Binaries
+
+- `khayal` — server binary
+- `kl` — client binary
+- Shared version from git tag (synced via goreleaser)
 
 ---
 
@@ -2349,6 +2465,25 @@ token: your-token-here
 
 ---
 
+## Environment Variables
+
+Configure custom paths without editing files:
+
+```bash
+# Khayal server config location
+export KHAYAL_CONFIG=/custom/path/config.yaml
+
+# kl client config location
+export KL_CONFIG=/custom/path/kl.yaml
+```
+
+Use cases:
+- Multiple khayal instances on same machine
+- Portable config on external drives
+- Containerized deployments
+
+---
+
 ## PWA
 
 **Scope:** Capture + Search only. No timeline view, no entity browsing. Use CLI or Obsidian for those features.
@@ -2366,6 +2501,8 @@ token: your-token-here
 - Camera capture
 - Offline queue (IndexedDB, ~50 lines JS)
 - Search with excerpts
+- Server version display in header
+- Update notification icon (links to GitHub releases)
 
 ### Offline Behavior
 

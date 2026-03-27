@@ -4,14 +4,15 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/rawnaqs/khayal/internal/updater"
 	"github.com/rawnaqs/khayal/internal/version"
 )
 
 type HealthResponse struct {
-	Status       string       `json:"status"`
-	Version      string       `json:"version"`
-	Dependencies Dependencies `json:"dependencies"`
-	Queue        QueueStats   `json:"queue"`
+	Status       string              `json:"status"`
+	Version      string              `json:"version"`
+	Update       *updater.UpdateInfo `json:"update,omitempty"`
+	Dependencies Dependencies        `json:"dependencies"`
 }
 
 type Dependencies struct {
@@ -26,16 +27,8 @@ type Dependency struct {
 	Host   string `json:"host,omitempty"`
 }
 
-type QueueStats struct {
-	Pending    int `json:"pending"`
-	Queued     int `json:"queued"`
-	Processing int `json:"processing"`
-	Done       int `json:"done"`
-	Failed     int `json:"failed"`
-}
-
 func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := context.Background()
+	_ = context.Background()
 
 	vaultStatus := "ok"
 	if !s.vault.Exists() {
@@ -52,12 +45,6 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 		llmStatus = "not configured"
 	}
 
-	pending, _ := s.queue.CountByStatus(ctx, "pending")
-	queued, _ := s.queue.CountByStatus(ctx, "queued")
-	processing, _ := s.queue.CountByStatus(ctx, "processing")
-	done, _ := s.queue.CountByStatus(ctx, "done")
-	failed, _ := s.queue.CountByStatus(ctx, "failed")
-
 	if vaultStatus != "ok" {
 		s.logger.Warn("health check degraded",
 			"component", "vault",
@@ -71,9 +58,12 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
+	updateInfo := updater.CheckForUpdate()
+
 	WriteJSON(w, http.StatusOK, HealthResponse{
 		Status:  "ok",
 		Version: version.Get(),
+		Update:  updateInfo,
 		Dependencies: Dependencies{
 			DB: Dependency{
 				Status: "ok",
@@ -87,13 +77,6 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 				Status: llmStatus,
 				Host:   llmHost,
 			},
-		},
-		Queue: QueueStats{
-			Pending:    pending,
-			Queued:     queued,
-			Processing: processing,
-			Done:       done,
-			Failed:     failed,
 		},
 	})
 }
