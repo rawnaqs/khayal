@@ -43,36 +43,70 @@ const (
 	DefaultTruncateArticleTokens = 12000
 )
 
-// LLM Prompt templates
-type PromptConfig struct {
-	DescribeImage   string `json:"describe_image" yaml:"describe_image"`
-	ExtractTags     string `json:"extract_tags" yaml:"extract_tags"`
-	Summarize       string `json:"summarize" yaml:"summarize"`
-	ExtractKeyIdeas string `json:"extract_key_ideas" yaml:"extract_key_ideas"`
-	VisionPrompt    string `json:"vision_prompt" yaml:"vision_prompt"`
+// System prompts define the model's persona and output expectations.
+type SystemPrompts struct {
+	ExtractTags     string `yaml:"extract_tags"`
+	Summarize       string `yaml:"summarize"`
+	ExtractKeyIdeas string `yaml:"extract_key_ideas"`
+	DescribeImage   string `yaml:"describe_image"`
 }
 
-var DefaultPrompts = PromptConfig{
-	DescribeImage: "Describe this image in detail. Include any text visible in the image.",
-	ExtractTags: `Extract 3-5 relevant tags for the following content.
-Return only a JSON array of strings, nothing else. No markdown.
+var DefaultSystemPrompts = SystemPrompts{
+	ExtractTags:     `You are a precise knowledge extractor. Given a piece of content, extract the most relevant tags that categorize and describe it. Tags should be single words or short phrases (2-3 words max). Be specific, not generic. Output ONLY a JSON array of plain strings. No markdown, no formatting, no text outside the array.`,
+	Summarize:       `You are a precise summarizer for a personal knowledge base. Summarize content concisely, capturing the essential meaning. Never use phrases like "this content" or "the text discusses". Write directly.`,
+	ExtractKeyIdeas: `You are a knowledge extractor for a personal second brain. Extract the most important, actionable ideas from the content. Each idea should be a complete, standalone thought. Output ONLY a JSON array of plain strings. No markdown, no formatting, no text outside the array.`,
+	DescribeImage:   `You are a visual knowledge extractor for a personal second brain. Describe images in detail, focusing on what's useful for later retrieval. Include any text visible in the image, charts, diagrams, and key visual elements.`,
+}
+
+// Prompt templates define per-bucket user prompts.
+type PromptTemplates struct {
+	ExtractTags     map[string]string `yaml:"extract_tags"`
+	Summarize       map[string]string `yaml:"summarize"`
+	ExtractKeyIdeas map[string]string `yaml:"extract_key_ideas"`
+	DescribeImage   string            `yaml:"describe_image"`
+}
+
+var DefaultPromptTemplates = PromptTemplates{
+	ExtractTags: map[string]string{
+		"text": `Extract 3-5 tags for this thought. Return ONLY a JSON array.
+Example: ["tag1", "tag2", "tag3"]
 
 Content:
-%s
+%s`,
+		"article": `Extract 3-5 tags for this article. Return ONLY a JSON array.
+Example: ["tag1", "tag2", "tag3"]
 
-Tags:`,
-	Summarize: `Summarize the following content in 2-3 sentences.
+Article:
+%s`,
+		"image": `Extract 3-5 tags describing this image. Return ONLY a JSON array.
+Example: ["tag1", "tag2", "tag3"]
+
+Image description:
+%s`,
+	},
+	Summarize: map[string]string{
+		"text": `Summarize this thought in 1-2 sentences. Write directly, no preamble.
 
 Content:
-%s
+%s`,
+		"article": `Summarize this article in 2-3 sentences. Focus on the key finding or argument.
 
-Summary:`,
-	ExtractKeyIdeas: `Extract 3-5 key ideas from the following content.
-Return only a JSON array of strings, nothing else. No markdown.
+Article:
+%s`,
+	},
+	ExtractKeyIdeas: map[string]string{
+		"text": `Extract 3-5 key ideas from this thought.
+Respond with ONLY a JSON array, nothing else. Do not use markdown formatting, headers, or bullet points.
+Example response: ["idea1", "idea2"]
 
 Content:
-%s
+%s`,
+		"article": `Extract 3-5 key ideas from this article.
+Respond with ONLY a JSON array, nothing else. Do not use markdown formatting, headers, or bullet points.
+Example response: ["idea1", "idea2"]
 
-Key Ideas:`,
-	VisionPrompt: "Describe this image in detail. Include any text visible in the image.",
+Article:
+%s`,
+	},
+	DescribeImage: `Describe this image in detail. Include all visible text, charts, diagrams, and key visual elements.`,
 }

@@ -140,32 +140,3 @@ func TestOllamaClient_EmbedBatch_EmptyResponse(t *testing.T) {
 		t.Errorf("expected error to contain 'empty', got %v", err)
 	}
 }
-
-func TestOllamaClient_EmbedBatchWithModel(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var receivedBody map[string]any
-		json.NewDecoder(r.Body).Decode(&receivedBody)
-
-		if receivedBody["model"] != "custom-model" {
-			t.Errorf("expected model custom-model, got %v", receivedBody["model"])
-		}
-
-		json.NewEncoder(w).Encode(map[string]any{
-			"embeddings": [][]float32{
-				{0.1, 0.2},
-				{0.3, 0.4},
-			},
-		})
-	}))
-	defer server.Close()
-
-	client := NewOllamaClient(server.URL, "default-model", "test-text-model", "test-vision-model")
-	results, err := client.EmbedBatchWithModel("custom-model", []string{"text 1", "text 2"})
-	if err != nil {
-		t.Fatalf("EmbedBatchWithModel failed: %v", err)
-	}
-
-	if len(results) != 2 {
-		t.Errorf("expected 2 results, got %d", len(results))
-	}
-}

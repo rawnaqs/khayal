@@ -34,6 +34,10 @@ func (m *mockLLMForIngest) Generate(prompt string) (string, error) {
 	return "mock response", nil
 }
 
+func (m *mockLLMForIngest) GenerateWithSystem(system, user string) (string, error) {
+	return "mock response", nil
+}
+
 func (m *mockLLMForIngest) DescribeImage(imagePath string) (string, error) {
 	return "mock image description", nil
 }
@@ -76,6 +80,11 @@ func (m *mockLLMWithDelay) EmbedBatch(texts []string) ([][]float32, error) {
 }
 
 func (m *mockLLMWithDelay) Generate(prompt string) (string, error) {
+	time.Sleep(m.delay)
+	return "mock response", nil
+}
+
+func (m *mockLLMWithDelay) GenerateWithSystem(system, user string) (string, error) {
 	time.Sleep(m.delay)
 	return "mock response", nil
 }
@@ -127,6 +136,10 @@ func (m *mockLLMFail) EmbedBatch(texts []string) ([][]float32, error) {
 }
 
 func (m *mockLLMFail) Generate(prompt string) (string, error) {
+	return "mock response", nil
+}
+
+func (m *mockLLMFail) GenerateWithSystem(system, user string) (string, error) {
 	return "mock response", nil
 }
 

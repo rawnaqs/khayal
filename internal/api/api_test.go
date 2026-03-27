@@ -35,6 +35,10 @@ func (m *mockLLM) Generate(prompt string) (string, error) {
 	return "mock response", nil
 }
 
+func (m *mockLLM) GenerateWithSystem(system, user string) (string, error) {
+	return "mock response", nil
+}
+
 func (m *mockLLM) DescribeImage(imagePath string) (string, error) {
 	return "mock image description", nil
 }

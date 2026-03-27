@@ -83,7 +83,6 @@ type PromptConfig struct {
 	ExtractTags     string `yaml:"extract_tags"`
 	Summarize       string `yaml:"summarize"`
 	ExtractKeyIdeas string `yaml:"extract_key_ideas"`
-	VisionPrompt    string `yaml:"vision_prompt"`
 }
 
 type WorkerConfig struct {

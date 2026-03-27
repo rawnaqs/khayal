@@ -33,7 +33,7 @@ export const PROCESSING_STEPS: Record<string, string[]> = {
 export const LIMITS = {
   SEARCH_RESULTS: 20,
   QUEUE_JOBS: 50,
-  RECENT_SEARCHES: 10,
+  RECENT_SEARCHES: 6,
   DONE_JOBS_SHOWN: 5,
   TAGS_HERO: 3,
   TAGS_COMPACT: 2,

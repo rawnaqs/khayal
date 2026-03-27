@@ -4,33 +4,23 @@ import (
 	"fmt"
 
 	"github.com/rawnaqs/khayal/internal/config"
-	"github.com/rawnaqs/khayal/internal/constants"
 )
 
 func NewLLM(cfg config.LLMConfig) (LLMExt, error) {
 	switch cfg.Provider {
 	case ProviderOllama:
-		// Convert config prompts to constants.PromptConfig
-		var prompts *constants.PromptConfig
-		if cfg.Prompts != nil {
-			prompts = &constants.PromptConfig{
-				DescribeImage:   cfg.Prompts.DescribeImage,
-				ExtractTags:     cfg.Prompts.ExtractTags,
-				Summarize:       cfg.Prompts.Summarize,
-				ExtractKeyIdeas: cfg.Prompts.ExtractKeyIdeas,
-				VisionPrompt:    cfg.Prompts.VisionPrompt,
-			}
-		}
-
-		client := NewOllamaClientWithConfig(
+		client := NewOllamaClientWithConcurrency(
 			cfg.OllamaHost,
 			cfg.EmbedModel,
 			cfg.TextModel,
 			cfg.VisionModel,
 			cfg.MaxLLMConcurrency,
-			cfg.Temperature,
-			prompts,
 		)
+
+		// Apply temperature override
+		if cfg.Temperature > 0 {
+			client.temperature = cfg.Temperature
+		}
 
 		// Apply truncation overrides if configured
 		if cfg.TruncateTextTokens > 0 {
