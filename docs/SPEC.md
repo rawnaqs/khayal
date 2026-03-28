@@ -155,6 +155,9 @@ generating token...       a3f9c2e1d7b4f892...
 Non-interactive:
 ```
 khayal init --vault ~/brain --token mytoken
+
+# Docker / remote setup
+khayal init --vault ~/brain --ollama-host http://server:11434 --server-host 0.0.0.0
 ```
 
 #### Homebrew Service (macOS/Linux)
@@ -2571,6 +2574,7 @@ curl -fsSL https://github.com/rawnaqs/khayal/releases/latest/download/install.sh
 
 # Docker (Ollama runs on host for GPU acceleration)
 docker run \
+  --add-host host.docker.internal:host-gateway \
   -v ~/Documents/brain:/vault \
   -v ~/.config/khayal:/root/.config/khayal \
   -p 1133:1133 \

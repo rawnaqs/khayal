@@ -119,6 +119,7 @@ curl -fsSL https://raw.githubusercontent.com/rawnaqs/khayal/main/install.sh | sh
 
 ```bash
 docker run \
+  --add-host host.docker.internal:host-gateway \
   -v ~/Documents/brain:/vault \
   -v ~/.config/khayal:/root/.config/khayal \
   -p 1133:1133 \

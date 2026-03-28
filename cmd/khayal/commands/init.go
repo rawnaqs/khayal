@@ -14,9 +14,11 @@ import (
 
 func newInitCmd() *cobra.Command {
 	var (
-		force     bool
-		vaultPath string
-		token     string
+		force      bool
+		vaultPath  string
+		token      string
+		ollamaHost string
+		serverHost string
 	)
 
 	cmd := &cobra.Command{
@@ -29,18 +31,20 @@ and a secure auth token, and creates the log directory.
 
 The token is shown ONCE and cannot be recovered from the config.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInit(force, vaultPath, token)
+			return runInit(force, vaultPath, token, ollamaHost, serverHost)
 		},
 	}
 
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "overwrite existing config")
 	cmd.Flags().StringVar(&vaultPath, "vault", "", "vault path (your notes directory)")
 	cmd.Flags().StringVar(&token, "token", "", "auth token (auto-generated if empty)")
+	cmd.Flags().StringVar(&ollamaHost, "ollama-host", "", "Ollama host (default: http://localhost:11434)")
+	cmd.Flags().StringVar(&serverHost, "server-host", "", "Server bind address (default: 127.0.0.1)")
 
 	return cmd
 }
 
-func runInit(force bool, vaultPath, token string) error {
+func runInit(force bool, vaultPath, token, ollamaHost, serverHost string) error {
 	configPath := cli.ConfigPath()
 	configDir := cli.ConfigDir()
 	logDir := filepath.Join(configDir, "logs")
@@ -82,6 +86,16 @@ func runInit(force bool, vaultPath, token string) error {
 	if token == "" {
 		token = generateToken()
 	}
+
+	// Get ollama host: flag → default
+	if ollamaHost == "" {
+		ollamaHost = config.DefaultOllamaHost
+	}
+
+	// Get server host: flag → default
+	if serverHost == "" {
+		serverHost = config.DefaultServerHost
+	}
 	tokenDisplay := token
 	if len(tokenDisplay) > 16 {
 		tokenDisplay = tokenDisplay[:16] + "..."
@@ -118,10 +132,10 @@ log:
   file: logs/khayal.log
 `,
 		vaultPath,
-		config.DefaultServerHost,
+		serverHost,
 		config.DefaultServerPort,
 		token,
-		config.DefaultOllamaHost,
+		ollamaHost,
 	)
 
 	if err := os.WriteFile(configPath, []byte(defaultConfig), 0600); err != nil {

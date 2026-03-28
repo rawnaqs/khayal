@@ -8,4 +8,4 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o kl ./cmd/kl
 RUN mv khayal /usr/local/bin/khayal 
 RUN mv kl /usr/local/bin/kl
 EXPOSE 1133
-CMD sh -c '[ -f /root/.config/khayal/config.yaml ] || /usr/local/bin/khayal init --vault /vault; /usr/local/bin/khayal start'
+CMD sh -c '[ -f /root/.config/khayal/config.yaml ] || /usr/local/bin/khayal init --vault /vault --ollama-host http://host.docker.internal:11434 --server-host 0.0.0.0; /usr/local/bin/khayal start'

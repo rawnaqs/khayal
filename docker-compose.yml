@@ -6,4 +6,6 @@ services:
     volumes:
       - ${KHAYAL_VAULT:-./vault}:/vault
       - ${KHAYAL_DATA:-~/.config/khayal}:/root/.config/khayal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped

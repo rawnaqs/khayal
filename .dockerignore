@@ -10,6 +10,7 @@ external/react/e2e
 # Docs, tests, configs
 docs
 testdata
+vault
 *.md
 !README.md
 .goreleaser.yml
