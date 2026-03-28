@@ -120,9 +120,11 @@ khayal/
 │       ├── ci.yml                       # Test + lint on PRs
 │       └── release.yml                  # GoReleaser on v* tags
 ├── install.sh                           # One-liner curl installer
-├── docker-compose.yml                   # khayal + ollama
+├── Dockerfile                           # Go-only build
+├── docker-compose.yml                   # Dev build (docker compose build)
+├── docker.sh                            # Wrapper script for end users
+├── .dockerignore                        # Exclude node_modules, .git, docs
 ├── config.example.yaml                  # Full config reference
-├── Dockerfile                           # Go-only multi-stage
 ├── README.md
 ├── CONTRIBUTING.md
 │

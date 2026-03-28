@@ -2569,9 +2569,12 @@ brew install rawnaqs/tap/khayal
 # Direct download
 curl -fsSL https://github.com/rawnaqs/khayal/releases/latest/download/install.sh | sh
 
-# Docker
-docker pull ghcr.io/rawnaqs/khayal
-docker compose up
+# Docker (Ollama runs on host for GPU acceleration)
+docker run \
+  -v ~/Documents/brain:/vault \
+  -v ~/.config/khayal:/root/.config/khayal \
+  -p 1133:1133 \
+  ghcr.io/rawnaqs/khayal
 ```
 
 ---

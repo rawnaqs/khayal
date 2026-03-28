@@ -1,0 +1,32 @@
+# Version control
+.git
+.gitignore
+
+# Frontend (static files already embedded in internal/api/ui/static/)
+external/react/node_modules
+external/react/dist
+external/react/e2e
+
+# Docs, tests, configs
+docs
+testdata
+*.md
+!README.md
+.goreleaser.yml
+.github
+docker
+docker-compose.yml
+docker.sh
+install.sh
+config.example.yaml
+CONTRIBUTING.md
+
+# IDE
+.idea
+.vscode
+.DS_Store
+
+# OS
+*.swp
+*.swo
+*~

@@ -16,7 +16,7 @@ server:
 
 llm:
   provider: ollama
-  ollama_host: http://localhost:11434
+  ollama_host: http://0.0.0.0:11434
   embed_model: nomic-embed-text
   text_model: qwen2.5:3b
   vision_model: moondream

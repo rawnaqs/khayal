@@ -1,0 +1,9 @@
+services:
+  khayal:
+    build: .
+    ports:
+      - "1133:1133"
+    volumes:
+      - ${KHAYAL_VAULT:-./vault}:/vault
+      - ${KHAYAL_DATA:-~/.config/khayal}:/root/.config/khayal
+    restart: unless-stopped

@@ -111,3 +111,29 @@ brews:
       generate_completions_from_executable(bin/"kl", "completion")
     test: |
       system "#{bin}/kl", "--help"
+
+dockers:
+  - image_templates:
+      - "ghcr.io/rawnaqs/khayal:{{ .Version }}-amd64"
+    goarch: amd64
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--platform=linux/amd64"
+
+  - image_templates:
+      - "ghcr.io/rawnaqs/khayal:{{ .Version }}-arm64"
+    goarch: arm64
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--platform=linux/arm64"
+
+docker_manifests:
+  - name_template: "ghcr.io/rawnaqs/khayal:{{ .Version }}"
+    image_templates:
+      - "ghcr.io/rawnaqs/khayal:{{ .Version }}-amd64"
+      - "ghcr.io/rawnaqs/khayal:{{ .Version }}-arm64"
+
+  - name_template: "ghcr.io/rawnaqs/khayal:latest"
+    image_templates:
+      - "ghcr.io/rawnaqs/khayal:{{ .Version }}-amd64"
+      - "ghcr.io/rawnaqs/khayal:{{ .Version }}-arm64"

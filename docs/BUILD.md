@@ -115,8 +115,14 @@ curl -fsSL https://raw.githubusercontent.com/rawnaqs/khayal/main/install.sh | sh
 
 ### Docker
 
+**Prerequisites:** Run [Ollama](https://ollama.com) locally for GPU acceleration.
+
 ```bash
-docker compose up
+docker run \
+  -v ~/Documents/brain:/vault \
+  -v ~/.config/khayal:/root/.config/khayal \
+  -p 1133:1133 \
+  ghcr.io/rawnaqs/khayal
 ```
 
 ## Requirements
