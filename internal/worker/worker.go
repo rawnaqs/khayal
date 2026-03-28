@@ -79,25 +79,24 @@ func (w *Worker) jobFetcher() {
 	defer ticker.Stop()
 
 	for w.running.Load() {
-		select {
-		case <-ticker.C:
-			ctx := context.Background()
+		<-ticker.C
 
-			// Calculate how many jobs we can fetch based on channel capacity
-			available := cap(w.jobs) - len(w.jobs)
-			if available <= 0 {
-				continue
-			}
+		ctx := context.Background()
 
-			// Fetch and lock jobs atomically - prevents duplicate processing
-			jobs, err := w.queue.FetchAndLockPendingJobs(ctx, available)
-			if err != nil {
-				w.logger.Error("failed to fetch pending jobs", "error", err)
-				continue
-			}
-			for _, job := range jobs {
-				w.jobs <- job.ID // Safe - we only fetched what fits
-			}
+		// Calculate how many jobs we can fetch based on channel capacity
+		available := cap(w.jobs) - len(w.jobs)
+		if available <= 0 {
+			continue
+		}
+
+		// Fetch and lock jobs atomically - prevents duplicate processing
+		jobs, err := w.queue.FetchAndLockPendingJobs(ctx, available)
+		if err != nil {
+			w.logger.Error("failed to fetch pending jobs", "error", err)
+			continue
+		}
+		for _, job := range jobs {
+			w.jobs <- job.ID // Safe - we only fetched what fits
 		}
 	}
 }

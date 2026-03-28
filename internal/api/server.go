@@ -95,7 +95,11 @@ func (s *Server) Start() error {
 		Handler: s.router,
 	}
 
-	go srv.ListenAndServe()
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			s.logger.Error("server error", "error", err)
+		}
+	}()
 
 	s.logger.Info("server started", "addr", addr)
 

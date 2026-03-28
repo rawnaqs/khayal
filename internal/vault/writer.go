@@ -80,10 +80,6 @@ func (w *Writer) isPathInInbox(path string) bool {
 	return strings.HasPrefix(path, w.inboxPath)
 }
 
-func (w *Writer) isPathInMedia(path string) bool {
-	return strings.HasPrefix(path, w.mediaPath)
-}
-
 func (w *Writer) ensurePathInVault(path string) error {
 	if !filepath.IsAbs(path) {
 		slog.Warn("vault path validation failed", "reason", "not_absolute", "path", path)
@@ -217,7 +213,9 @@ func (w *Writer) UpdateNote(notePath string, note *Note) error {
 		return fmt.Errorf("failed to update note: %w", err)
 	}
 
-	os.Chtimes(absolutePath, info.ModTime(), info.ModTime())
+	if err := os.Chtimes(absolutePath, info.ModTime(), info.ModTime()); err != nil {
+		slog.Default().Warn("failed to update note mtime", "path", absolutePath, "error", err)
+	}
 
 	return nil
 }
@@ -361,37 +359,37 @@ func (w *Writer) renderNote(note *Note) string {
 	var buf bytes.Buffer
 
 	buf.WriteString("---\n")
-	buf.WriteString(fmt.Sprintf("created: %s\n", note.Metadata.Created.Format(time.RFC3339)))
+	fmt.Fprintf(&buf, "created: %s\n", note.Metadata.Created.Format(time.RFC3339))
 
 	if note.Metadata.Updated != nil {
-		buf.WriteString(fmt.Sprintf("updated: %s\n", note.Metadata.Updated.Format(time.RFC3339)))
+		fmt.Fprintf(&buf, "updated: %s\n", note.Metadata.Updated.Format(time.RFC3339))
 	}
 
-	buf.WriteString(fmt.Sprintf("type: %s\n", note.Metadata.Type))
-	buf.WriteString(fmt.Sprintf("status: %s\n", note.Metadata.Status))
+	fmt.Fprintf(&buf, "type: %s\n", note.Metadata.Type)
+	fmt.Fprintf(&buf, "status: %s\n", note.Metadata.Status)
 
 	if note.Metadata.SourceURL != "" {
-		buf.WriteString(fmt.Sprintf("source_url: %s\n", note.Metadata.SourceURL))
+		fmt.Fprintf(&buf, "source_url: %s\n", note.Metadata.SourceURL)
 	}
 	if note.Metadata.SourceFile != "" {
-		buf.WriteString(fmt.Sprintf("source_file: %s\n", note.Metadata.SourceFile))
+		fmt.Fprintf(&buf, "source_file: %s\n", note.Metadata.SourceFile)
 	}
 	if note.Metadata.UserContext != "" {
-		buf.WriteString(fmt.Sprintf("user_context: %s\n", note.Metadata.UserContext))
+		fmt.Fprintf(&buf, "user_context: %s\n", note.Metadata.UserContext)
 	}
 
 	if len(note.Metadata.Tags) > 0 {
 		buf.WriteString("tags:\n")
 		for _, tag := range note.Metadata.Tags[:min(len(note.Metadata.Tags), MaxTags)] {
-			buf.WriteString(fmt.Sprintf("  - %s\n", tag))
+			fmt.Fprintf(&buf, "  - %s\n", tag)
 		}
 	}
 
 	if len(note.Metadata.History) > 0 {
 		buf.WriteString("history:\n")
 		for _, h := range note.Metadata.History[:min(len(note.Metadata.History), MaxHistory)] {
-			buf.WriteString(fmt.Sprintf("  - at: %s\n", h.At.Format(time.RFC3339)))
-			buf.WriteString(fmt.Sprintf("    event: %s\n", h.Event))
+			fmt.Fprintf(&buf, "  - at: %s\n", h.At.Format(time.RFC3339))
+			fmt.Fprintf(&buf, "    event: %s\n", h.Event)
 		}
 	}
 
@@ -543,5 +541,3 @@ func min(a, b int) int {
 	}
 	return b
 }
-
-var wikilinkRegex = regexp.MustCompile(`\[\[([^\]]+)\]\]`)

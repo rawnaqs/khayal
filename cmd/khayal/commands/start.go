@@ -96,7 +96,7 @@ func runStart() error {
 		return err
 	}
 	defer loggerSetup.Close()
-	defer loggerSetup.Sync()
+	defer func() { _ = loggerSetup.Sync() }()
 	cli.PrintAction("log", logFile)
 
 	q, err := queue.NewQueueWithLogger(dbPath, loggerSetup.MainLogger)
@@ -157,7 +157,7 @@ func runStart() error {
 	if err := srv.Close(); err != nil {
 		loggerSetup.MainLogger.Error("error closing server", "error", err)
 	}
-	cli.RemovePID()
+	_ = cli.RemovePID()
 	loggerSetup.MainLogger.Info("goodbye")
 	fmt.Println(theme.Muted.Render("khayal stopped."))
 

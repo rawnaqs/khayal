@@ -454,7 +454,6 @@ func TestContextCancellation(t *testing.T) {
 }
 
 func TestJobStoreInterface(t *testing.T) {
-	var store JobStore
-	store = &Queue{}
+	var store JobStore = &Queue{}
 	_ = store
 }

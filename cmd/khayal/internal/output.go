@@ -52,8 +52,3 @@ func PrintSection(title string) {
 	fmt.Println()
 	fmt.Println(theme.Bold.Render(title))
 }
-
-func printError(message, hint string) {
-	fmt.Println(theme.ErrorStyle.Render("✗") + " " + theme.Primary.Render(message))
-	fmt.Println(theme.Dim.Render("  → " + hint))
-}

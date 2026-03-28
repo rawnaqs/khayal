@@ -67,8 +67,3 @@ func Fatal(exitCode int, format string, args ...any) {
 	}
 	os.Exit(exitCode)
 }
-
-func printError(message, hint string) {
-	fmt.Println(theme.ErrorStyle.Render("✗") + " " + theme.Primary.Render(message))
-	fmt.Println(theme.Dim.Render("  → " + hint))
-}

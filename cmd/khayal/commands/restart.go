@@ -27,7 +27,9 @@ func runRestart() error {
 	if err == nil {
 		process, err := os.FindProcess(pid)
 		if err == nil {
-			process.Signal(syscall.SIGTERM)
+			if err := process.Signal(syscall.SIGTERM); err != nil {
+				fmt.Println("warning: could not signal process:", err)
+			}
 
 			for i := 0; i < 10; i++ {
 				if !cli.IsRunning() {
@@ -37,7 +39,9 @@ func runRestart() error {
 		}
 	}
 
-	cli.RemovePID()
+	if err := cli.RemovePID(); err != nil {
+		fmt.Println("warning: could not remove PID file:", err)
+	}
 	fmt.Println("khayal stopped.")
 
 	self, err := os.Executable()

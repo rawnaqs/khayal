@@ -174,10 +174,14 @@ func (c *Client) CaptureImage(imagePath, note string) (*CaptureResponse, error) 
 	}
 
 	if note != "" {
-		writer.WriteField("note", note)
+		if err := writer.WriteField("note", note); err != nil {
+			return nil, fmt.Errorf("failed to write form field: %w", err)
+		}
 	}
 
-	writer.WriteField("type", "image")
+	if err := writer.WriteField("type", "image"); err != nil {
+		return nil, fmt.Errorf("failed to write form field: %w", err)
+	}
 
 	if err := writer.Close(); err != nil {
 		return nil, fmt.Errorf("failed to close writer: %w", err)

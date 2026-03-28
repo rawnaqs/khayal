@@ -1,0 +1,38 @@
+version: "2"
+linters:
+  settings:
+    errcheck:
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (*database/sql.Rows).Close
+        - (*database/sql.DB).Close
+        - (*database/sql.Row).Scan
+        - (net/http.ResponseWriter).Write
+        - (net/http.ResponseWriter).WriteHeader
+        - (*encoding/json.Encoder).Encode
+        - (*encoding/json.Decoder).Decode
+        - (*log/slog.Logger).Sync
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+        path: _test\.go
+    paths:
+      - tests/stress
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

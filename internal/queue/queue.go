@@ -52,12 +52,12 @@ func NewQueueWithLogger(dbPath string, logger *slog.Logger) (*Queue, error) {
 	}
 
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
 
 	if _, err := db.Exec("PRAGMA busy_timeout=5000"); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to set busy_timeout: %w", err)
 	}
 
@@ -69,7 +69,7 @@ func NewQueueWithLogger(dbPath string, logger *slog.Logger) (*Queue, error) {
 
 	q := &Queue{db: db, logger: logger}
 	if err := q.initSchema(); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to initialize schema: %w", err)
 	}
 
@@ -176,7 +176,7 @@ func (q *Queue) initSchema() error {
 func (q *Queue) initFTS() error {
 	// Check if FTS table exists
 	var count int
-	q.db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='notes_fts'").Scan(&count)
+	_ = q.db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='notes_fts'").Scan(&count)
 
 	if count == 0 {
 		_, err := q.db.Exec(`CREATE VIRTUAL TABLE notes_fts USING fts5(
@@ -1354,7 +1354,9 @@ func (q *Queue) LoadStatsCache(ctx context.Context) (string, error) {
 	var entry StatsCacheEntry
 	if err := json.Unmarshal([]byte(value), &entry); err != nil {
 		// Corrupted cache — delete
-		q.db.ExecContext(ctx, `DELETE FROM stats_cache WHERE key = 'stats'`)
+		if _, err := q.db.ExecContext(ctx, `DELETE FROM stats_cache WHERE key = 'stats'`); err != nil {
+			q.logger.Warn("failed to delete corrupted cache", "error", err)
+		}
 		return "", nil
 	}
 

@@ -156,22 +156,3 @@ func scrapeArticle(url string) (title, content string, err error) {
 
 	return title, content, nil
 }
-
-func smartTruncateArticle(content string, maxChars int) string {
-	if len(content) <= maxChars {
-		return content
-	}
-	truncated := content[:maxChars]
-
-	lastDoubleNewline := strings.LastIndex(truncated, "\n\n")
-	if lastDoubleNewline > maxChars/2 {
-		return truncated[:lastDoubleNewline]
-	}
-
-	lastPeriod := strings.LastIndex(truncated, ". ")
-	if lastPeriod > maxChars/2 {
-		return truncated[:lastPeriod+1]
-	}
-
-	return truncated + "..."
-}
