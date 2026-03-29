@@ -80,6 +80,7 @@ release:
 
 brews:
   - name: khayal
+    ids: [khayal]
     repository:
       owner: rawnaqs
       name: homebrew-tap
@@ -98,6 +99,7 @@ brews:
       system "#{bin}/khayal", "version"
 
   - name: kl
+    ids: [kl]
     repository:
       owner: rawnaqs
       name: homebrew-tap
