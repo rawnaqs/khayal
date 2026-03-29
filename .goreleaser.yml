@@ -92,8 +92,6 @@ homebrew_casks:
     service: |
       run [opt_bin/"khayal", "start"]
       keep_alive true
-    test: |
-      system "#{bin}/khayal", "version"
 
   - name: kl
     ids: [kl]
@@ -105,8 +103,6 @@ homebrew_casks:
     homepage: "https://github.com/rawnaqs/khayal"
     description: "Khayal CLI client — capture, search, status."
     license: "AGPL-3.0"
-    test: |
-      system "#{bin}/kl", "--help"
 
 dockers_v2:
   - images:
