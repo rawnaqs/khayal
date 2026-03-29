@@ -1,0 +1,6 @@
+FROM alpine:3.19
+RUN apk add --no-cache ca-certificates
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/khayal /usr/local/bin/khayal
+EXPOSE 1133
+CMD sh -c '[ -f /root/.config/khayal/config.yaml ] || /usr/local/bin/khayal init --vault /vault --ollama-host http://host.docker.internal:11434 --server-host 0.0.0.0; /usr/local/bin/khayal start'

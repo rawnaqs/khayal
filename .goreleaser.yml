@@ -40,28 +40,28 @@ builds:
 
 archives:
   - id: khayal
-    builds:
+    ids:
       - khayal
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format: tar.gz
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 
   - id: kl
-    builds:
+    ids:
       - kl
     name_template: "{{ .ProjectName }}-client_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format: tar.gz
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 
 checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{ .Tag }}-next"
+  version_template: "{{ .Tag }}-next"
 
 changelog:
   sort: asc
@@ -78,20 +78,17 @@ release:
   draft: false
   prerelease: auto
 
-brews:
+homebrew_casks:
   - name: khayal
     ids: [khayal]
     repository:
       owner: rawnaqs
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
+    directory: Casks
     homepage: "https://github.com/rawnaqs/khayal"
     description: "Your private treasury of thought. Local, secure, yours."
     license: "AGPL-3.0"
-    install: |
-      bin.install "khayal"
-      generate_completions_from_executable(bin/"khayal", "completion")
     service: |
       run [opt_bin/"khayal", "start"]
       keep_alive true
@@ -104,38 +101,18 @@ brews:
       owner: rawnaqs
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Formula
+    directory: Casks
     homepage: "https://github.com/rawnaqs/khayal"
     description: "Khayal CLI client — capture, search, status."
     license: "AGPL-3.0"
-    install: |
-      bin.install "kl"
-      generate_completions_from_executable(bin/"kl", "completion")
     test: |
       system "#{bin}/kl", "--help"
 
-dockers:
-  - image_templates:
-      - "ghcr.io/rawnaqs/khayal:{{ .Version }}-amd64"
-    goarch: amd64
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--platform=linux/amd64"
-
-  - image_templates:
-      - "ghcr.io/rawnaqs/khayal:{{ .Version }}-arm64"
-    goarch: arm64
-    dockerfile: Dockerfile
-    build_flag_templates:
-      - "--platform=linux/arm64"
-
-docker_manifests:
-  - name_template: "ghcr.io/rawnaqs/khayal:{{ .Version }}"
-    image_templates:
-      - "ghcr.io/rawnaqs/khayal:{{ .Version }}-amd64"
-      - "ghcr.io/rawnaqs/khayal:{{ .Version }}-arm64"
-
-  - name_template: "ghcr.io/rawnaqs/khayal:latest"
-    image_templates:
-      - "ghcr.io/rawnaqs/khayal:{{ .Version }}-amd64"
-      - "ghcr.io/rawnaqs/khayal:{{ .Version }}-arm64"
+dockers_v2:
+  - images:
+      - "ghcr.io/rawnaqs/khayal"
+    tags:
+      - "v{{ .Version }}"
+      - "latest"
+    platforms: [linux/amd64, linux/arm64]
+    dockerfile: Dockerfile.release

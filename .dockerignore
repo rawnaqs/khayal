@@ -18,6 +18,7 @@ vault
 docker
 docker-compose.yml
 docker.sh
+Dockerfile.release
 install.sh
 config.example.yaml
 CONTRIBUTING.md
