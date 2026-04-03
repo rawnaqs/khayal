@@ -14,17 +14,6 @@
 │   └── *.md                   # Notes
 └── .khayal-trash/            # Soft-deleted notes
 ```
-
-**Example with defaults:**
-```
-~/Documents/brain/
-├── khayal/
-│   ├── media/
-│   │   └── 1234567890.png
-│   └── 2026-03-19-test-note.md
-└── .khayal-trash/             # Soft-deleted files
-```
-
 ---
 
 ## Configuration
