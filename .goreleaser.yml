@@ -78,22 +78,22 @@ release:
   draft: false
   prerelease: auto
 
-homebrew_casks:
+brews:
   - name: khayal
     ids: [khayal]
     repository:
       owner: rawnaqs
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Casks
+    directory: Formula
     homepage: "https://github.com/rawnaqs/khayal"
     description: "Your private treasury of thought. Local, secure, yours."
     license: "AGPL-3.0"
     service: |
-      do
-        run [opt_bin/"khayal", "start"]
-        keep_alive true
-      end
+      run [opt_bin/"khayal", "start"]
+      keep_alive true
+      log_path var/"log/khayal.log"
+      error_log_path var/"log/khayal.err.log"
 
   - name: kl
     ids: [kl]
@@ -101,7 +101,7 @@ homebrew_casks:
       owner: rawnaqs
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    directory: Casks
+    directory: Formula
     homepage: "https://github.com/rawnaqs/khayal"
     description: "Khayal CLI client — capture, search, status."
     license: "AGPL-3.0"
