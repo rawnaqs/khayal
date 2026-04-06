@@ -90,8 +90,10 @@ homebrew_casks:
     description: "Your private treasury of thought. Local, secure, yours."
     license: "AGPL-3.0"
     service: |
-      run [opt_bin/"khayal", "start"]
-      keep_alive true
+      do
+        run [opt_bin/"khayal", "start"]
+        keep_alive true
+      end
 
   - name: kl
     ids: [kl]
