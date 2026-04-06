@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"runtime"
 
 	"github.com/rawnaqs/khayal/internal/version"
 	"github.com/spf13/cobra"
@@ -20,7 +19,6 @@ func newVersionCmd() *cobra.Command {
 			if version.BuildDate != "" {
 				fmt.Printf("built   %s\n", version.BuildDate)
 			}
-			fmt.Printf("go      %s\n", runtime.Version())
 		},
 	}
 }
