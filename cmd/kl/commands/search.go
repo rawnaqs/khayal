@@ -172,21 +172,5 @@ func runSearch(query string) error {
 	fmt.Println(theme.Divider(resultWidth(width)))
 	fmt.Println()
 
-	if total == 0 {
-		fmt.Println(theme.Dim.Render(fmt.Sprintf("0 results · %s · %dms", mode, tookMs)))
-		fmt.Println()
-		fmt.Println(theme.Muted.Render("nothing found for") + " " + theme.Primary.Render(`"`+query+`"`))
-		fmt.Println(theme.Dim.Render(`  → try: kl search "` + query + `" --mode keyword`))
-		return nil
-	}
-
-	fmt.Println(
-		theme.Bold.Render(fmt.Sprintf("%d", total)) +
-			theme.Dim.Render(" results for ") +
-			theme.Primary.Render(`"`+query+`"`) +
-			theme.Dim.Render(" · "+mode+" · ") +
-			tookMsStyle(tookMs).Render(fmt.Sprintf("%dms", tookMs)))
-	fmt.Println()
-
 	return nil
 }

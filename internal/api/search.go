@@ -35,6 +35,25 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 		mode = "hybrid"
 	}
 
+	var from, to *time.Time
+	if f := r.URL.Query().Get("from"); f != "" {
+		t, err := time.Parse("2006-01-02", f)
+		if err != nil {
+			WriteError(w, "invalid from date (use YYYY-MM-DD)", "SEARCH_INVALID_DATE", http.StatusBadRequest)
+			return
+		}
+		from = &t
+	}
+	if t := r.URL.Query().Get("to"); t != "" {
+		end, err := time.Parse("2006-01-02", t)
+		if err != nil {
+			WriteError(w, "invalid to date (use YYYY-MM-DD)", "SEARCH_INVALID_DATE", http.StatusBadRequest)
+			return
+		}
+		end = end.Add(24*time.Hour - time.Second)
+		to = &end
+	}
+
 	queryForLog := query
 	if len(queryForLog) > 50 {
 		queryForLog = queryForLog[:50] + "..."
@@ -45,11 +64,11 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch mode {
 	case "keyword":
-		results, err = s.queue.SearchKeyword(ctx, query, limit)
+		results, err = s.queue.SearchKeyword(ctx, query, limit, from, to)
 	case "semantic":
-		results, err = s.searchSemantic(ctx, query, limit)
+		results, err = s.searchSemantic(ctx, query, limit, from, to)
 	case "hybrid":
-		results, err = s.searchHybrid(ctx, query, limit)
+		results, err = s.searchHybrid(ctx, query, limit, from, to)
 	default:
 		WriteError(w, "invalid search mode", "SEARCH_INVALID_MODE", http.StatusBadRequest)
 		return
@@ -88,16 +107,16 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) searchSemantic(ctx context.Context, query string, limit int) ([]queue.SearchResult, error) {
+func (s *Server) searchSemantic(ctx context.Context, query string, limit int, from, to *time.Time) ([]queue.SearchResult, error) {
 	embedding, err := s.llm.Embed(query)
 	if err != nil {
 		return nil, err
 	}
-	return s.queue.SearchSemantic(ctx, embedding, limit, s.config.Search.MinSemanticScore)
+	return s.queue.SearchSemantic(ctx, embedding, limit, s.config.Search.MinSemanticScore, from, to)
 }
 
-func (s *Server) searchHybrid(ctx context.Context, query string, limit int) ([]queue.SearchResult, error) {
-	keywordResults, err := s.queue.SearchKeyword(ctx, query, limit*constants.SearchOverFetchMultiplier)
+func (s *Server) searchHybrid(ctx context.Context, query string, limit int, from, to *time.Time) ([]queue.SearchResult, error) {
+	keywordResults, err := s.queue.SearchKeyword(ctx, query, limit*constants.SearchOverFetchMultiplier, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +126,7 @@ func (s *Server) searchHybrid(ctx context.Context, query string, limit int) ([]q
 		return nil, err
 	}
 
-	semanticResults, err := s.queue.SearchSemantic(ctx, embedding, limit*constants.SearchOverFetchMultiplier, s.config.Search.MinSemanticScore)
+	semanticResults, err := s.queue.SearchSemantic(ctx, embedding, limit*constants.SearchOverFetchMultiplier, s.config.Search.MinSemanticScore, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -116,37 +135,43 @@ func (s *Server) searchHybrid(ctx context.Context, query string, limit int) ([]q
 }
 
 func mergeResultsRRF(keywordResults, semanticResults []queue.SearchResult, k, limit int) []queue.SearchResult {
-	type scoredResult struct {
+	scoreMap := make(map[string]float64)
+	resultMap := make(map[string]queue.SearchResult)
+
+	for rank, r := range keywordResults {
+		scoreMap[r.NotePath] += 1.0 / float64(k+rank)
+		resultMap[r.NotePath] = r
+	}
+
+	for rank, r := range semanticResults {
+		scoreMap[r.NotePath] += 1.0 / float64(k+rank)
+		if _, ok := resultMap[r.NotePath]; !ok {
+			resultMap[r.NotePath] = r
+		}
+	}
+
+	type scored struct {
 		result queue.SearchResult
 		score  float64
 	}
-
-	scoreMap := make(map[string]scoredResult)
-
-	for _, r := range keywordResults {
-		r.Score = 1.0
-		scoreMap[r.NotePath] = scoredResult{result: r, score: 1.0}
+	scoredResults := make([]scored, 0, len(scoreMap))
+	for path, score := range scoreMap {
+		r := resultMap[path]
+		r.Score = score * float64(k) / 2.0
+		scoredResults = append(scoredResults, scored{r, score})
 	}
 
-	for _, r := range semanticResults {
-		if _, exists := scoreMap[r.NotePath]; exists {
-			continue
-		}
-		scoreMap[r.NotePath] = scoredResult{result: r, score: r.Score}
-	}
-
-	results := make([]queue.SearchResult, 0, len(scoreMap))
-	for _, sr := range scoreMap {
-		results = append(results, sr.result)
-	}
-
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Score > results[j].Score
+	sort.Slice(scoredResults, func(i, j int) bool {
+		return scoredResults[i].score > scoredResults[j].score
 	})
 
-	if len(results) > limit {
-		results = results[:limit]
+	if len(scoredResults) > limit {
+		scoredResults = scoredResults[:limit]
 	}
 
+	results := make([]queue.SearchResult, len(scoredResults))
+	for i, sr := range scoredResults {
+		results[i] = sr.result
+	}
 	return results
 }

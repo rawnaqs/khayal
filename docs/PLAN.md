@@ -47,11 +47,11 @@ Connect  → proactive discovery of related thoughts
 Project setup, config, database, vault writer.
 
 **Goals:**
-- [ ] Initialize Go module
-- [ ] Create directory structure
-- [ ] Config loader with validation
-- [ ] SQLite job queue (modernc.org/sqlite + pure Go cosine similarity)
-- [ ] Markdown frontmatter writer
+- [x] Initialize Go module
+- [x] Create directory structure
+- [x] Config loader with validation
+- [x] SQLite job queue (modernc.org/sqlite + pure Go cosine similarity)
+- [x] Markdown frontmatter writer
 
 **Files Created:** ~5
 **Tests:** Unit tests for config, vault
@@ -60,17 +60,17 @@ Project setup, config, database, vault writer.
 HTTP server, auth, logging, endpoints, search.
 
 **Goals:**
-- [ ] Chi router setup
-- [ ] Auth middleware
-- [ ] Logging middleware
-- [ ] Health endpoint
-- [ ] Capture endpoint (text sync, image/url queued)
-- [ ] Queue endpoints (list, get, retry, discard)
-- [ ] Search endpoint with:
-  - [ ] FTS5 keyword search (porter stemming + BM25)
-  - [ ] sqlite-vec semantic search
-  - [ ] RRF hybrid merge (k=60)
-  - [ ] Date filtering (from/to params)
+- [x] Chi router setup
+- [x] Auth middleware
+- [x] Logging middleware
+- [x] Health endpoint
+- [x] Capture endpoint (text sync, image/url queued)
+- [x] Queue endpoints (list, get, retry, discard)
+- [x] Search endpoint with:
+  - [x] FTS5 keyword search (porter stemming + BM25)
+  - [x] Semantic search (pure Go cosine similarity)
+  - [x] RRF hybrid merge (k=60)
+  - [x] Date filtering (from/to params)
 
 **Files Created:** ~10
 **Tests:** Integration tests for endpoints
@@ -79,13 +79,13 @@ HTTP server, auth, logging, endpoints, search.
 Background job processing, ingest pipeline.
 
 **Goals:**
-- [ ] Worker pool with configurable concurrency
-- [ ] Crash recovery (reset stuck jobs)
-- [ ] Text ingest (tags, summary)
-- [ ] Image ingest (LLM description, OCR)
-- [ ] Article ingest (scrape, summarize)
-- [ ] Retry logic (exponential backoff)
-- [ ] Safety-first: vault write only after ALL processing succeeds
+- [x] Worker pool with configurable concurrency
+- [x] Crash recovery (reset stuck jobs)
+- [x] Text ingest (tags, summary)
+- [x] Image ingest (LLM description, OCR)
+- [x] Article ingest (scrape, summarize)
+- [x] Retry logic (exponential backoff)
+- [x] Safety-first: vault write only after ALL processing succeeds
 
 **Files Created:** ~5
 **Tests:** Worker pool tests
@@ -94,11 +94,11 @@ Background job processing, ingest pipeline.
 Local AI integration.
 
 **Goals:**
-- [ ] LLM interface
-- [ ] Ollama client (embed, generate, vision)
-- [ ] Groq client (optional)
-- [ ] OpenAI client (optional)
-- [ ] No auto-fallback (job stays pending for user retry)
+- [x] LLM interface
+- [x] Ollama client (embed, generate, vision)
+- [x] Groq client (optional)
+- [x] OpenAI client (optional)
+- [x] No auto-fallback (job stays pending for user retry)
 
 **Files Created:** ~5
 **Tests:** Mock LLM tests
@@ -125,14 +125,15 @@ Local AI integration.
   - [x] `khayal config` - View config (token redacted)
 - [x] kl commands:
   - [x] `kl "text"` - capture text (default)
-  - [x] `kl capture url` - capture URL
-  - [x] `kl capture image` - capture image
+  - [x] `kl url` - capture URL
+  - [x] `kl image` - capture image
   - [x] `kl search` - search vault
   - [x] `kl recent` - recent captures
   - [x] `kl stats` - vault statistics
   - [x] `kl status` - lightweight check
   - [x] `kl init` - Huh wizard
   - [x] `kl config` - config management (view/set/get)
+  - [x] `kl version` - version info
 
 **Files Created:** ~25 (cmd/khayal + cmd/kl)
 **Tests:** CLI integration
@@ -141,10 +142,10 @@ Local AI integration.
 Web interface.
 
 **Goals:**
-- [ ] Vite + React setup
-- [ ] Capture form
-- [ ] Search UI
-- [ ] Offline queue (IndexedDB)
+- [x] Vite + React setup
+- [x] Capture form
+- [x] Search UI
+- [x] Offline queue (IndexedDB)
 - [x] Go static serving
 - [x] SPA fallback
 
@@ -155,12 +156,15 @@ Web interface.
 Release preparation.
 
 **Goals:**
-- [ ] Dependency checker
-- [ ] CI workflow
-- [ ] GoReleaser config (two binaries)
-- [ ] Docker Compose
-- [ ] README, CONTRIBUTING
-- [ ] Example config
+- [ ] Dependency checker (v1.1)
+- [x] CI workflow
+- [x] GoReleaser config (two binaries)
+- [x] Docker Compose
+- [x] README, CONTRIBUTING
+- [x] Example config
+- [ ] Shell completion (v1.1)
+- [ ] Vault subcommands (v1.1)
+- [ ] Backup/restore (v1.1)
 
 **Files Created:** ~5
 **Tests:** Full integration

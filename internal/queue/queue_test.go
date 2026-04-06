@@ -406,7 +406,7 @@ func TestSearchSemantic(t *testing.T) {
 	}
 
 	query := []float32{0.9, 0.1, 0.0, 0.0}
-	results, err := q.SearchSemantic(ctx, query, 10, 0.1)
+	results, err := q.SearchSemantic(ctx, query, 10, 0.1, nil, nil)
 	if err != nil {
 		t.Fatalf("SearchSemantic() error = %v", err)
 	}

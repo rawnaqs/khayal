@@ -33,8 +33,8 @@ type JobStore interface {
 	CountByStatus(ctx context.Context, status string) (int, error)
 	DeleteJob(ctx context.Context, id string) error
 	SaveEmbedding(ctx context.Context, jobID, model string, embedding []float32) error
-	SearchKeyword(ctx context.Context, query string, limit int) ([]SearchResult, error)
-	SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int, minScore float64) ([]SearchResult, error)
+	SearchKeyword(ctx context.Context, query string, limit int, from, to *time.Time) ([]SearchResult, error)
+	SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int, minScore float64, from, to *time.Time) ([]SearchResult, error)
 	SaveChunk(ctx context.Context, notePath string, chunkIdx int, content string, embedding []float32) error
 	IndexNote(ctx context.Context, notePath, title, content, tags string) error
 	UpdateNoteIndex(ctx context.Context, notePath, title, content, tags string) error
@@ -485,15 +485,32 @@ func (q *Queue) SaveEmbedding(ctx context.Context, jobID, model string, embeddin
 	return err
 }
 
-func (q *Queue) SearchKeyword(ctx context.Context, query string, limit int) ([]SearchResult, error) {
-	rows, err := q.db.QueryContext(ctx, `
+func (q *Queue) SearchKeyword(ctx context.Context, query string, limit int, from, to *time.Time) ([]SearchResult, error) {
+	baseSQL := `
 		SELECT j.id, j.note_path, j.type, j.created_at,
-			   snippet(notes_fts, 1, '...', '...', '', 50) as excerpt
+			   snippet(notes_fts, 1, '...', '...', '', 50) as excerpt,
+			   bm25(notes_fts, 0, 3.0, 1.0, 1.0) as bm25_score
 		FROM notes_fts fts
 		JOIN jobs j ON fts.note_path = j.note_path
-		WHERE notes_fts MATCH ?
+		WHERE notes_fts MATCH ?`
+
+	args := []any{query}
+
+	if from != nil {
+		baseSQL += ` AND j.created_at >= ?`
+		args = append(args, from.UTC().Format(time.RFC3339))
+	}
+	if to != nil {
+		baseSQL += ` AND j.created_at <= ?`
+		args = append(args, to.UTC().Format(time.RFC3339))
+	}
+
+	baseSQL += `
 		ORDER BY bm25(notes_fts, 0, 3.0, 1.0, 1.0)
-		LIMIT ?`, query, limit)
+		LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := q.db.QueryContext(ctx, baseSQL, args...)
 	if err != nil {
 		if isFTSErr(err) {
 			return []SearchResult{}, nil
@@ -505,10 +522,12 @@ func (q *Queue) SearchKeyword(ctx context.Context, query string, limit int) ([]S
 	var results []SearchResult
 	for rows.Next() {
 		var r SearchResult
-		if err := rows.Scan(&r.JobID, &r.NotePath, &r.Type, &r.CreatedAt, &r.Excerpt); err != nil {
+		var bm25Score float64
+		if err := rows.Scan(&r.JobID, &r.NotePath, &r.Type, &r.CreatedAt, &r.Excerpt, &bm25Score); err != nil {
 			return nil, err
 		}
-		r.Score = 1.0
+		relevance := -bm25Score
+		r.Score = relevance / (relevance + 1)
 
 		tags, err := q.GetNoteTags(ctx, r.NotePath)
 		if err == nil {
@@ -526,7 +545,7 @@ func (q *Queue) SearchKeyword(ctx context.Context, query string, limit int) ([]S
 	return results, rows.Err()
 }
 
-func (q *Queue) SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int, minScore float64) ([]SearchResult, error) {
+func (q *Queue) SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int, minScore float64, from, to *time.Time) ([]SearchResult, error) {
 	type scoredChunk struct {
 		notePath  string
 		chunkIdx  int
@@ -541,21 +560,32 @@ func (q *Queue) SearchSemantic(ctx context.Context, queryEmbedding []float32, li
 		return []SearchResult{}, nil
 	}
 
-	queryNorm := normalize(queryEmbedding)
-	if queryNorm == 0 {
-		return []SearchResult{}, nil
-	}
-
 	noteBest := make(map[string]scoredChunk)
 	offset := 0
 
+	dateFilter := ""
+	var args []any
+	if from != nil {
+		dateFilter += ` AND j.created_at >= ?`
+		args = append(args, from.UTC().Format(time.RFC3339))
+	}
+	if to != nil {
+		dateFilter += ` AND j.created_at <= ?`
+		args = append(args, to.UTC().Format(time.RFC3339))
+	}
+
 	for {
-		rows, err := q.db.QueryContext(ctx, `
+		query := fmt.Sprintf(`
 			SELECT c.note_path, c.chunk_idx, c.content, c.embedding, j.type, j.created_at, j.id
 			FROM chunks c
 			JOIN jobs j ON c.note_path = j.note_path
-			WHERE c.embedding IS NOT NULL
-			LIMIT ? OFFSET ?`, batchSize, offset)
+			WHERE c.embedding IS NOT NULL%s
+			LIMIT ? OFFSET ?`, dateFilter)
+
+		qArgs := append([]any{}, args...)
+		qArgs = append(qArgs, batchSize, offset)
+
+		rows, err := q.db.QueryContext(ctx, query, qArgs...)
 		if err != nil {
 			return nil, err
 		}
