@@ -1,6 +1,13 @@
 # Khayal
 
+![Go](https://img.shields.io/github/go-mod/go-version/rawnaqs/khayal?label=go)
+![Release](https://img.shields.io/github/v/release/rawnaqs/khayal)
+![License](https://img.shields.io/github/license/rawnaqs/khayal)
+
 > Your private treasury of thought. Local, secure, yours.
+
+<!-- TODO: add asciinema recording or terminal screenshot here -->
+*(demo recording coming soon)*
 
 A local-first, privacy-focused second brain. Capture anything — text, images, URLs. Process locally with your own LLM. Search semantically and by keyword. Your data never leaves your machine.
 
@@ -22,13 +29,16 @@ Capture via CLI (`kl`) or web UI (PWA). The server processes content with a loca
 
 ## Why Khayal?
 
-| | Cloud tools | Khayal |
-|---|---|---|
-| Data | Hosted by others | Your machine |
-| AI | API calls (OpenAI) | Local LLM (Ollama) |
-| Search | Server-side | Local SQLite |
-| Cost | Subscription | Free forever |
-| Privacy | Trust third party | Zero trust |
+| | Notion | Obsidian | Mem.ai | Khayal |
+|---|---|---|---|---|
+| Data | Cloud-hosted | Local files | Cloud-only | Local files |
+| AI | API calls (OpenAI) | Plugins only | API calls | Local LLM (Ollama) |
+| Search | Server-side | Graph/keyword | Server-side | FTS5 + semantic |
+| Capture layer | Full editor | Manual | Full editor | CLI + PWA |
+| Cost | Subscription | Free | $20+/mo | Free |
+| Vault format | Proprietary | `.md` | Proprietary | Plain `.md` |
+
+Khayal and Obsidian are complementary. Khayal is a capture and retrieval layer — your vault remains plain markdown that Obsidian can open directly. `khayal init` optionally installs the Front Matter Title plugin for better note titles in Obsidian.
 
 ## Features
 
@@ -37,6 +47,9 @@ Capture via CLI (`kl`) or web UI (PWA). The server processes content with a loca
 - **Search** — Keyword (FTS5) + semantic (embeddings) hybrid
 - **Store** — Plain markdown in your vault, yours forever
 - **PWA** — Web interface, works offline, update notifications
+  - Offline capture queue (syncs when server is back)
+  - Works as installable PWA on iOS and desktop
+  - Live pipeline visualization for queued notes
 - **CLI** — Full client (`kl`) + server admin (`khayal`)
 - **Updates** — Built-in update checker via GitHub releases
 
@@ -58,7 +71,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 
 # Pull required models
 ollama pull nomic-embed-text
-ollama pull llama3.2:3b
+ollama pull qwen2.5:3b
 ollama pull moondream
 ```
 
@@ -146,7 +159,7 @@ llm:
   provider: ollama
   ollama_host: http://localhost:11434
   embed_model: nomic-embed-text
-  text_model: llama3.2:3b
+  text_model: qwen2.5:3b
   vision_model: moondream
 
 worker:
@@ -251,4 +264,4 @@ AGPLv3 — See [LICENSE](LICENSE)
 
 ---
 
-Made by Rawnaqs
+Built by [Rawnaqs](https://rawnaqs.io) · Open source tools, local first.
