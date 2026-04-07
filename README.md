@@ -7,7 +7,7 @@
 > Your private treasury of thought. Local, secure, yours.
 
 <!-- TODO: add asciinema recording or terminal screenshot here -->
-*(demo recording coming soon)*
+<img src="charm-vhs-tape/khayal.gif" alt="Khayal demo" />
 
 A local-first, privacy-focused second brain. Capture anything — text, images, URLs. Process locally with your own LLM. Search semantically and by keyword. Your data never leaves your machine.
 

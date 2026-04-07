@@ -19,33 +19,28 @@ Set WindowBar Colorful
 Set TypingSpeed 40ms
 Set PlaybackSpeed 0.8
 
-# --- 1. boot the server ---
 
 Sleep 500ms
 Type "brew services start khayal"
 Enter
 Sleep 3500ms
 
-# --- 2. capture a quick thought ---
 
 Type "kl 'the observer effect changes what you measure'"
 Enter
 Sleep 2s
 
-# --- 3. capture a URL ---
 
 Type "kl url https://arme.dev/blog/blog"
 Enter
 Sleep 2s
 
-# --- 6. search ---
 
 Sleep 500ms
 Type "kl search 'observer'"
 Enter
 Sleep 2500ms
 
-# --- 8. stats ---
 
 Type "kl stats"
 Enter
