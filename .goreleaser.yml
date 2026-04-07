@@ -78,7 +78,7 @@ release:
   draft: false
   prerelease: auto
 
-homebrew_casks:
+brews:
   - name: khayal
     ids: [khayal]
     repository:
@@ -94,12 +94,10 @@ homebrew_casks:
       keep_alive true
       log_path var/"log/khayal.log"
       error_log_path var/"log/khayal.err.log"
-    generate_completions_from_executable:
-      shell_parameter_format: cobra
-      shells:
-        - bash
-        - zsh
-        - fish
+    extra_install: |
+      (bash_completion/"khayal").write Utils.safe_popen_read(bin/"khayal", "completion", "bash")
+      (zsh_completion/"_khayal").write Utils.safe_popen_read(bin/"khayal", "completion", "zsh")
+      (fish_completion/"khayal.fish").write Utils.safe_popen_read(bin/"khayal", "completion", "fish")
 
   - name: kl
     ids: [kl]
@@ -111,12 +109,10 @@ homebrew_casks:
     homepage: "https://github.com/rawnaqs/khayal"
     description: "Khayal CLI client — capture, search, status."
     license: "AGPL-3.0"
-    generate_completions_from_executable:
-      shell_parameter_format: cobra
-      shells:
-        - bash
-        - zsh
-        - fish
+    extra_install: |
+      (bash_completion/"kl").write Utils.safe_popen_read(bin/"kl", "completion", "bash")
+      (zsh_completion/"_kl").write Utils.safe_popen_read(bin/"kl", "completion", "zsh")
+      (fish_completion/"kl.fish").write Utils.safe_popen_read(bin/"kl", "completion", "fish")
 
 dockers_v2:
   - images:
