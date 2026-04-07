@@ -78,7 +78,7 @@ release:
   draft: false
   prerelease: auto
 
-brews:
+homebrew_casks:
   - name: khayal
     ids: [khayal]
     repository:
@@ -94,6 +94,12 @@ brews:
       keep_alive true
       log_path var/"log/khayal.log"
       error_log_path var/"log/khayal.err.log"
+    generate_completions_from_executable:
+      shell_parameter_format: cobra
+      shells:
+        - bash
+        - zsh
+        - fish
 
   - name: kl
     ids: [kl]
@@ -105,6 +111,12 @@ brews:
     homepage: "https://github.com/rawnaqs/khayal"
     description: "Khayal CLI client — capture, search, status."
     license: "AGPL-3.0"
+    generate_completions_from_executable:
+      shell_parameter_format: cobra
+      shells:
+        - bash
+        - zsh
+        - fish
 
 dockers_v2:
   - images:
