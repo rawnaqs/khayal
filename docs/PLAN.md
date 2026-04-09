@@ -223,15 +223,24 @@ go build -o kl ./cmd/kl
 
 ## Per-Phase Instructions
 
-Each phase has a detailed document:
+### v1 Phases
 
-- [Phase 1: Foundation](phases/phase-1-foundation.md)
-- [Phase 2: Core API](phases/phase-2-api.md)
-- [Phase 3: Worker](phases/phase-3-worker.md)
-- [Phase 4: LLM](phases/phase-4-llm.md)
-- [Phase 5: CLI](phases/phase-5-cli.md)
-- [Phase 6: PWA](phases/phase-6-pwa.md)
-- [Phase 7: Polish](phases/phase-7-polish.md)
+- [Phase 1: Foundation](phases/v1/phase-1-foundation.md)
+- [Phase 2: Core API](phases/v1/phase-2-api.md)
+- [Phase 3: Worker](phases/v1/phase-3-worker.md)
+- [Phase 4: LLM](phases/v1/phase-4-llm.md)
+- [Phase 5: CLI](phases/v1/phase-5-cli.md)
+- [Phase 6: PWA](phases/v1/phase-6-pwa.md)
+- [Phase 7: Polish](phases/v1/phase-7-polish.md)
+
+### v1.1 Phases
+
+- [Phase 1: Chunking](phases/v1.1/phase-1-chunking.md)
+- [Phase 2: Entity Extraction](phases/v1.1/phase-2-entities.md)
+- [Phase 3: Proactive Connections](phases/v1.1/phase-3-connections.md)
+- [Phase 4: Vault Commands](phases/v1.1/phase-4-vault.md)
+- [Phase 5: Backup/Restore](phases/v1.1/phase-5-backup.md)
+- [Phase 6: Polish](phases/v1.1/phase-6-polish.md)
 
 ## Tech Stack
 
