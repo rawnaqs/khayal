@@ -1,6 +1,6 @@
-# Phase 2: Entity Extraction
+# Phase 1: Entity Extraction
 
-> Extract structured entities from notes: people, amounts, dates, places, orgs, URLs. Updated: 2026-04-09
+> Extract structured entities from notes: people, amounts, dates, places, orgs, URLs. Updated: 2026-04-11
 
 ## Goals
 
@@ -48,7 +48,7 @@ CREATE TABLE entities (
 -- Indexes also exist
 ```
 
-## Step 2.1: Add ExtractEntities to LLM
+## Step 1.1: Add ExtractEntities to LLM
 
 **File:** `internal/llm/llm.go`
 
@@ -127,7 +127,7 @@ func parseEntityResponse(text string) (map[string][]string, error) {
 }
 ```
 
-## Step 2.2: Add SaveEntity to Queue
+## Step 1.2: Add SaveEntity to Queue
 
 **File:** `internal/queue/queue.go`
 
@@ -173,7 +173,7 @@ func (q *Queue) SaveEntities(ctx context.Context, notePath string, entities map[
 }
 ```
 
-## Step 2.3: Add Entities to Vault Metadata
+## Step 1.3: Add Entities to Vault Metadata
 
 **File:** `internal/vault/writer.go`
 
@@ -203,7 +203,7 @@ type Entities struct {
 }
 ```
 
-## Step 2.4: Update Ingest Pipeline
+## Step 1.4: Update Ingest Pipeline
 
 **File:** `internal/ingest/text.go`
 
@@ -289,25 +289,13 @@ func IngestText(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Q
         q.logger.Warn("failed to save entities", "error", err)
     }
 
-    // Embed and save chunks
-    chunks := chunker.SplitIntoChunks(job.Content)
-    for i, chunk := range chunks {
-        embedding, err := llmClient.Embed(chunk)
-        if err != nil {
-            continue
-        }
-        if err := q.SaveChunk(ctx, notePath, i, chunk, embedding); err != nil {
-            return notePath, nil
-        }
-    }
-
     return notePath, nil
 }
 ```
 
 Apply same changes to `image.go` and `article.go`.
 
-## Step 2.5: Unit Tests
+## Step 1.5: Unit Tests
 
 **File:** `internal/llm/entities_test.go`
 
@@ -449,7 +437,7 @@ func TestGetEntitiesByNote(t *testing.T) {
 
 ## Next Phase
 
-[Phase 3: Proactive Connections](phase-3-connections.md)
+[Phase 2: Proactive Connections](phase-2-connections.md)
 
 ## Notes
 

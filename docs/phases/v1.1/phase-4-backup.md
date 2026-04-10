@@ -1,6 +1,6 @@
-# Phase 5: Backup and Restore
+# Phase 4: Backup and Restore
 
-> Backup and restore vault, database, and config. Updated: 2026-04-09
+> Backup and restore vault, database, and config. Updated: 2026-04-11
 
 ## Goals
 
@@ -664,7 +664,7 @@ if backupInitKey {
 
 ## Next Phase
 
-[Phase 6: Polish](phase-6-polish.md)
+[Phase 5: Polish](phase-5-polish.md)
 
 ## Notes
 

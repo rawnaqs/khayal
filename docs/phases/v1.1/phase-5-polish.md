@@ -1,6 +1,6 @@
-# Phase 6: Polish
+# Phase 5: Polish
 
-> Final integration, testing, documentation. Updated: 2026-04-09
+> Final integration, testing, documentation. Updated: 2026-04-11
 
 ## Goals
 
@@ -17,7 +17,7 @@
 - **Build commands** — Already work: `go build -o khayal ./cmd/khayal`
 - **Test framework** — Standard Go tests: `go test ./...`
 
-## Step 6.1: Lint
+## Step 5.1: Lint
 
 ```bash
 go vet ./...
@@ -32,17 +32,16 @@ Fix any errors. Remember per RULES.md:
 - strings.Builder in loops
 - Never defer in loops
 
-## Step 6.2: Tests
+## Step 5.2: Tests
 
 ```bash
-go test ./internal/chunker/...
 go test ./internal/connections/...
 go test ./internal/backup/...
 go test ./cmd/khayal/commands/...
 go test ./...
 ```
 
-## Step 6.3: Update PLAN.md
+## Step 5.3: Update PLAN.md
 
 Update docs/PLAN.md for v1.1:
 
@@ -63,7 +62,7 @@ Update docs/PLAN.md for v1.1:
 ...
 ```
 
-## Step 6.4: Update SPEC.md
+## Step 5.4: Update SPEC.md
 
 Mark v1.1 items as complete:
 
@@ -85,7 +84,7 @@ Mark v1.1 items as complete:
 - [x] Same amount
 ```
 
-## Step 6.5: Build Verification
+## Step 5.5: Build Verification
 
 ```bash
 go build -o khayal ./cmd/khayal

@@ -1,6 +1,6 @@
-# Phase 4: Vault Commands
+# Phase 3: Vault Commands
 
-> Vault maintenance subcommands. Updated: 2026-04-09
+> Vault maintenance subcommands. Updated: 2026-04-11
 
 ## Goals
 
@@ -711,7 +711,7 @@ func similarity(a, b string) (float32, int) {
 
 ## Next Phase
 
-[Phase 5: Backup and Restore](phase-5-backup.md)
+[Phase 4: Backup and Restore](phase-4-backup.md)
 
 ## Notes
 

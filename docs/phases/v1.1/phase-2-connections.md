@@ -1,6 +1,6 @@
-# Phase 3: Proactive Connections
+# Phase 2: Proactive Connections
 
-> Auto-discover related notes after capture. Updated: 2026-04-09
+> Auto-discover related notes after capture. Updated: 2026-04-11
 
 ## Goals
 
@@ -489,7 +489,7 @@ func (w *Worker) processConnections(ctx context.Context, job *queue.Job) error {
 
 ## Next Phase
 
-[Phase 4: Vault Commands](phase-4-vault.md)
+[Phase 3: Vault Commands](phase-3-vault.md)
 
 ## Notes
 
