@@ -55,10 +55,14 @@ export function NoteView({ notePath, query, onClose }: NoteViewProps) {
         style={{
           background: "#0d0d0d",
           borderLeft: "1px solid rgba(255,255,255,0.08)",
+          paddingBottom: 'max(env(safe-area-inset-bottom), 0px)',
         }}
       >
         {/* Header */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-white/5 shrink-0">
+        <div
+          className="flex items-center gap-3 px-5 py-4 border-b border-white/5 shrink-0"
+          style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}
+        >
           <h2
             className="flex-1 text-base font-semibold truncate"
             style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}
