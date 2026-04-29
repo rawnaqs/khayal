@@ -210,7 +210,7 @@ func (q *Queue) CreateJob(ctx context.Context, job *Job) error {
 
 	const maxRetries = constants.SQLiteMaxRetries
 	var err error
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := range maxRetries {
 		_, err = q.db.ExecContext(ctx, `
 			INSERT INTO jobs (id, type, status, note_path, source_url, source_file, content, user_context, created_at, processed_at, error, retries)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -274,7 +274,7 @@ func (q *Queue) GetJob(ctx context.Context, id string) (*Job, error) {
 func (q *Queue) UpdateJob(ctx context.Context, job *Job) error {
 	const maxRetries = constants.SQLiteMaxRetries
 	var err error
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := range maxRetries {
 		_, err = q.db.ExecContext(ctx, `
 			UPDATE jobs SET status = ?, note_path = ?, processed_at = ?, error = ?, retries = ?
 			WHERE id = ?`,
@@ -299,7 +299,7 @@ func (q *Queue) UpdateJob(ctx context.Context, job *Job) error {
 func (q *Queue) UpdateJobStatus(ctx context.Context, id, status string) error {
 	const maxRetries = constants.SQLiteMaxRetries
 	var err error
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := range maxRetries {
 		_, err = q.db.ExecContext(ctx, "UPDATE jobs SET status = ? WHERE id = ?", status, id)
 		if err == nil {
 			q.logger.Debug("job status changed",
@@ -326,7 +326,7 @@ func (q *Queue) ListJobs(ctx context.Context, status string, limit, offset int) 
 	var total int
 
 	query := "SELECT COUNT(*) FROM jobs"
-	args := []interface{}{}
+	args := []any{}
 	if status != "" && status != "all" {
 		query += " WHERE status = ?"
 		args = append(args, status)
@@ -348,7 +348,7 @@ func (q *Queue) ListJobs(ctx context.Context, status string, limit, offset int) 
 	}
 	defer rows.Close()
 
-	var jobs []Job
+	jobs := make([]Job, 0, limit)
 	for rows.Next() {
 		var job Job
 		var createdAtStr string
@@ -385,7 +385,7 @@ func (q *Queue) GetPendingJobs(ctx context.Context, limit int) ([]Job, error) {
 	}
 	defer rows.Close()
 
-	var jobs []Job
+	jobs := make([]Job, 0, limit)
 	for rows.Next() {
 		var job Job
 		var createdAtStr string
@@ -430,7 +430,7 @@ func (q *Queue) FetchAndLockPendingJobs(ctx context.Context, limit int) ([]Job, 
 	}
 	defer rows.Close()
 
-	var jobs []Job
+	jobs := make([]Job, 0, limit)
 	for rows.Next() {
 		var job Job
 		var createdAtStr string
@@ -519,7 +519,9 @@ func (q *Queue) SearchKeyword(ctx context.Context, query string, limit int, from
 	}
 	defer rows.Close()
 
-	var results []SearchResult
+	results := make([]SearchResult, 0, limit)
+	notePaths := make([]string, 0, limit)
+
 	for rows.Next() {
 		var r SearchResult
 		var bm25Score float64
@@ -528,18 +530,29 @@ func (q *Queue) SearchKeyword(ctx context.Context, query string, limit int, from
 		}
 		relevance := -bm25Score
 		r.Score = relevance / (relevance + 1)
-
-		tags, err := q.GetNoteTags(ctx, r.NotePath)
-		if err == nil {
-			r.Tags = tags
-		}
-
-		title, err := q.GetNoteTitle(ctx, r.NotePath)
-		if err == nil {
-			r.Title = title
-		}
-
 		results = append(results, r)
+		notePaths = append(notePaths, r.NotePath)
+	}
+
+	// Normalize keyword scores to (0,1] - best result gets 1.0
+	if len(results) > 0 {
+		maxScore := results[0].Score // Already sorted by BM25, first is best
+		if maxScore > 0 {
+			for i := range results {
+				results[i].Score = results[i].Score / maxScore
+			}
+		}
+	}
+
+	// Batch fetch tags and titles to avoid N+1 queries
+	tagsMap, _ := q.BatchGetNoteTags(ctx, notePaths)
+	titlesMap, _ := q.BatchGetNoteTitles(ctx, notePaths)
+
+	for i := range results {
+		results[i].Tags = tagsMap[results[i].NotePath]
+		if title, ok := titlesMap[results[i].NotePath]; ok {
+			results[i].Title = title
+		}
 	}
 
 	return results, rows.Err()
@@ -649,6 +662,14 @@ func (q *Queue) SearchSemantic(ctx context.Context, queryEmbedding []float32, li
 		results = results[:limit]
 	}
 
+	// Normalize semantic scores to (0,1] - best result gets 1.0
+	if len(results) > 0 && results[0].score > 0 {
+		maxScore := results[0].score
+		for i := range results {
+			results[i].score = results[i].score / maxScore
+		}
+	}
+
 	searchResults := make([]SearchResult, len(results))
 	for i, r := range results {
 		sr := SearchResult{
@@ -690,7 +711,18 @@ func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags st
 	const maxRetries = constants.SQLiteMaxRetries
 	var lastErr error
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	// Pre-split tags once outside retry loop
+	var tagList []string
+	if tags != "" {
+		for tag := range strings.SplitSeq(tags, ",") {
+			tag = strings.TrimSpace(tag)
+			if tag != "" {
+				tagList = append(tagList, tag)
+			}
+		}
+	}
+
+	for attempt := range maxRetries {
 		now := time.Now().UTC().Format(time.RFC3339)
 
 		_, err := q.db.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath)
@@ -722,13 +754,8 @@ func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags st
 			}
 		}
 
-		if tags != "" {
-			tagList := strings.Split(tags, ",")
+		if len(tagList) > 0 {
 			for _, tag := range tagList {
-				tag = strings.TrimSpace(tag)
-				if tag == "" {
-					continue
-				}
 				_, err = q.db.ExecContext(ctx, `
 					INSERT INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
 					VALUES (?, NULL, 'tag', ?, ?)`,
@@ -768,7 +795,18 @@ func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, t
 	const maxRetries = constants.SQLiteMaxRetries
 	var lastErr error
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	// Pre-split tags once outside retry loop
+	var tagList []string
+	if tags != "" {
+		for tag := range strings.SplitSeq(tags, ",") {
+			tag = strings.TrimSpace(tag)
+			if tag != "" {
+				tagList = append(tagList, tag)
+			}
+		}
+	}
+
+	for attempt := range maxRetries {
 		now := time.Now().UTC().Format(time.RFC3339)
 
 		_, err := q.db.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath)
@@ -800,13 +838,8 @@ func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, t
 			}
 		}
 
-		if tags != "" {
-			tagList := strings.Split(tags, ",")
+		if len(tagList) > 0 {
 			for _, tag := range tagList {
-				tag = strings.TrimSpace(tag)
-				if tag == "" {
-					continue
-				}
 				_, err = q.db.ExecContext(ctx, `
 					INSERT INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
 					VALUES (?, NULL, 'tag', ?, ?)`,
@@ -854,7 +887,7 @@ func (q *Queue) DeleteFromIndex(ctx context.Context, notePath string) error {
 	const maxRetries = constants.SQLiteMaxRetries
 	var lastErr error
 
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := range maxRetries {
 		_, err := q.db.ExecContext(ctx, `DELETE FROM notes_fts WHERE note_path = ?`, notePath)
 		if err != nil && isFTSErr(err) {
 			return nil
@@ -904,7 +937,7 @@ func contains(s, substr string) bool {
 	return false
 }
 
-func nullableTime(t *time.Time) interface{} {
+func nullableTime(t *time.Time) any {
 	if t == nil {
 		return nil
 	}
@@ -922,7 +955,7 @@ func encodeEmbedding(embedding []float32) []byte {
 func decodeEmbedding(blob []byte) []float32 {
 	n := len(blob) / 4
 	v := make([]float32, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		v[i] = math.Float32frombits(binary.LittleEndian.Uint32(blob[i*4:]))
 	}
 	return v
@@ -973,7 +1006,6 @@ func (q *Queue) CountNotes(ctx context.Context) (int, error) {
 	var count int
 	err := q.db.QueryRowContext(ctx, `
 		SELECT COUNT(DISTINCT note_path) FROM chunks
-		WHERE note_path LIKE 'khayal/%'
 	`).Scan(&count)
 	return count, err
 }
@@ -982,8 +1014,7 @@ func (q *Queue) CountNotesSince(ctx context.Context, since time.Time) (int, erro
 	var count int
 	err := q.db.QueryRowContext(ctx, `
 		SELECT COUNT(DISTINCT note_path) FROM chunks
-		WHERE note_path LIKE 'khayal/%'
-		AND datetime(created_at) >= datetime(?)
+		WHERE datetime(created_at) >= datetime(?)
 	`, since.UTC().Format("2006-01-02T15:04:05")).Scan(&count)
 	return count, err
 }
@@ -1019,13 +1050,13 @@ func (q *Queue) GetTopTags(ctx context.Context, limit int) ([]TagCount, error) {
 		GROUP BY entity_value
 		ORDER BY cnt DESC
 		LIMIT ?
-	`, limit)
+		`, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var result []TagCount
+	result := make([]TagCount, 0, limit)
 	for rows.Next() {
 		var tc TagCount
 		if err := rows.Scan(&tc.Name, &tc.Count); err != nil {
@@ -1044,13 +1075,13 @@ func (q *Queue) GetTopPeople(ctx context.Context, limit int) ([]PersonCount, err
 		GROUP BY entity_value
 		ORDER BY cnt DESC
 		LIMIT ?
-	`, limit)
+		`, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var result []PersonCount
+	result := make([]PersonCount, 0, limit)
 	for rows.Next() {
 		var pc PersonCount
 		if err := rows.Scan(&pc.Name, &pc.Count); err != nil {
@@ -1067,13 +1098,13 @@ func (q *Queue) GetStreaks(ctx context.Context) (int, int, error) {
 		FROM jobs
 		WHERE status = 'done'
 		ORDER BY capture_date DESC
-	`)
+		`)
 	if err != nil {
 		return 0, 0, err
 	}
 	defer rows.Close()
 
-	var dates []time.Time
+	dates := make([]time.Time, 0, 100) // Pre-allocate with reasonable capacity
 	for rows.Next() {
 		var dateStr string
 		if err := rows.Scan(&dateStr); err != nil {
@@ -1137,13 +1168,13 @@ func (q *Queue) GetNoteTags(ctx context.Context, notePath string) ([]string, err
 		FROM entities
 		WHERE note_path = ? AND entity_type = 'tag'
 		ORDER BY entity_value
-	`, notePath)
+		`, notePath)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var tags []string
+	tags := make([]string, 0, 10) // Typical max tags per note
 	for rows.Next() {
 		var tag string
 		if err := rows.Scan(&tag); err != nil {
@@ -1158,11 +1189,86 @@ func (q *Queue) GetNoteTitle(ctx context.Context, notePath string) (string, erro
 	var title string
 	err := q.db.QueryRowContext(ctx, `
 		SELECT entity_value FROM entities WHERE note_path = ? AND entity_type = 'title'
-	`, notePath).Scan(&title)
+		`, notePath).Scan(&title)
 	if err == sql.ErrNoRows {
 		return "", nil
 	}
 	return title, err
+}
+
+// BatchGetNoteTags returns a map of note_path -> []tags for multiple notes in a single query.
+func (q *Queue) BatchGetNoteTags(ctx context.Context, notePaths []string) (map[string][]string, error) {
+	result := make(map[string][]string)
+	if len(notePaths) == 0 {
+		return result, nil
+	}
+
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(notePaths))
+	args := make([]any, len(notePaths))
+	for i, path := range notePaths {
+		placeholders[i] = "?"
+		args[i] = path
+	}
+
+	query := fmt.Sprintf(`
+		SELECT note_path, entity_value
+		FROM entities
+		WHERE entity_type = 'tag' AND note_path IN (%s)
+		ORDER BY note_path, entity_value`,
+		strings.Join(placeholders, ","))
+
+	rows, err := q.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var notePath, tag string
+		if err := rows.Scan(&notePath, &tag); err != nil {
+			return nil, err
+		}
+		result[notePath] = append(result[notePath], tag)
+	}
+	return result, rows.Err()
+}
+
+// BatchGetNoteTitles returns a map of note_path -> title for multiple notes in a single query.
+func (q *Queue) BatchGetNoteTitles(ctx context.Context, notePaths []string) (map[string]string, error) {
+	result := make(map[string]string)
+	if len(notePaths) == 0 {
+		return result, nil
+	}
+
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(notePaths))
+	args := make([]any, len(notePaths))
+	for i, path := range notePaths {
+		placeholders[i] = "?"
+		args[i] = path
+	}
+
+	query := fmt.Sprintf(`
+		SELECT note_path, entity_value
+		FROM entities
+		WHERE entity_type = 'title' AND note_path IN (%s)`,
+		strings.Join(placeholders, ","))
+
+	rows, err := q.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var notePath, title string
+		if err := rows.Scan(&notePath, &title); err != nil {
+			return nil, err
+		}
+		result[notePath] = title
+	}
+	return result, rows.Err()
 }
 
 // ── New stats functions ──
@@ -1224,7 +1330,7 @@ func (q *Queue) GetLast7Days(ctx context.Context) ([7]int, error) {
 	}
 
 	// Fill array from oldest (index 0) to today (index 6)
-	for i := 0; i < 7; i++ {
+	for i := range 7 {
 		day := today.AddDate(0, 0, i-6).Format("2006-01-02")
 		result[i] = dayCounts[day]
 	}
@@ -1232,17 +1338,16 @@ func (q *Queue) GetLast7Days(ctx context.Context) ([7]int, error) {
 }
 
 func (q *Queue) GetLastCapture(ctx context.Context) (string, error) {
-	var lastCapture string
+	var lastCapture sql.NullString
 	err := q.db.QueryRowContext(ctx, `
-		SELECT MAX(datetime(created_at, "localtime")) FROM chunks WHERE note_path LIKE 'khayal/%'
-	`).Scan(&lastCapture)
+		SELECT MAX(datetime(created_at, "localtime")) FROM chunks`).Scan(&lastCapture)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", nil
-		}
 		return "", err
 	}
-	return lastCapture, nil
+	if lastCapture.Valid {
+		return lastCapture.String, nil
+	}
+	return "", nil
 }
 
 func (q *Queue) GetAvgPerDay(ctx context.Context, days int) (float64, error) {
@@ -1253,8 +1358,7 @@ func (q *Queue) GetAvgPerDay(ctx context.Context, days int) (float64, error) {
 	var count int
 	err := q.db.QueryRowContext(ctx, `
 		SELECT COUNT(DISTINCT note_path) FROM chunks
-		WHERE note_path LIKE 'khayal/%'
-		AND DATE(datetime(created_at, 'localtime')) >= ?
+		WHERE DATE(datetime(created_at, 'localtime')) >= ?
 	`, since).Scan(&count)
 	if err != nil {
 		return 0, err
@@ -1291,7 +1395,7 @@ func (q *Queue) GetThisWeekStreak(ctx context.Context) ([7]bool, error) {
 	}
 
 	// Fill array from oldest (index 0) to today (index 6)
-	for i := 0; i < 7; i++ {
+	for i := range 7 {
 		day := today.AddDate(0, 0, i-6).Format("2006-01-02")
 		result[i] = daysWithData[day]
 	}
@@ -1330,12 +1434,12 @@ func (q *Queue) UpdateBestStreak(ctx context.Context, current int) error {
 // ── Stats cache functions ──
 
 type StatsCacheEntry struct {
-	Date      string      `json:"date"`
-	Stats     interface{} `json:"stats"`
-	UpdatedAt string      `json:"updated_at"`
+	Date      string `json:"date"`
+	Stats     any    `json:"stats"`
+	UpdatedAt string `json:"updated_at"`
 }
 
-func (q *Queue) SaveStatsCache(ctx context.Context, stats interface{}) error {
+func (q *Queue) SaveStatsCache(ctx context.Context, stats any) error {
 	now := time.Now().UTC()
 	entry := StatsCacheEntry{
 		Date:      now.Format("2006-01-02"),
@@ -1347,7 +1451,7 @@ func (q *Queue) SaveStatsCache(ctx context.Context, stats interface{}) error {
 		return err
 	}
 	const maxRetries = constants.SQLiteMaxRetries
-	for attempt := 0; attempt < maxRetries; attempt++ {
+	for attempt := range maxRetries {
 		_, err = q.db.ExecContext(ctx, `
 			INSERT OR REPLACE INTO stats_cache (key, value, updated_at)
 			VALUES ('stats', ?, ?)

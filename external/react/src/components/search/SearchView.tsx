@@ -47,10 +47,11 @@ function removeRecentSearch(query: string) {
 }
 
 interface SearchViewProps {
-  onCaptureQuery?: (query: string) => void
+  onCaptureQuery?: (query: string) => void;
+  onNoteSelect?: (notePath: string, query?: string) => void;
 }
 
-export function SearchView({ onCaptureQuery }: SearchViewProps = {}) {
+export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {}) {
   const [query, setQuery] = useState('')
   const [searchedQuery, setSearchedQuery] = useState("")
   const [mode, setMode] = useState<SearchMode>('hybrid')
@@ -99,6 +100,10 @@ export function SearchView({ onCaptureQuery }: SearchViewProps = {}) {
     setRecentSearches(getRecentSearches())
   }, [])
 
+  const handleNoteSelectLocal = useCallback((notePath: string) => {
+    onNoteSelect?.(notePath, searchedQuery)
+  }, [onNoteSelect, searchedQuery])
+
   const filteredResults = useMemo(() => {
     if (!results?.results) return null
     if (typeFilter === 'all') return results.results
@@ -126,7 +131,6 @@ export function SearchView({ onCaptureQuery }: SearchViewProps = {}) {
               const q = query.trim()
               if (e.key === 'Enter' && q) {
                 handleSearch(query.trim())
-
               }
             }}
             className="srch-val bg-transparent outline-none"
@@ -228,9 +232,9 @@ export function SearchView({ onCaptureQuery }: SearchViewProps = {}) {
             <div className="results">
               {filteredResults.map((result, index) => {
                 if (index === 0 && result.score > 0.9) {
-                  return <ResultHero key={result.id} result={result} query={searchedQuery} />
+                  return <ResultHero key={result.id} result={result} query={searchedQuery} onSelect={handleNoteSelectLocal} />
                 }
-                return <ResultCompact key={result.id} result={result} rank={index + 1} query={searchedQuery} />
+                return <ResultCompact key={result.id} result={result} rank={index + 1} query={searchedQuery} onSelect={handleNoteSelectLocal} />
               })}
             </div>
           </motion.div>

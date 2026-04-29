@@ -138,6 +138,7 @@ func mergeResultsRRF(keywordResults, semanticResults []queue.SearchResult, k, li
 	scoreMap := make(map[string]float64)
 	resultMap := make(map[string]queue.SearchResult)
 
+	// Standard RRF: score = sum(1/(k + rank))
 	for rank, r := range keywordResults {
 		scoreMap[r.NotePath] += 1.0 / float64(k+rank)
 		resultMap[r.NotePath] = r
@@ -157,13 +158,20 @@ func mergeResultsRRF(keywordResults, semanticResults []queue.SearchResult, k, li
 	scoredResults := make([]scored, 0, len(scoreMap))
 	for path, score := range scoreMap {
 		r := resultMap[path]
-		r.Score = score * float64(k) / 2.0
 		scoredResults = append(scoredResults, scored{r, score})
 	}
 
 	sort.Slice(scoredResults, func(i, j int) bool {
 		return scoredResults[i].score > scoredResults[j].score
 	})
+
+	// Normalize RRF scores to (0,1] - best result gets 1.0
+	if len(scoredResults) > 0 && scoredResults[0].score > 0 {
+		maxScore := scoredResults[0].score // Already sorted descending
+		for i := range scoredResults {
+			scoredResults[i].result.Score = scoredResults[i].score / maxScore
+		}
+	}
 
 	if len(scoredResults) > limit {
 		scoredResults = scoredResults[:limit]

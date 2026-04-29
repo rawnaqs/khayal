@@ -3,7 +3,6 @@ package ingest
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -147,10 +146,7 @@ func scrapeArticle(url string) (title, content string, err error) {
 
 	content = strings.Join(paragraphs, "\n\n")
 
-	if content == "" {
-		body, _ := io.ReadAll(resp.Body)
-		content = string(body)
-	}
+
 
 	logger.Debug("scraped article", "title", title, "content_length", len(content))
 

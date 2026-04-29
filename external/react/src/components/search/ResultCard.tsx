@@ -42,7 +42,7 @@ export function ResultCard({ result, index = 0 }: ResultCardProps) {
         <span>{formatDate(result.created_at)}</span>
         <span className="text-border">·</span>
         <span>{result.type}</span>
-        {result.tags.slice(0, 3).map((tag) => (
+        {(result.tags || []).slice(0, 3).map((tag) => (
           <span key={tag} className="text-primary/70">#{tag}</span>
         ))}
       </div>

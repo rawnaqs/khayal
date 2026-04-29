@@ -6,6 +6,7 @@ import { BottomNav } from '@/components/layout/BottomNav'
 import { CaptureView } from '@/components/capture/CaptureView'
 import { SearchView } from '@/components/search/SearchView'
 import { QueueView } from '@/components/queue/QueueView'
+import { NoteView } from '@/components/note/NoteView'
 import { Onboarding } from '@/components/Onboarding'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { STORAGE_KEYS } from '@/lib/constants'
@@ -21,6 +22,8 @@ const pageVariants = {
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('capture')
   const [captureQuery, setCaptureQuery] = useState<string | undefined>(undefined)
+  const [selectedNote, setSelectedNote] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState<string>('')
   const [isConfigured, setIsConfigured] = useState(() => {
     return !!localStorage.getItem(STORAGE_KEYS.TOKEN) && !!localStorage.getItem(STORAGE_KEYS.HOST)
   })
@@ -32,6 +35,16 @@ export default function App() {
 
   const handleCaptureQueryConsumed = useCallback(() => {
     setCaptureQuery(undefined)
+  }, [])
+
+  const handleNoteSelect = useCallback((notePath: string, query?: string) => {
+    setSelectedNote(notePath)
+    setSearchQuery(query || '')
+  }, [])
+
+  const handleBackToSearch = useCallback(() => {
+    setSelectedNote(null)
+    setSearchQuery('')
   }, [])
 
   if (!isConfigured) {
@@ -47,7 +60,7 @@ export default function App() {
       case 'capture':
         return <CaptureView captureQuery={captureQuery} onCaptureQueryConsumed={handleCaptureQueryConsumed} />
       case 'search':
-        return <SearchView onCaptureQuery={handleCaptureQuery} />
+        return <SearchView onCaptureQuery={handleCaptureQuery} onNoteSelect={handleNoteSelect} />
       case 'queue':
         return <QueueView />
       default:
@@ -77,6 +90,11 @@ export default function App() {
         </main>
         <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
         <Toaster />
+        <NoteView
+          notePath={selectedNote}
+          query={searchQuery || undefined}
+          onClose={handleBackToSearch}
+        />
       </div>
     </ErrorBoundary>
   )

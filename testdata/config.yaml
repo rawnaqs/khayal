@@ -27,7 +27,7 @@ llm:
   truncate_article_tokens: 12000
 
 worker:
-  max_workers: 5
+  max_workers: 1
   max_retries: 3
   retry_backoff: exponential
 

@@ -126,11 +126,12 @@ func TestUpdateNote(t *testing.T) {
 	note.Title = "Updated Title"
 	note.Summary = "Updated summary"
 
-	if err := writer.UpdateNote(notePath, note); err != nil {
+	fullPath := writer.ResolvePath(notePath)
+
+	if err := writer.UpdateNote(fullPath, note); err != nil {
 		t.Fatalf("UpdateNote() error = %v", err)
 	}
 
-	fullPath := writer.ResolvePath(notePath)
 	content, err := os.ReadFile(fullPath)
 	if err != nil {
 		t.Fatalf("failed to read note: %v", err)
@@ -176,7 +177,9 @@ func TestDeleteNote(t *testing.T) {
 		t.Fatalf("WriteNote() error = %v", err)
 	}
 
-	if err := writer.DeleteNote(notePath); err != nil {
+	fullPath := writer.ResolvePath(notePath)
+
+	if err := writer.DeleteNote(fullPath); err != nil {
 		t.Fatalf("DeleteNote() error = %v", err)
 	}
 
@@ -288,7 +291,7 @@ func TestCopyMediaFile(t *testing.T) {
 		t.Error("expected media path to contain inbox/media/")
 	}
 
-	fullMediaPath := writer.ResolvePath(mediaPath)
+	fullMediaPath := writer.ResolveMediaPath(mediaPath)
 	if _, err := os.Stat(fullMediaPath); os.IsNotExist(err) {
 		t.Error("expected media file to exist after copy")
 	}

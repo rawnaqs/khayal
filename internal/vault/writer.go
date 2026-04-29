@@ -72,20 +72,20 @@ type Note struct {
 	Raw      string
 }
 
-func (w *Writer) isPathInVault(path string) bool {
+func (w *Writer) IsPathInVault(path string) bool {
 	return strings.HasPrefix(path, w.basePath)
 }
 
-func (w *Writer) isPathInInbox(path string) bool {
+func (w *Writer) IsPathInInbox(path string) bool {
 	return strings.HasPrefix(path, w.inboxPath)
 }
 
-func (w *Writer) ensurePathInVault(path string) error {
+func (w *Writer) EnsurePathInVault(path string) error {
 	if !filepath.IsAbs(path) {
 		slog.Warn("vault path validation failed", "reason", "not_absolute", "path", path)
 		return fmt.Errorf("%w: %s", ErrVaultPathNotAbsolute, path)
 	}
-	if !w.isPathInVault(path) {
+	if !w.IsPathInVault(path) {
 		slog.Warn("vault path validation failed", "reason", "outside_vault", "path", path)
 		return fmt.Errorf("%w: %s", ErrVaultPathOutsideVault, path)
 	}
@@ -93,7 +93,7 @@ func (w *Writer) ensurePathInVault(path string) error {
 }
 
 func (w *Writer) ensurePathInInbox(path string) error {
-	if !w.isPathInInbox(path) {
+	if !w.IsPathInInbox(path) {
 		slog.Warn("vault path validation failed", "reason", "outside_inbox", "path", path)
 		return fmt.Errorf("%w: %s", ErrVaultPathOutsideInbox, path)
 	}
@@ -162,7 +162,8 @@ func (w *Writer) WriteNote(note *Note, jobID string) (string, error) {
 
 	filename := w.generateFilename(note, jobID)
 	notePath := filepath.Join(w.inboxPath, filename)
-	relativePath := filepath.Join(filepath.Base(w.inboxPath), filename)
+	inboxDir := filepath.Base(w.inboxPath)
+	relativePath := filepath.Join(inboxDir, filename)
 
 	content := w.renderNote(note)
 
@@ -181,13 +182,11 @@ func (w *Writer) UpdateNote(notePath string, note *Note) error {
 	}
 
 	info, err := os.Stat(absolutePath)
+
 	if err != nil {
 		if os.IsNotExist(err) {
 			return fmt.Errorf("%w: %s", ErrVaultNoteNotFound, notePath)
 		}
-		return fmt.Errorf("failed to stat note: %w", err)
-	}
-	if err != nil {
 		return fmt.Errorf("failed to stat note: %w", err)
 	}
 
@@ -243,7 +242,7 @@ func (w *Writer) DeleteNote(notePath string) error {
 }
 
 func (w *Writer) CopyMediaFile(srcPath string) (string, error) {
-	if err := w.ensurePathInVault(srcPath); err != nil {
+	if err := w.EnsurePathInVault(srcPath); err != nil {
 		return "", err
 	}
 	if err := w.ensurePathInInbox(srcPath); err != nil {
@@ -307,9 +306,13 @@ func (w *Writer) ResolvePath(relative string) string {
 	return w.resolvePath(relative)
 }
 
+func (w *Writer) ResolveMediaPath(relative string) string {
+	return w.resolvePath(relative)
+}
+
 func (w *Writer) NoteExists(notePath string) bool {
 	absolutePath := w.resolvePath(notePath)
-	if !w.isPathInInbox(absolutePath) {
+	if !w.IsPathInInbox(absolutePath) {
 		return false
 	}
 	_, err := os.Stat(absolutePath)
@@ -326,7 +329,12 @@ func (w *Writer) resolvePath(relative string) string {
 	if strings.HasPrefix(relative, w.basePath) {
 		return relative
 	}
-	return filepath.Join(w.basePath, relative)
+	// Has directory component → relative to vault root (new format: "inbox/filename")
+	if strings.Contains(relative, "/") {
+		return filepath.Join(w.basePath, relative)
+	}
+	// Just filename → relative to inbox (old format: "filename")
+	return filepath.Join(w.inboxPath, relative)
 }
 
 func (w *Writer) generateFilename(note *Note, jobID string) string {
@@ -396,29 +404,36 @@ func (w *Writer) renderNote(note *Note) string {
 	buf.WriteString("---\n\n")
 
 	if note.Title != "" {
-		buf.WriteString("# " + note.Title + "\n\n")
+		buf.WriteString("# ")
+		buf.WriteString(note.Title)
+		buf.WriteString("\n\n")
 	}
 
 	if note.Summary != "" {
 		buf.WriteString("## Summary\n")
-		buf.WriteString(note.Summary + "\n\n")
+		buf.WriteString(note.Summary)
+		buf.WriteString("\n\n")
 	}
 
 	if len(note.KeyIdeas) > 0 {
 		buf.WriteString("## Key Ideas\n")
 		for _, idea := range note.KeyIdeas {
-			buf.WriteString("- " + idea + "\n")
+			buf.WriteString("- ")
+			buf.WriteString(idea)
+			buf.WriteString("\n")
 		}
 		buf.WriteString("\n")
 	}
 
 	if note.Content != "" {
-		buf.WriteString(note.Content + "\n\n")
+		buf.WriteString(note.Content)
+		buf.WriteString("\n\n")
 	}
 
 	if note.Raw != "" {
 		buf.WriteString("## Raw\n")
-		buf.WriteString(note.Raw + "\n")
+		buf.WriteString(note.Raw)
+		buf.WriteString("\n")
 	}
 
 	return buf.String()
