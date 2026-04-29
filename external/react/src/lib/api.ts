@@ -31,7 +31,7 @@ export interface SearchResult {
   score: number
   type: string
   created_at: string
-  tags: string[]
+  tags?: string[]
 }
 
 export interface SearchResponse {
@@ -80,6 +80,26 @@ export interface QueueResponse {
   jobs: QueueJob[]
 }
 
+export interface NoteResponse {
+  note_path: string
+  title: string
+  type?: string
+  status?: string
+  created_at?: string
+  updated_at?: string
+  tags?: string[]
+  summary?: string
+  key_ideas?: string[]
+  raw: string
+  source_url?: string
+  source_file?: string
+  description?: string
+  related?: string[]
+  excerpt?: string
+  search_query?: string
+  excerpt_section?: string
+}
+
 export interface StatsResponse {
   streak: {
     current: number
@@ -113,7 +133,7 @@ export class KhayalClient {
   private async request<T>(
     method: string,
     path: string,
-    body?: unknown
+    body?: unknown,
   ): Promise<T> {
     const response = await fetch(`${this.host}${path}`, {
       method,
@@ -193,6 +213,16 @@ export class KhayalClient {
 
   async stats(): Promise<StatsResponse> {
     return this.request<StatsResponse>('GET', '/v1/stats')
+  }
+
+  async getNote(notePath: string, query?: string): Promise<NoteResponse> {
+    const params = new URLSearchParams()
+    if (query) {
+      params.set('q', query)
+    }
+    const encodedPath = encodeURIComponent(notePath)
+    const qs = query ? '?' + params.toString() : ''
+    return this.request<NoteResponse>('GET', `/v1/notes/${encodedPath}${qs}`)
   }
 }
 

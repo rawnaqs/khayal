@@ -1,11 +1,10 @@
 package api
 
 import (
-	"bytes"
+	"io"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -145,18 +144,7 @@ func (s *Server) handleImageCapture(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	limitedReader := io.LimitReader(file, maxSize)
-	content, err := io.ReadAll(limitedReader)
-	if err != nil {
-		s.logger.Error("capture failed",
-			"code", "CAPTURE_READ_FAILED",
-			"type", "image",
-			"error", err,
-		)
-		WriteError(w, "failed to read file", "CAPTURE_READ_FAILED", http.StatusInternalServerError)
-		return
-	}
-
-	mediaPath, err := s.vault.CopyMediaFromReader(bytes.NewReader(content), header.Filename)
+	mediaPath, err := s.vault.CopyMediaFromReader(limitedReader, header.Filename)
 	if err != nil {
 		s.logger.Error("capture failed",
 			"code", "VAULT_MEDIA_FAILED",

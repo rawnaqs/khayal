@@ -428,6 +428,163 @@ func TestSearchSemantic(t *testing.T) {
 	}
 }
 
+func TestSearchKeyword_Normalization(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	q, err := NewQueue(dbPath)
+	if err != nil {
+		t.Fatalf("NewQueue() error = %v", err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+
+	// Create test notes with known content
+	job1 := &Job{
+		Type:      "text",
+		Status:    "done",
+		NotePath:  "inbox/doc1.md",
+		Content:   "artificial intelligence machine learning",
+		CreatedAt: time.Now(),
+	}
+	q.CreateJob(ctx, job1)
+	q.IndexNote(ctx, "inbox/doc1.md", "AI", "artificial intelligence machine learning", "ai,ml")
+
+	job2 := &Job{
+		Type:      "text",
+		Status:    "done",
+		NotePath:  "inbox/doc2.md",
+		Content:   "cooking recipes food",
+		CreatedAt: time.Now(),
+	}
+	q.CreateJob(ctx, job2)
+	q.IndexNote(ctx, "inbox/doc2.md", "Cooking", "cooking recipes food", "cooking,food")
+
+	// Search for "intelligence" - doc1 should be first with score ≈ 1.0
+	results, err := q.SearchKeyword(ctx, "intelligence", 10, nil, nil)
+	if err != nil {
+		t.Fatalf("SearchKeyword() error = %v", err)
+	}
+
+	if len(results) < 1 {
+		t.Fatal("expected at least 1 result")
+	}
+
+	// Best result should have score ≈ 1.0
+	if results[0].NotePath != "inbox/doc1.md" {
+		t.Errorf("expected first result to be doc1.md, got %s", results[0].NotePath)
+	}
+
+	// Score should be close to 1.0 (normalized)
+	if results[0].Score < 0.9 || results[0].Score > 1.1 {
+		t.Errorf("expected score close to 1.0, got %f", results[0].Score)
+	}
+
+	// All scores should be in (0, 1]
+	for i, r := range results {
+		if r.Score < 0 || r.Score > 1 {
+			t.Errorf("result %d score %f not in (0,1]", i, r.Score)
+		}
+	}
+}
+
+func TestBatchGetNoteTags(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	q, err := NewQueue(dbPath)
+	if err != nil {
+		t.Fatalf("NewQueue() error = %v", err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+
+	// Create test notes with tags
+	q.CreateJob(ctx, &Job{
+		Type:      "text",
+		Status:    "done",
+		NotePath:  "inbox/note1.md",
+		CreatedAt: time.Now(),
+	})
+	q.IndexNote(ctx, "inbox/note1.md", "Note 1", "content 1", "tag1,tag2")
+
+	q.CreateJob(ctx, &Job{
+		Type:      "text",
+		Status:    "done",
+		NotePath:  "inbox/note2.md",
+		CreatedAt: time.Now(),
+	})
+	q.IndexNote(ctx, "inbox/note2.md", "Note 2", "content 2", "tag2,tag3")
+
+	// Test batch fetch
+	tagsMap, err := q.BatchGetNoteTags(ctx, []string{"inbox/note1.md", "inbox/note2.md"})
+	if err != nil {
+		t.Fatalf("BatchGetNoteTags() error = %v", err)
+	}
+
+	if len(tagsMap) != 2 {
+		t.Errorf("expected 2 entries, got %d", len(tagsMap))
+	}
+
+	if len(tagsMap["inbox/note1.md"]) != 2 {
+		t.Errorf("expected 2 tags for note1, got %d", len(tagsMap["inbox/note1.md"]))
+	}
+
+	if len(tagsMap["inbox/note2.md"]) != 2 {
+		t.Errorf("expected 2 tags for note2, got %d", len(tagsMap["inbox/note2.md"]))
+	}
+}
+
+func TestBatchGetNoteTitles(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	q, err := NewQueue(dbPath)
+	if err != nil {
+		t.Fatalf("NewQueue() error = %v", err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+
+	// Create test notes with titles
+	q.CreateJob(ctx, &Job{
+		Type:      "text",
+		Status:    "done",
+		NotePath:  "inbox/note1.md",
+		CreatedAt: time.Now(),
+	})
+	q.IndexNote(ctx, "inbox/note1.md", "Note 1", "content 1", "tag1")
+
+	q.CreateJob(ctx, &Job{
+		Type:      "text",
+		Status:    "done",
+		NotePath:  "inbox/note2.md",
+		CreatedAt: time.Now(),
+	})
+	q.IndexNote(ctx, "inbox/note2.md", "Note 2", "content 2", "tag2")
+
+	// Test batch fetch
+	titlesMap, err := q.BatchGetNoteTitles(ctx, []string{"inbox/note1.md", "inbox/note2.md"})
+	if err != nil {
+		t.Fatalf("BatchGetNoteTitles() error = %v", err)
+	}
+
+	if len(titlesMap) != 2 {
+		t.Errorf("expected 2 entries, got %d", len(titlesMap))
+	}
+
+	if titlesMap["inbox/note1.md"] != "Note 1" {
+		t.Errorf("expected 'Note 1', got '%s'", titlesMap["inbox/note1.md"])
+	}
+
+	if titlesMap["inbox/note2.md"] != "Note 2" {
+		t.Errorf("expected 'Note 2', got '%s'", titlesMap["inbox/note2.md"])
+	}
+}
+
 func TestContextCancellation(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")

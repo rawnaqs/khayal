@@ -14,7 +14,7 @@ import (
 )
 
 func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt) (string, error) {
-	imagePath := v.ResolvePath(job.SourceFile)
+	imagePath := v.ResolveMediaPath(job.SourceFile)
 	description, err := llmClient.DescribeImage(imagePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to describe image: %w", err)

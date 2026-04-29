@@ -12,7 +12,7 @@ testdata/vault/.obsidian
 testdata/*.pid
 testdata/vault/khayal/media/*
 testdata/vault/khayal/.khayal-trash/
-vault
+/vault
 
 # Editor
 .idea/

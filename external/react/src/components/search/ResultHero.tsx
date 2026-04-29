@@ -4,6 +4,7 @@ import { LIMITS } from '@/lib/constants'
 interface ResultHeroProps {
   result: SearchResult
   query?: string
+  onSelect?: (notePath: string) => void
 }
 
 function formatDate(dateStr: string) {
@@ -34,15 +35,15 @@ function highlightText(text: string, query?: string): React.ReactNode {
   )
 }
 
-export function ResultHero({ result, query }: ResultHeroProps) {
+export function ResultHero({ result, query, onSelect }: ResultHeroProps) {
   return (
-    <div className="r1">
+    <div className="r1" onClick={() => onSelect?.(result.note_path)}>
       <div className="r1-ghost">1</div>
       <div className="r1-title">{highlightText(result.title || result.note_path, query)}</div>
       <div className="r1-meta">
         <span className="rdate">{formatDate(result.created_at)}</span>
         <span className={`rb ${getTypeBadgeClass(result.type)}`}>{result.type}</span>
-        {result.tags.slice(0, LIMITS.TAGS_HERO).map((tag) => (
+        {result.tags?.slice(0, LIMITS.TAGS_HERO).map((tag) => (
           <span key={tag} className="rb rb-tag">#{tag}</span>
         ))}
       </div>

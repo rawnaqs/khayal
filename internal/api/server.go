@@ -23,12 +23,13 @@ import (
 var staticFS embed.FS
 
 type Server struct {
-	router *chi.Mux
-	config *config.Config
-	queue  *queue.Queue
-	vault  *vault.Writer
-	llm    llm.LLMExt
-	logger *slog.Logger
+	router     *chi.Mux
+	config     *config.Config
+	queue      *queue.Queue
+	vault      *vault.Writer
+	vaultReader *vault.Reader
+	llm        llm.LLMExt
+	logger     *slog.Logger
 }
 
 func NewServer(cfg *config.Config, q *queue.Queue, v *vault.Writer, l llm.LLMExt, logger *slog.Logger) *Server {
@@ -39,6 +40,7 @@ func NewServer(cfg *config.Config, q *queue.Queue, v *vault.Writer, l llm.LLMExt
 		config: cfg,
 		queue:  q,
 		vault:  v,
+		vaultReader: vault.NewReader(v.BasePath(), cfg.Vault.InboxDir),
 		llm:    l,
 		logger: logger,
 	}
@@ -51,13 +53,14 @@ func (s *Server) setupRouter() {
 
 	s.router.Use(middleware.RequestLogger(s.logger))
 
-	s.router.Route("/v1", func(r chi.Router) {
+		s.router.Route("/v1", func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware(s.config.Server.Token, WriteError))
 
 		r.Get("/health", s.healthHandler)
 		r.Post("/capture", s.captureHandler)
 		r.Get("/search", s.searchHandler)
 		r.Get("/stats", s.statsHandler)
+		r.Get("/notes/{path:.*}", s.noteHandler)
 		r.Get("/queue", s.queueListHandler)
 		r.Get("/queue/{id}", s.queueGetHandler)
 		r.Post("/queue/{id}/retry", s.queueRetryHandler)

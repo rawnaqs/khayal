@@ -422,12 +422,13 @@ func parseJSONArray(result string) []string {
 		// Try []string first
 		var items []string
 		if err := json.Unmarshal([]byte(jsonStr), &items); err == nil {
-			return items
+			return limitItems(items)
 		}
 
 		// Try []map[string]string (e.g., [{"idea": "..."}, {"tag": "..."}])
 		var objects []map[string]string
 		if err := json.Unmarshal([]byte(jsonStr), &objects); err == nil {
+			items := make([]string, 0, len(objects))
 			for _, obj := range objects {
 				for _, v := range obj {
 					if v != "" {
@@ -436,13 +437,14 @@ func parseJSONArray(result string) []string {
 				}
 			}
 			if len(items) > 0 {
-				return items
+				return limitItems(items)
 			}
 		}
 
 		// Try []map[string]any (mixed types)
 		var rawObjects []map[string]any
 		if err := json.Unmarshal([]byte(jsonStr), &rawObjects); err == nil {
+			items := make([]string, 0, len(rawObjects))
 			for _, obj := range rawObjects {
 				for _, v := range obj {
 					if s, ok := v.(string); ok && s != "" {
@@ -451,12 +453,13 @@ func parseJSONArray(result string) []string {
 				}
 			}
 			if len(items) > 0 {
-				return items
+				return limitItems(items)
 			}
 		}
 	}
 
-	var items []string
+	// Fallback: parse line by line
+	items := make([]string, 0, 5)
 	for _, line := range strings.Split(result, "\n") {
 		line = strings.TrimSpace(line)
 		line = strings.Trim(line, "-*[]\"`")
@@ -465,10 +468,14 @@ func parseJSONArray(result string) []string {
 		}
 	}
 
-	if len(items) > 5 {
-		items = items[:5]
-	}
+	return limitItems(items)
+}
 
+// limitItems limits the slice to max 5 items.
+func limitItems(items []string) []string {
+	if len(items) > 5 {
+		return items[:5]
+	}
 	return items
 }
 

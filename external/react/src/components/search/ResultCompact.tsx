@@ -5,6 +5,7 @@ interface ResultCompactProps {
   result: SearchResult
   rank: number
   query?: string
+  onSelect?: (notePath: string) => void
 }
 
 function formatDate(dateStr: string) {
@@ -35,9 +36,9 @@ function highlightText(text: string, query?: string): React.ReactNode {
   )
 }
 
-export function ResultCompact({ result, rank, query }: ResultCompactProps) {
+export function ResultCompact({ result, rank, query, onSelect }: ResultCompactProps) {
   return (
-    <div className="rc">
+    <div className="rc" onClick={() => onSelect?.(result.note_path)}>
       <span className="rc-n">{rank}</span>
       <div className="rc-body">
         <div className="rc-title">{highlightText(result.title || result.note_path, query)}</div>
