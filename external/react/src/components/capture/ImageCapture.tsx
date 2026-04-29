@@ -107,7 +107,7 @@ export const ImageCapture = forwardRef<ImageCaptureRef, ImageCaptureProps>(
               <input
                 type="text"
                 placeholder="add a note..."
-                className="w-full bg-transparent text-[12px] text-[rgba(245,245,245,0.3)] placeholder-[rgba(245,245,245,0.2)] outline-none"
+                className="w-full bg-transparent text-base text-[rgba(245,245,245,0.3)] placeholder-[rgba(245,245,245,0.2)] outline-none"
                 style={{ fontWeight: 300 }}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
