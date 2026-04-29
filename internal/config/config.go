@@ -75,14 +75,38 @@ type LLMConfig struct {
 	TruncateArticleTokens int           `yaml:"truncate_article_tokens"`
 	MaxLLMConcurrency     int           `yaml:"max_llm_concurrency"`
 	Temperature           float64       `yaml:"temperature"`
+	TemperatureTags       float64       `yaml:"temperature_tags"`
+	TemperatureSummarize  float64       `yaml:"temperature_summarize"`
+	TemperatureKeyIdeas   float64       `yaml:"temperature_key_ideas"`
+	TemperatureVision     float64       `yaml:"temperature_vision"`
 	Prompts               *PromptConfig `yaml:"prompts"`
 }
 
 type PromptConfig struct {
-	DescribeImage   string `yaml:"describe_image"`
+	// System prompt overrides (applied to all buckets)
 	ExtractTags     string `yaml:"extract_tags"`
 	Summarize       string `yaml:"summarize"`
 	ExtractKeyIdeas string `yaml:"extract_key_ideas"`
+	DescribeImage   string `yaml:"describe_image"`
+
+	// Per-bucket system prompt overrides (fall back to the base above if empty)
+	ExtractTagsText          string `yaml:"extract_tags_text"`
+	ExtractTagsArticle       string `yaml:"extract_tags_article"`
+	ExtractTagsImage         string `yaml:"extract_tags_image"`
+	SummarizeText            string `yaml:"summarize_text"`
+	SummarizeArticle         string `yaml:"summarize_article"`
+	ExtractKeyIdeasText      string `yaml:"extract_key_ideas_text"`
+	ExtractKeyIdeasArticle   string `yaml:"extract_key_ideas_article"`
+
+	// Per-bucket user prompt template overrides (uses %s for content)
+	ExtractTagsTextTemplate          string `yaml:"extract_tags_text_template"`
+	ExtractTagsArticleTemplate       string `yaml:"extract_tags_article_template"`
+	ExtractTagsImageTemplate         string `yaml:"extract_tags_image_template"`
+	SummarizeTextTemplate            string `yaml:"summarize_text_template"`
+	SummarizeArticleTemplate         string `yaml:"summarize_article_template"`
+	ExtractKeyIdeasTextTemplate      string `yaml:"extract_key_ideas_text_template"`
+	ExtractKeyIdeasArticleTemplate   string `yaml:"extract_key_ideas_article_template"`
+	DescribeImageTemplate            string `yaml:"describe_image_template"`
 }
 
 type WorkerConfig struct {

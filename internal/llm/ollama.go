@@ -27,8 +27,13 @@ type OllamaClient struct {
 	logger                *slog.Logger
 	semaphore             chan struct{}
 	temperature           float64
+	temperatureTags       float64
+	temperatureSummarize  float64
+	temperatureKeyIdeas   float64
+	temperatureVision     float64
 	systemPrompts         constants.SystemPrompts
 	prompts               constants.PromptTemplates
+	perBucketSystem       map[string]string
 }
 
 func NewOllamaClient(baseURL, embedModel, textModel, visionModel string) *OllamaClient {
@@ -50,11 +55,16 @@ func NewOllamaClientWithConcurrency(baseURL, embedModel, textModel, visionModel 
 		httpClient: &http.Client{
 			Timeout: constants.OllamaClientTimeout,
 		},
-		logger:        slog.Default(),
-		semaphore:     make(chan struct{}, maxConcurrent),
-		temperature:   constants.DefaultTemperature,
-		systemPrompts: constants.DefaultSystemPrompts,
-		prompts:       constants.DefaultPromptTemplates,
+		logger:              slog.Default(),
+		semaphore:           make(chan struct{}, maxConcurrent),
+		temperature:         constants.DefaultTemperature,
+		temperatureTags:     0.3,
+		temperatureSummarize: 0.4,
+		temperatureKeyIdeas: 0.7,
+		temperatureVision:   0.7,
+		systemPrompts:       constants.DefaultSystemPrompts,
+		prompts:             constants.DefaultPromptTemplates,
+		perBucketSystem:     make(map[string]string),
 	}
 }
 
@@ -104,6 +114,58 @@ func (c *OllamaClient) truncateLimit(bucket string) int {
 		return c.truncateTextTokens
 	}
 }
+
+func (c *OllamaClient) getSystemPrompt(op, bucket string) string {
+	key := op + ":" + bucket
+	if prompt, ok := c.perBucketSystem[key]; ok && prompt != "" {
+		return prompt
+	}
+	switch op {
+	case "extract_tags":
+		return c.systemPrompts.ExtractTags
+	case "summarize":
+		return c.systemPrompts.Summarize
+	case "extract_key_ideas":
+		return c.systemPrompts.ExtractKeyIdeas
+	case "describe_image":
+		return c.systemPrompts.DescribeImage
+	default:
+		return ""
+	}
+}
+
+func (c *OllamaClient) getTemperature(op string) float64 {
+	switch op {
+	case "extract_tags":
+		if c.temperatureTags > 0 {
+			return c.temperatureTags
+		}
+	case "summarize":
+		if c.temperatureSummarize > 0 {
+			return c.temperatureSummarize
+		}
+	case "extract_key_ideas":
+		if c.temperatureKeyIdeas > 0 {
+			return c.temperatureKeyIdeas
+		}
+	case "describe_image":
+		if c.temperatureVision > 0 {
+			return c.temperatureVision
+		}
+	}
+	return c.temperature
+}
+
+func (c *OllamaClient) SetPerBucketSystem(perBucket map[string]string) {
+	if perBucket != nil {
+		c.perBucketSystem = perBucket
+	}
+}
+
+func (c *OllamaClient) SetTempTag(v float64)       { if v > 0 { c.temperatureTags = v } }
+func (c *OllamaClient) SetTempSummarize(v float64)  { if v > 0 { c.temperatureSummarize = v } }
+func (c *OllamaClient) SetTempKeyIdeas(v float64)   { if v > 0 { c.temperatureKeyIdeas = v } }
+func (c *OllamaClient) SetTempVision(v float64)     { if v > 0 { c.temperatureVision = v } }
 
 func (c *OllamaClient) acquire(ctx context.Context) error {
 	select {
@@ -200,14 +262,18 @@ func (c *OllamaClient) Embed(text string) ([]float32, error) {
 }
 
 func (c *OllamaClient) Generate(prompt string) (string, error) {
-	return c.generateWithModel(c.textModel, "", prompt)
+	return c.generateWithModel(c.textModel, "", prompt, 0)
 }
 
 func (c *OllamaClient) GenerateWithSystem(system, user string) (string, error) {
-	return c.generateWithModel(c.textModel, system, user)
+	return c.generateWithModel(c.textModel, system, user, 0)
 }
 
-func (c *OllamaClient) generateWithModel(model, system, prompt string) (string, error) {
+func (c *OllamaClient) GenerateWithSystemTemp(system, user string, temperature float64) (string, error) {
+	return c.generateWithModel(c.textModel, system, user, temperature)
+}
+
+func (c *OllamaClient) generateWithModel(model, system, prompt string, tempOverride float64) (string, error) {
 	start := time.Now()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
@@ -218,11 +284,16 @@ func (c *OllamaClient) generateWithModel(model, system, prompt string) (string, 
 	}
 	defer c.release()
 
+	temp := c.temperature
+	if tempOverride > 0 {
+		temp = tempOverride
+	}
+
 	reqBody := map[string]any{
 		"model":       model,
 		"prompt":      prompt,
 		"stream":      false,
-		"temperature": c.temperature,
+		"temperature": temp,
 	}
 	if system != "" {
 		reqBody["system"] = system
@@ -276,11 +347,12 @@ func (c *OllamaClient) DescribeImage(imagePath string) (string, error) {
 	base64Img := base64.StdEncoding.EncodeToString(imgData)
 
 	reqBody := map[string]any{
-		"model":  c.visionModel,
-		"system": c.systemPrompts.DescribeImage,
-		"prompt": c.prompts.DescribeImage,
-		"images": []string{base64Img},
-		"stream": false,
+		"model":       c.visionModel,
+		"system":      c.getSystemPrompt("describe_image", ""),
+		"prompt":      c.prompts.DescribeImage,
+		"images":      []string{base64Img},
+		"stream":      false,
+		"temperature": c.getTemperature("describe_image"),
 	}
 
 	body, err := json.Marshal(reqBody)
@@ -324,12 +396,24 @@ func (c *OllamaClient) ExtractTags(content string, bucket string) ([]string, err
 	}
 	userPrompt := fmt.Sprintf(tmpl, truncated)
 
-	result, err := c.GenerateWithSystem(c.systemPrompts.ExtractTags, userPrompt)
+	systemPrompt := c.getSystemPrompt("extract_tags", bucket)
+	result, err := c.GenerateWithSystemTemp(systemPrompt, userPrompt, c.getTemperature("extract_tags"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract tags: %w", err)
 	}
 
-	return parseJSONArray(result), nil
+	tags := parseJSONArray(result)
+	if len(tags) == 0 {
+		retryResult, retryErr := c.GenerateWithSystemTemp(systemPrompt,
+			fmt.Sprintf("Your previous response was not a valid JSON array. Please respond with ONLY a JSON array of strings.\nExample: [\"tag1\", \"tag2\"]\n\nRetry for: %s", truncated),
+			c.getTemperature("extract_tags"))
+		if retryErr != nil {
+			return nil, fmt.Errorf("failed to extract tags (retry): %w", retryErr)
+		}
+		tags = parseJSONArray(retryResult)
+	}
+
+	return tags, nil
 }
 
 func (c *OllamaClient) Summarize(content string, bucket string) (string, error) {
@@ -341,7 +425,8 @@ func (c *OllamaClient) Summarize(content string, bucket string) (string, error) 
 	}
 	userPrompt := fmt.Sprintf(tmpl, truncated)
 
-	result, err := c.GenerateWithSystem(c.systemPrompts.Summarize, userPrompt)
+	systemPrompt := c.getSystemPrompt("summarize", bucket)
+	result, err := c.GenerateWithSystemTemp(systemPrompt, userPrompt, c.getTemperature("summarize"))
 	if err != nil {
 		return "", fmt.Errorf("failed to summarize: %w", err)
 	}
@@ -358,12 +443,24 @@ func (c *OllamaClient) ExtractKeyIdeas(content string, bucket string) ([]string,
 	}
 	userPrompt := fmt.Sprintf(tmpl, truncated)
 
-	result, err := c.GenerateWithSystem(c.systemPrompts.ExtractKeyIdeas, userPrompt)
+	systemPrompt := c.getSystemPrompt("extract_key_ideas", bucket)
+	result, err := c.GenerateWithSystemTemp(systemPrompt, userPrompt, c.getTemperature("extract_key_ideas"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract key ideas: %w", err)
 	}
 
-	return parseJSONArray(result), nil
+	ideas := parseJSONArray(result)
+	if len(ideas) == 0 {
+		retryResult, retryErr := c.GenerateWithSystemTemp(systemPrompt,
+			fmt.Sprintf("Your previous response was not a valid JSON array. Please respond with ONLY a JSON array of strings.\nExample: [\"idea 1\", \"idea 2\"]\n\nRetry for: %s", truncated),
+			c.getTemperature("extract_key_ideas"))
+		if retryErr != nil {
+			return nil, fmt.Errorf("failed to extract key ideas (retry): %w", retryErr)
+		}
+		ideas = parseJSONArray(retryResult)
+	}
+
+	return ideas, nil
 }
 
 func (c *OllamaClient) EmbedBatch(texts []string) ([][]float32, error) {
@@ -458,13 +555,21 @@ func parseJSONArray(result string) []string {
 		}
 	}
 
-	// Fallback: parse line by line
+	// Fallback: parse line by line (only list-like lines)
 	items := make([]string, 0, 5)
 	for _, line := range strings.Split(result, "\n") {
 		line = strings.TrimSpace(line)
-		line = strings.Trim(line, "-*[]\"`")
-		if line != "" && !strings.HasPrefix(line, "#") {
-			items = append(items, line)
+		if line == "" {
+			continue
+		}
+		stripped := strings.TrimLeft(line, "-*0123456789. ")
+		if stripped == line && !strings.HasPrefix(line, "[") {
+			continue
+		}
+		stripped = strings.TrimSpace(stripped)
+		stripped = strings.Trim(stripped, "[]\"'`")
+		if stripped != "" {
+			items = append(items, stripped)
 		}
 	}
 
@@ -484,5 +589,29 @@ func truncateForLLM(content string, maxTokens int) string {
 	if len(content) <= maxChars {
 		return content
 	}
-	return content[:maxChars]
+
+	headFrac := 0.7
+	separator := "\n\n...[truncated]...\n\n"
+
+	sepLen := len(separator)
+	headLen := int(float64(maxChars-sepLen) * headFrac)
+	tailLen := maxChars - headLen - sepLen
+
+	if headLen <= 0 || tailLen <= 0 {
+		return content[:maxChars]
+	}
+
+	head := content[:headLen]
+	tail := content[len(content)-tailLen:]
+
+	headBreak := strings.LastIndex(head, "\n\n")
+	if headBreak > headLen/2 {
+		head = content[:headBreak]
+	}
+	tailBreak := strings.Index(tail, "\n\n")
+	if tailBreak > 0 && tailBreak < len(tail)/2 {
+		tail = tail[tailBreak:]
+	}
+
+	return head + separator + tail
 }
