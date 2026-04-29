@@ -30,6 +30,34 @@ llm:
   truncate_article_tokens: 12000
   max_llm_concurrency: 4
   temperature: 0.7
+  # Per-operation temperatures (overrides the default above)
+  temperature_tags: 0.3
+  temperature_summarize: 0.4
+  temperature_key_ideas: 0.7
+  temperature_vision: 0.7
+  # Optional: override system prompts per operation
+  # prompts:
+  #   extract_tags: ""
+  #   summarize: ""
+  #   extract_key_ideas: ""
+  #   describe_image: ""
+  #   # Per-bucket system prompt overrides
+  #   extract_tags_text: ""
+  #   extract_tags_article: ""
+  #   extract_tags_image: ""
+  #   summarize_text: ""
+  #   summarize_article: ""
+  #   extract_key_ideas_text: ""
+  #   extract_key_ideas_article: ""
+  #   # Per-bucket user prompt template overrides (use %s for content)
+  #   extract_tags_text_template: ""
+  #   extract_tags_article_template: ""
+  #   extract_tags_image_template: ""
+  #   summarize_text_template: ""
+  #   summarize_article_template: ""
+  #   extract_key_ideas_text_template: ""
+  #   extract_key_ideas_article_template: ""
+  #   describe_image_template: ""
 
 worker:
   max_workers: 1

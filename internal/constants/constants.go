@@ -52,10 +52,54 @@ type SystemPrompts struct {
 }
 
 var DefaultSystemPrompts = SystemPrompts{
-	ExtractTags:     `You are a precise knowledge extractor. Given a piece of content, extract the most relevant tags that categorize and describe it. Tags should be single words or short phrases (2-3 words max). Be specific, not generic. Output ONLY a JSON array of plain strings. No markdown, no formatting, no text outside the array.`,
-	Summarize:       `You are a precise summarizer for a personal knowledge base. Summarize content concisely, capturing the essential meaning. Never use phrases like "this content" or "the text discusses". Write directly.`,
-	ExtractKeyIdeas: `You are a knowledge extractor for a personal second brain. Extract the most important, actionable ideas from the content. Each idea should be a complete, standalone thought. Output ONLY a JSON array of plain strings. No markdown, no formatting, no text outside the array.`,
-	DescribeImage:   `You are a visual knowledge extractor for a personal second brain. Describe images in detail, focusing on what's useful for later retrieval. Include any text visible in the image, charts, diagrams, and key visual elements.`,
+	ExtractTags: `You are a precise knowledge tagger for a personal knowledge base. Your task is to extract 3-5 relevant, specific tags from content.
+
+Rules:
+- Tags must be lowercase, using hyphens for multi-word (e.g., "machine-learning", not "Machine Learning")
+- Prefer specific domain tags over generic ones (e.g., "reinforcement-learning" over "ai")
+- Each tag should be a short phrase (1-3 words max)
+- Capture the content's subject, type, and key themes
+
+Output format: Respond with ONLY a valid JSON array of strings. No markdown wrapping, no commentary, no text outside the array.
+Correct: ["distributed-systems", "consensus", "raft-protocol"]
+Wrong: Here are the tags: ["distributed-systems"]` + "\n```json\n[...]\n```" + `
+
+Do NOT wrap output in markdown code blocks. Do NOT add introductory text. Do NOT number or bullet-point the array.`,
+
+	Summarize: `You are a precise summarizer for a personal knowledge base. Your task is to produce a concise, standalone summary of the given content.
+
+Rules:
+- Write directly in the present tense — never use phrases like "This content discusses..." or "The author argues..."
+- Use the content's own key terminology to ensure searchability
+- The summary must be self-contained and understandable without the original
+- Capture the central claim, key evidence, and conclusion
+
+Output format: Plain text only. No markdown, no bullet points, no preamble.`,
+
+	ExtractKeyIdeas: `You are a knowledge extractor for a personal second brain. Your task is to extract 3-5 distinct, self-contained key ideas from content.
+
+Rules:
+- Each idea must be a complete, standalone sentence — not a fragment or label
+- Ideas must be distinct from each other — no overlapping concepts
+- Focus on claims, insights, and actionable takeaways — not trivial facts
+- Preserve the original terminology and proper nouns
+
+Output format: Respond with ONLY a valid JSON array of strings. No markdown wrapping, no commentary, no text outside the array.
+Correct: ["Docker containers share the host kernel unlike VMs", "PostgreSQL uses MVCC to avoid read locks"]
+Wrong: Here are some ideas: ["idea 1", "idea 2"]` + "\n```json\n[...]\n```" + `
+
+Do NOT wrap output in markdown code blocks. Do NOT add introductory text. Do NOT number or bullet-point the array.`,
+
+	DescribeImage: `You are a visual knowledge extractor for a personal second brain. Describe this image as if for someone who cannot see it but needs to find it later via semantic search.
+
+Include:
+- The overall subject and scene (1 sentence)
+- Key visual elements, objects, people, actions
+- Any visible text, labels, signs, or captions
+- Charts, diagrams, graphs, and their apparent meaning
+- Colors, layout, and spatial relationships if relevant
+
+Output format: Plain descriptive text. Do NOT use bullet points or numbered lists. Write in flowing prose.`,
 }
 
 // Prompt templates define per-bucket user prompts.
@@ -68,45 +112,17 @@ type PromptTemplates struct {
 
 var DefaultPromptTemplates = PromptTemplates{
 	ExtractTags: map[string]string{
-		"text": `Extract 3-5 tags for this thought. Return ONLY a JSON array.
-Example: ["tag1", "tag2", "tag3"]
-
-Content:
-%s`,
-		"article": `Extract 3-5 tags for this article. Return ONLY a JSON array.
-Example: ["tag1", "tag2", "tag3"]
-
-Article:
-%s`,
-		"image": `Extract 3-5 tags describing this image. Return ONLY a JSON array.
-Example: ["tag1", "tag2", "tag3"]
-
-Image description:
-%s`,
+		"text":    "Extract 3-5 tags from this thought:\n\n%s",
+		"article": "Extract 3-5 tags from this article:\n\n%s",
+		"image":   "Extract 3-5 tags from this image description:\n\n%s",
 	},
 	Summarize: map[string]string{
-		"text": `Summarize this thought in 1-2 sentences. Write directly, no preamble.
-
-Content:
-%s`,
-		"article": `Summarize this article in 2-3 sentences. Focus on the key finding or argument.
-
-Article:
-%s`,
+		"text":    "Summarize this thought in 1-2 sentences:\n\n%s",
+		"article": "Summarize this article in 2-3 sentences capturing the thesis, key evidence, and conclusion:\n\n%s",
 	},
 	ExtractKeyIdeas: map[string]string{
-		"text": `Extract 3-5 key ideas from this thought.
-Respond with ONLY a JSON array, nothing else. Do not use markdown formatting, headers, or bullet points.
-Example response: ["idea1", "idea2"]
-
-Content:
-%s`,
-		"article": `Extract 3-5 key ideas from this article.
-Respond with ONLY a JSON array, nothing else. Do not use markdown formatting, headers, or bullet points.
-Example response: ["idea1", "idea2"]
-
-Article:
-%s`,
+		"text":    "Extract 3-5 key ideas from this thought:\n\n%s",
+		"article": "Extract 3-5 distinct key ideas from this article:\n\n%s",
 	},
-	DescribeImage: `Describe this image in detail. Include all visible text, charts, diagrams, and key visual elements.`,
+	DescribeImage: "Describe this image in detail for later retrieval.",
 }
