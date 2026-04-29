@@ -1,6 +1,6 @@
 # API Client Package
 
-> Specification for `internal/api/client/`. Updated: 2026-03-17
+> Specification for `internal/api/client/`. Updated: 2026-04-29
 
 ## Overview
 
@@ -32,6 +32,13 @@ func main() {
         log.Fatal(err)
     }
     fmt.Printf("Saved: %s\n", resp.NotePath)
+    
+    // Read note content
+    note, err := c.GetNote(context.Background(), resp.NotePath, "")
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Printf("Title: %s\nSummary: %s\n", note.Title, note.Summary)
 }
 ```
 
@@ -285,6 +292,35 @@ func (c *Client) Health(ctx context.Context) (*HealthResponse, error) {
 }
 ```
 
+## Notes Methods
+
+```go
+// notes.go
+
+func (c *Client) GetNote(ctx context.Context, notePath string, query string) (*NoteResponse, error) {
+    params := url.Values{}
+    if query != "" {
+        params.Set("q", query)
+    }
+    
+    encodedPath := url.PathEscape(notePath)
+    qs := ""
+    if query != "" {
+        qs = "?" + params.Encode()
+    }
+    
+    resp, err := c.request(ctx, "GET", "/v1/notes/"+encodedPath+qs, nil)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+    
+    var result NoteResponse
+    json.NewDecoder(resp.Body).Decode(&result)
+    return &result, nil
+}
+```
+
 ## Types
 
 ```go
@@ -351,6 +387,27 @@ type HealthResponse struct {
     Version      string                `json:"version"`
     Dependencies map[string]Dependency `json:"dependencies"`
     Queue        QueueStats            `json:"queue"`
+}
+
+// Notes
+type NoteResponse struct {
+    NotePath       string   `json:"note_path"`
+    Title          string   `json:"title"`
+    Type           string   `json:"type,omitempty"`
+    Status         string   `json:"status,omitempty"`
+    CreatedAt      string   `json:"created_at,omitempty"`
+    UpdatedAt      string   `json:"updated_at,omitempty"`
+    Tags           []string `json:"tags,omitempty"`
+    Summary        string   `json:"summary,omitempty"`
+    KeyIdeas       []string `json:"key_ideas,omitempty"`
+    Raw            string   `json:"raw"`
+    SourceURL      string   `json:"source_url,omitempty"`
+    SourceFile     string   `json:"source_file,omitempty"`
+    Description    string   `json:"description,omitempty"`
+    Related        []string `json:"related,omitempty"`
+    Excerpt        string   `json:"excerpt,omitempty"`
+    SearchQuery    string   `json:"search_query,omitempty"`
+    ExcerptSection string   `json:"excerpt_section,omitempty"`
 }
 
 type Dependency struct {

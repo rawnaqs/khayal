@@ -1,6 +1,6 @@
 # Khayal Vault Documentation
 
-> Vault structure, path handling, and safety guarantees. Updated: 2026-03-19
+> Vault structure, path handling, and safety guarantees. Updated: 2026-04-29
 
 ---
 
@@ -167,6 +167,79 @@ vault:
 
 ---
 
+## Reading Notes (Reader)
+
+The `vault.Reader` reads and parses markdown notes from the vault inbox. It parses YAML frontmatter and extracts markdown sections.
+
+### NoteContent
+
+```go
+type NoteContent struct {
+    // Frontmatter fields
+    Created     string   `yaml:"created"`
+    Updated     string   `yaml:"updated"`
+    Type        string   `yaml:"type"`
+    Status      string   `yaml:"status"`
+    Tags        []string `yaml:"tags"`
+    SourceURL   string   `yaml:"source_url,omitempty"`
+    SourceFile  string   `yaml:"source_file,omitempty"`
+    UserContext string   `yaml:"user_context,omitempty"`
+    Entities    map[string]interface{} `yaml:"entities,omitempty"`
+    Related     []string `yaml:"related,omitempty"`
+
+    // Sections (parsed from markdown body)
+    Title       string
+    Summary     string
+    KeyIdeas    []string
+    Raw         string
+    Description string
+    Source      string
+}
+```
+
+### Usage
+
+```go
+reader := vault.NewReader(vaultPath, "inbox")
+
+// Read a note (path is relative to vault, e.g., "inbox/test.md")
+note, err := reader.ReadNote("inbox/test.md")
+if err != nil {
+    // handles path traversal, missing files, parse errors
+}
+
+fmt.Println(note.Title)     // Extracted from first # heading or frontmatter
+fmt.Println(note.Summary)   // Content under ## Summary
+fmt.Println(note.KeyIdeas)  // List items under ## Key Ideas
+fmt.Println(note.Raw)       // Content under ## Raw
+fmt.Println(note.Tags)      // From frontmatter
+```
+
+### Path Safety
+
+The Reader enforces the same path containment guarantees as the Writer:
+
+- Notes can only be read from within `<vault>/<inbox_dir>/`
+- Path traversal (`../../../etc/passwd`) is rejected
+- Only relative paths under the inbox are accepted
+
+### Markdown Section Extraction
+
+The Reader recognizes these section headers in the markdown body:
+
+| Header | Maps to |
+|--------|---------|
+| `# Title` | `NoteContent.Title` |
+| `## Summary` | `NoteContent.Summary` |
+| `## Key Ideas` | `NoteContent.KeyIdeas` (list items) |
+| `## Raw` | `NoteContent.Raw` |
+| `## Description` | `NoteContent.Description` |
+| `## Source` | `NoteContent.Source` |
+
+Notes without frontmatter are still parsed — the title is extracted from the first `#` heading and the entire content is set as `Raw`.
+
+---
+
 ## Programmatic Access
 
 ### From Go Code
@@ -206,9 +279,11 @@ if writer.IsPathInVault(absolutePath) {
 | `writer.InboxPath()` | Inbox directory |
 | `writer.MediaPath()` | Media subdirectory |
 | `writer.ResolvePath(relative)` | Resolve relative path to absolute |
+| `writer.ResolveMediaPath(relative)` | Resolve media file path to absolute |
 | `writer.NoteExists(path)` | Check if note exists (validates path) |
 | `writer.IsPathInVault(path)` | Check if path is in vault |
 | `writer.IsPathInInbox(path)` | Check if path is in inbox |
+| `reader.ReadNote(path)` | Read and parse a note by relative path |
 
 ---
 

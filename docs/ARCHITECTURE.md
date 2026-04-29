@@ -1,6 +1,6 @@
 # Khayal Architecture
 
-> High-level system design. Updated: 2026-03-17
+> High-level system design. Updated: 2026-04-29
 
 ## Two Binaries
 
@@ -142,6 +142,7 @@ Query → API Server → Keyword Search (FTS5)
 - Request logging
 - Job queue management
 - Search orchestration
+- Note reading (markdown parsing for search result drill-down)
 - **Static file serving** (PWA via `embed.FS`)
 - **SPA fallback** (non-API routes serve index.html)
 
@@ -187,19 +188,21 @@ jobs, _ := c.ListQueue(ctx, client.QueueFilter{Status: "pending"})
 
 ### LLM (`internal/llm/`)
 
-- Interface definition
+- Interface definition (`Embed`, `Generate`, `DescribeImage`, `ExtractTags`, `Summarize`, `ExtractKeyIdeas`, `Ping`, `Type`)
 - Ollama (primary) with **concurrency semaphore** (default 4)
 - Groq (fallback)
 - OpenAI (fallback)
 - Graceful degradation
-- **Token truncation** per content type (text/image/article)
+- **Per-operation temperature** — independent temperature control for tags, summarize, key ideas, and vision
+- **Per-bucket system prompts** — override system prompts per content type (text/article/image)
+- **Per-bucket templates** — override user prompt templates per content type
+- **Retry with format instructions** — automatic retry when LLM returns non-JSON for structured outputs
+- **Smart truncation** — preserves head and tail content when truncating for context limits
 
 ### Vault (`internal/vault/`)
 
-- Markdown file writing
-- Frontmatter generation (YAML validated before write)
-- Media file management
-- Path resolution
+- **Writer**: Markdown file creation, frontmatter generation (YAML validated before write), media file management, path resolution
+- **Reader**: Markdown file reading, frontmatter parsing, section extraction (Summary, Key Ideas, Raw, Description, Source), path traversal protection
 - **Safety features:**
   - Atomic writes (temp file + rename)
   - File locking to prevent race conditions with Obsidian
@@ -207,6 +210,7 @@ jobs, _ := c.ListQueue(ctx, client.QueueFilter{Status: "pending"})
   - UTF-8 validation on all LLM output
   - Wikilink verification before writing
   - Hard caps on frontmatter list fields
+  - Path containment for both reads and writes
 
 ### Queue (`internal/queue/`)
 
@@ -215,6 +219,8 @@ jobs, _ := c.ListQueue(ctx, client.QueueFilter{Status: "pending"})
 - **Lock retry logic** for concurrent writes
 - FTS5 search index
 - Embedding storage
+- **Batch tag/title fetching** to avoid N+1 queries in search
+- **Score normalization** to (0,1] for keyword, semantic, and hybrid results
 
 ### CLI (`cli/`)
 
@@ -293,6 +299,7 @@ Auth: X-Khayal-Token: <token>
 | GET | /v1/health | Dependency status + update check |
 | GET | /v1/queue | Job list with pagination |
 | GET | /v1/queue/:id | Single job status |
+| GET | /v1/notes/:path | Read a note by path with optional excerpt context |
 
 ## Capture Interface Model
 

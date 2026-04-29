@@ -1,6 +1,6 @@
 # Khayal API Reference
 
-> Complete API reference for Khayal v1. Updated: 2026-03-24
+> Complete API reference for Khayal v1. Updated: 2026-04-29
 
 ## Base URL
 
@@ -183,6 +183,68 @@ curl -X POST http://localhost:1133/v1/queue/abc123/discard \
 
 ---
 
+### GET /notes/{path}
+
+Read a note from the vault by its relative path. Returns parsed frontmatter and markdown sections. The path must be URL-encoded (e.g., `khayal%2F2026-04-29-note.md` for `khayal/2026-04-29-note.md`).
+
+**Parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| path | Yes | URL-encoded relative path to note (e.g., `inbox%2Fnote.md`) |
+| q | No | Search query for excerpt context highlighting |
+
+**Example:**
+```bash
+# Read a note
+curl "http://localhost:1133/v1/notes/khayal%2F2026-04-29-note.md" \
+  -H "X-Khayal-Token: your-token"
+
+# Read with excerpt context for a search query
+curl "http://localhost:1133/v1/notes/khayal%2F2026-04-29-note.md?q=golang" \
+  -H "X-Khayal-Token: your-token"
+```
+
+**Response:**
+```json
+{
+  "note_path": "khayal/2026-04-29-note.md",
+  "title": "My Note",
+  "type": "text",
+  "status": "done",
+  "created_at": "2026-04-29T10:00:00Z",
+  "tags": ["golang", "architecture"],
+  "summary": "A concise summary of the note content.",
+  "key_ideas": [
+    "Goroutines are lightweight threads managed by the Go runtime",
+    "Channels provide type-safe communication between goroutines"
+  ],
+  "raw": "Original captured content...",
+  "source_url": "https://example.com/article",
+  "description": "Image description or extracted content",
+  "related": ["khayal/2026-04-28-related.md"]
+}
+```
+
+**With `?q=` parameter:**
+```json
+{
+  "...": "...",
+  "excerpt": "...a brief overview of Go goroutines and channels, explaining how...",
+  "search_query": "goroutines",
+  "excerpt_section": "Summary"
+}
+```
+
+**Error codes:**
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| NOTE_INVALID_PATH | 400 | URL-encoded path could not be decoded |
+| NOTE_NOT_FOUND | 404 | Note does not exist in the vault inbox |
+| NOTE_READ_ERROR | 500 | Failed to read or parse the note |
+
+---
+
 ## Error Responses
 
 All errors follow this format:
@@ -218,6 +280,9 @@ All errors return `{"error": "...", "code": "..."}`. See SPEC.md Error Taxonomy 
 | SEARCH_MISSING_QUERY | 400 | Missing query parameter |
 | SEARCH_INVALID_MODE | 400 | Invalid search mode |
 | SEARCH_FAILED | 500 | Search operation failed |
+| NOTE_INVALID_PATH | 400 | Invalid path encoding |
+| NOTE_NOT_FOUND | 404 | Note not found in vault inbox |
+| NOTE_READ_ERROR | 500 | Failed to read or parse note |
 | COUNT_ERROR | 500 | Database error |
 
 ### Examples

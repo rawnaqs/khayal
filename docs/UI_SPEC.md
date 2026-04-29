@@ -80,7 +80,12 @@ src/
 │   │   ├── SearchInput.tsx     ← search bar
 │   │   ├── ResultCard.tsx      ← generic result card
 │   │   ├── ResultHero.tsx      ← hero result (high score)
-│   │   └── ResultCompact.tsx   ← compact result (rest)
+│   │   ├── ResultCompact.tsx   ← compact result (rest)
+│   │   └── HighlightedText.tsx ← keyword highlighting
+│   ├── note/
+│   │   ├── NoteView.tsx        ← slide-over note detail panel
+│   │   ├── FullNoteView.tsx    ← full note content with sections
+│   │   └── ExcerptView.tsx     ← excerpt context with search highlights
 │   ├── queue/
 │   │   ├── QueueView.tsx       ← queue with metrics
 │   │   ├── QueueMetrics.tsx    ← queue stats
@@ -94,6 +99,7 @@ src/
 │   │   ├── BottomNav.tsx       ← bottom navigation
 │   │   └── Header.tsx          ← minimal top bar
 │   ├── ui/                      ← shadcn/ui components
+│   │   └── sheet.tsx            ← slide-over panel (note detail)
 │   ├── Onboarding.tsx           ← first-run setup
 │   └── ErrorBoundary.tsx        ← error catching
 ├── hooks/
@@ -102,6 +108,7 @@ src/
 │   ├── useStats.ts              ← polling stats
 │   ├── useQueue.ts              ← queue polling
 │   ├── useServerStatus.ts       ← health polling
+│   ├── useNote.ts               ← fetch and cache note content
 │   └── useSubmitLock.ts         ← prevent double-submit
 ├── lib/
 │   ├── api.ts                   ← KhayalClient
@@ -130,6 +137,7 @@ npx shadcn@latest add separator
 npx shadcn@latest add toast
 npx shadcn@latest add tabs
 npx shadcn@latest add skeleton
+npx shadcn@latest add sheet
 ```
 
 ---
@@ -239,6 +247,60 @@ const tabs = [
 
 ---
 
+## Note view — slide-over detail panel
+
+When a search result is tapped, a `Sheet` (shadcn/ui) slides over from the right showing the full note content. The `NoteView` component orchestrates the overlay and delegates to `FullNoteView` for content display.
+
+```tsx
+// NoteView.tsx
+// Sheet component (shadcn/ui)
+// Slides in from the right, takes full width on mobile
+// Header: back button + title
+// Body: FullNoteView or loading skeleton
+// Props: notePath, query (for excerpt highlighting), onClose
+```
+
+### Full note content
+
+```tsx
+// FullNoteView.tsx
+// Sections displayed in order:
+// - Title (h1)
+// - Type badge + date + status
+// - Tags (Badge component)
+// - Summary section (## Summary content)
+// - Key Ideas (## Key Ideas list)
+// - Description (## Description for images)
+// - Source URL (## Source link)
+// - Raw content (## Raw — full original capture)
+```
+
+### Search excerpt context
+
+When a `query` is provided (user tapped from search results), the `ExcerptView` highlights the matching section:
+
+```tsx
+// ExcerptView.tsx
+// Shows excerpt section name + content with keyword highlighting
+// Appears at the top of the note, above full content
+// Marks the section that matched the search query
+```
+
+### useNote hook
+
+```tsx
+// hooks/useNote.ts
+function useNote(notePath: string | null, query?: string): {
+  note: NoteResponse | null
+  loading: boolean
+  error: string | null
+}
+```
+
+Fetches note content from `GET /v1/notes/{path}` with optional `?q=` for excerpt context. Resets when `notePath` changes.
+
+---
+
 ## Offline queue — IndexedDB
 
 ```ts
@@ -267,6 +329,7 @@ export class KhayalClient {
 
   capture(req: CaptureRequest): Promise<CaptureResponse>
   search(query: string, opts: SearchOptions): Promise<SearchResponse>
+  getNote(notePath: string, query?: string): Promise<NoteResponse>
   health(): Promise<HealthResponse>
   queue(opts: QueueOptions): Promise<QueueResponse>
 }
