@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { createClient, type NoteResponse } from '@/lib/api'
+import { useVaultLock } from '@/hooks/useVaultLock'
 
 export function useNote(notePath: string | null, query?: string) {
+  const { token } = useVaultLock()
   const [note, setNote] = useState<NoteResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -18,7 +20,7 @@ export function useNote(notePath: string | null, query?: string) {
       setError(null)
 
       try {
-        const client = createClient()
+        const client = createClient(token)
         const response = await client.getNote(notePath, query)
         setNote(response)
       } catch (err) {
@@ -29,7 +31,7 @@ export function useNote(notePath: string | null, query?: string) {
     }
 
     fetchNote()
-  }, [notePath, query])
+  }, [notePath, query, token])
 
   return { note, loading, error }
 }

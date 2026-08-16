@@ -3,7 +3,8 @@
 declare const self: ServiceWorkerGlobalScope;
 
 import { precacheAndRoute } from "workbox-precaching";
-import { APP_VERSION } from "./lib/constants";
+import { APP_VERSION, VAULT_LOCK } from "./lib/constants";
+import { openDB, getVaultRecord } from "./lib/vaultStorage";
 
 const CACHE_VERSION = APP_VERSION || "0.0.0";
 
@@ -38,9 +39,17 @@ self.addEventListener("sync", (event: any) => {
 });
 
 async function syncOfflineCaptures() {
+  // When a lock is active, the token and queue are encrypted at rest and the
+  // key only exists in an unlocked in-memory session. The service worker cannot
+  // decrypt, so skip (not fail) — items flush next time the app is unlocked.
+  const vault = await getVaultRecord();
+  if (vault && vault.mode === "prf") {
+    return;
+  }
+
   const db = await openDB();
-  const tx = db.transaction("offline", "readonly");
-  const store = tx.objectStore("offline");
+  const tx = db.transaction(VAULT_LOCK.STORE_OFFLINE, "readonly");
+  const store = tx.objectStore(VAULT_LOCK.STORE_OFFLINE);
   const captures = await getAll(store);
 
   for (const capture of captures) {
@@ -55,29 +64,14 @@ async function syncOfflineCaptures() {
       });
 
       if (response.ok) {
-        const deleteTx = db.transaction("offline", "readwrite");
-        const deleteStore = deleteTx.objectStore("offline");
+        const deleteTx = db.transaction(VAULT_LOCK.STORE_OFFLINE, "readwrite");
+        const deleteStore = deleteTx.objectStore(VAULT_LOCK.STORE_OFFLINE);
         await deleteStore.delete(capture.id);
       }
     } catch {
       // Will retry on next sync
     }
   }
-}
-
-// IndexedDB helpers
-async function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open("khayal-offline", 1);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains("offline")) {
-        db.createObjectStore("offline", { keyPath: "id" });
-      }
-    };
-  });
 }
 
 async function getAll(store: IDBObjectStore): Promise<any[]> {

@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import { STORAGE_KEYS } from "./lib/constants";
+import { VaultLockProvider } from "./hooks/useVaultLock";
 
 // Register service worker
 if ("serviceWorker" in navigator) {
@@ -43,17 +43,10 @@ if ((window.navigator as any).standalone === true) {
   document.documentElement.classList.add("pwa-standalone");
 }
 
-// Setup offline sync if connected
-const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
-const host = localStorage.getItem(STORAGE_KEYS.HOST);
-if (token && host) {
-  import("./lib/offline").then(({ setupOfflineSync }) => {
-    setupOfflineSync(host, token);
-  });
-}
-
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <VaultLockProvider>
+      <App />
+    </VaultLockProvider>
   </React.StrictMode>,
 );

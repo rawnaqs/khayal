@@ -1,8 +1,10 @@
 import { useState, useCallback } from 'react'
 import { createClient, type SearchResponse, type SearchOptions } from '@/lib/api'
 import { LIMITS } from '@/lib/constants'
+import { useVaultLock } from '@/hooks/useVaultLock'
 
 export function useSearch() {
+  const { token } = useVaultLock()
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<SearchResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -17,7 +19,7 @@ export function useSearch() {
     setError(null)
 
     try {
-      const client = createClient()
+      const client = createClient(token)
       const response = await client.search(query, {
         mode: 'hybrid',
         limit: LIMITS.SEARCH_RESULTS,
@@ -29,7 +31,7 @@ export function useSearch() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [token])
 
   const clear = () => {
     setResults(null)

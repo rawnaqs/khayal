@@ -8,8 +8,9 @@ import { SearchView } from '@/components/search/SearchView'
 import { QueueView } from '@/components/queue/QueueView'
 import { NoteView } from '@/components/note/NoteView'
 import { Onboarding } from '@/components/Onboarding'
+import { LockScreen } from '@/components/lock/LockScreen'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { STORAGE_KEYS } from '@/lib/constants'
+import { useVaultLock } from '@/hooks/useVaultLock'
 
 export type Tab = 'capture' | 'search' | 'queue'
 
@@ -20,13 +21,11 @@ const pageVariants = {
 }
 
 export default function App() {
+  const { locked, configured } = useVaultLock()
   const [activeTab, setActiveTab] = useState<Tab>('capture')
   const [captureQuery, setCaptureQuery] = useState<string | undefined>(undefined)
   const [selectedNote, setSelectedNote] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const [isConfigured, setIsConfigured] = useState(() => {
-    return !!localStorage.getItem(STORAGE_KEYS.TOKEN) && !!localStorage.getItem(STORAGE_KEYS.HOST)
-  })
 
   const handleCaptureQuery = useCallback((query: string) => {
     setCaptureQuery(query)
@@ -47,10 +46,18 @@ export default function App() {
     setSearchQuery('')
   }, [])
 
-  if (!isConfigured) {
+  if (locked) {
     return (
       <ErrorBoundary>
-        <Onboarding onComplete={() => setIsConfigured(true)} />
+        <LockScreen />
+      </ErrorBoundary>
+    )
+  }
+
+  if (!configured) {
+    return (
+      <ErrorBoundary>
+        <Onboarding />
       </ErrorBoundary>
     )
   }

@@ -226,9 +226,9 @@ export class KhayalClient {
   }
 }
 
-export function createClient(): KhayalClient {
+export function createClient(token?: string | null): KhayalClient {
   // Auto-detect: same origin in production, proxy in dev
   const host = localStorage.getItem(STORAGE_KEYS.HOST) || window.location.origin
-  const token = localStorage.getItem(STORAGE_KEYS.TOKEN) || ''
-  return new KhayalClient(host, token)
+  const resolvedToken = token ?? localStorage.getItem(STORAGE_KEYS.TOKEN) ?? ''
+  return new KhayalClient(host, resolvedToken)
 }

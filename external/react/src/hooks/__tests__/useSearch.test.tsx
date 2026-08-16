@@ -9,6 +9,11 @@ vi.mock('@/lib/api', () => ({
   })),
 }))
 
+// Mock the vault lock context
+vi.mock('@/hooks/useVaultLock', () => ({
+  useVaultLock: () => ({ token: null }),
+}))
+
 describe('useSearch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
