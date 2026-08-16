@@ -1,23 +1,11 @@
 import { AlertTriangle, RotateCcw, Trash2 } from 'lucide-react'
 import type { QueueJob } from '@/lib/api'
+import { timeAgo } from '@/lib/time'
 
 interface FailedJobExpandedProps {
   job: QueueJob
   onRetry: (id: string) => void
   onDiscard: (id: string) => void
-}
-
-function timeAgo(dateStr: string) {
-  try {
-    const date = new Date(dateStr)
-    const now = new Date()
-    const diff = Math.floor((now.getTime() - date.getTime()) / 1000)
-    if (diff < 60) return `${diff}s ago`
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-    return `${Math.floor(diff / 3600)}h ago`
-  } catch {
-    return ''
-  }
 }
 
 function parseError(error?: string): { code: string; message: string } {
@@ -35,7 +23,7 @@ export function FailedJobExpanded({ job, onRetry, onDiscard }: FailedJobExpanded
     <div className="fail-expanded">
       <div className="fe-main">
         <div className="fail-icon">
-          <AlertTriangle className="w-4 h-4" style={{ color: '#ff4d4d' }} />
+          <AlertTriangle className="w-4 h-4" style={{ color: "var(--bad)" }} />
         </div>
         <div className="fe-body">
           <div className="fe-title">{title}</div>

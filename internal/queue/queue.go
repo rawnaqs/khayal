@@ -889,13 +889,10 @@ func (q *Queue) DeleteFromIndex(ctx context.Context, notePath string) error {
 
 	for attempt := range maxRetries {
 		_, err := q.db.ExecContext(ctx, `DELETE FROM notes_fts WHERE note_path = ?`, notePath)
-		if err != nil && isFTSErr(err) {
-			return nil
-		}
-		if err != nil {
+		if err != nil && !isFTSErr(err) {
 			lastErr = err
 			if isLockError(err) {
-				q.logger.Warn("sqlite locked, retrying delete from index",
+				q.logger.Warn("sqlite locked, retrying delete from index (fts)",
 					"note_path", notePath,
 					"attempt", attempt+1,
 				)
@@ -904,9 +901,43 @@ func (q *Queue) DeleteFromIndex(ctx context.Context, notePath string) error {
 			}
 			return err
 		}
+
+		_, err = q.db.ExecContext(ctx, `DELETE FROM chunks WHERE note_path = ?`, notePath)
+		if err != nil {
+			lastErr = err
+			if isLockError(err) {
+				q.logger.Warn("sqlite locked, retrying delete from index (chunks)",
+					"note_path", notePath,
+					"attempt", attempt+1,
+				)
+				time.Sleep(constants.SQLiteRetrySleep)
+				continue
+			}
+			return err
+		}
+
+		_, err = q.db.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath)
+		if err != nil {
+			lastErr = err
+			if isLockError(err) {
+				q.logger.Warn("sqlite locked, retrying delete from index (entities)",
+					"note_path", notePath,
+					"attempt", attempt+1,
+				)
+				time.Sleep(constants.SQLiteRetrySleep)
+				continue
+			}
+			return err
+		}
+
 		return nil
 	}
 	return lastErr
+}
+
+func (q *Queue) InvalidateStatsCache(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, `DELETE FROM stats_cache WHERE key = 'stats'`)
+	return err
 }
 
 func isFTSErr(err error) bool {

@@ -186,6 +186,47 @@ describe('api.ts', () => {
         )
       })
     })
+
+    describe('deleteNote', () => {
+      it('should send DELETE request to /v1/notes/{path}', async () => {
+        ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+          ok: true,
+          status: 204,
+        })
+
+        await client.deleteNote('inbox/test-note.md')
+
+        expect(global.fetch).toHaveBeenCalledWith(
+          'http://localhost:1133/v1/notes/inbox%2Ftest-note.md',
+          expect.objectContaining({
+            method: 'DELETE',
+            headers: expect.objectContaining({
+              'X-Khayal-Token': 'test-token',
+            }),
+          })
+        )
+      })
+
+      it('should return undefined on 204 No Content', async () => {
+        ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+          ok: true,
+          status: 204,
+        })
+
+        const result = await client.deleteNote('inbox/test-note.md')
+        expect(result).toBeUndefined()
+      })
+
+      it('should throw on failed request', async () => {
+        ;(global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+          ok: false,
+          status: 404,
+          json: () => Promise.resolve({ error: 'note not found' }),
+        })
+
+        await expect(client.deleteNote('inbox/missing.md')).rejects.toThrow('note not found')
+      })
+    })
   })
 
   describe('createClient', () => {

@@ -26,13 +26,16 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
             className={cn('nt', isActive && 'on')}
+            role="tab"
+            aria-selected={isActive}
+            aria-label={tab.label}
           >
             <Icon />
             {isActive ? (
               <motion.div
                 layoutId="navIndicator"
                 className="w-5 h-0.5 rounded-full"
-                style={{ background: '#C9933A' }}
+                style={{ background: "var(--gold)" }}
                 transition={{ type: 'spring', stiffness: 380, damping: 30 }}
               />
             ) : (

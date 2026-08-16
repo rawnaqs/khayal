@@ -2215,6 +2215,15 @@ Codes are stable across versions — never change existing codes, only add new o
 | `CAPTURE_MISSING_FILE` | missing file | 400 |
 | `CAPTURE_READ_FAILED` | failed to read file | 500 |
 
+### Note errors
+
+| Code | Meaning | HTTP |
+|------|---------|------|
+| `NOTE_INVALID_PATH` | invalid path encoding or path outside inbox | 400 |
+| `NOTE_NOT_FOUND` | note not found in vault inbox | 404 |
+| `NOTE_READ_ERROR` | failed to read or parse note | 500 |
+| `NOTE_DELETE_FAILED` | failed to delete note from vault | 500 |
+
 ### Queue errors
 
 | Code | Meaning | HTTP |

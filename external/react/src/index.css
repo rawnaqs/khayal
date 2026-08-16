@@ -1224,10 +1224,23 @@
     from {
       width: 100%;
     }
-
     to {
       width: 0%;
     }
+  }
+
+  @keyframes indeterminate {
+    0% { transform: translateX(-100%); }
+    50% { transform: translateX(100%); }
+    100% { transform: translateX(-100%); }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
@@ -1510,8 +1523,10 @@
     scrollbar-width: none;
   }
 
-  .results::-webkit-scrollbar {
-    display: none;
+  @media (pointer: coarse) {
+    .results::-webkit-scrollbar {
+      display: none;
+    }
   }
 
   /* Hero result */
@@ -1790,6 +1805,11 @@
   .q-body::-webkit-scrollbar {
     display: none;
   }
+  @media (pointer: coarse) {
+    .q-body {
+      scrollbar-width: none;
+    }
+  }
 
   /* Hero processing card */
   .hero-card {
@@ -1910,21 +1930,6 @@
     border-radius: 50%;
     background: #ffb340;
     box-shadow: 0 0 8px #ffb340;
-  }
-
-  .model-row {
-    display: flex;
-    gap: 5px;
-  }
-
-  .mc {
-    font-family: "IBM Plex Mono", monospace;
-    font-size: 9px;
-    padding: 2px 8px;
-    border-radius: 100px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    color: rgba(245, 245, 245, 0.5);
   }
 
   /* Stats row */

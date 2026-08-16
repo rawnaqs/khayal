@@ -24,6 +24,7 @@ export default function App() {
   const [captureQuery, setCaptureQuery] = useState<string | undefined>(undefined)
   const [selectedNote, setSelectedNote] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState<string>('')
+  const [deletedNotePath, setDeletedNotePath] = useState<string | null>(null)
   const [isConfigured, setIsConfigured] = useState(() => {
     return !!localStorage.getItem(STORAGE_KEYS.TOKEN) && !!localStorage.getItem(STORAGE_KEYS.HOST)
   })
@@ -44,7 +45,17 @@ export default function App() {
 
   const handleBackToSearch = useCallback(() => {
     setSelectedNote(null)
-    setSearchQuery('')
+  }, [])
+
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem(STORAGE_KEYS.TOKEN)
+    localStorage.removeItem(STORAGE_KEYS.HOST)
+    setIsConfigured(false)
+  }, [])
+
+  const handleNoteDeleted = useCallback((notePath: string) => {
+    setDeletedNotePath(notePath)
+    setSelectedNote(null)
   }, [])
 
   if (!isConfigured) {
@@ -60,7 +71,7 @@ export default function App() {
       case 'capture':
         return <CaptureView captureQuery={captureQuery} onCaptureQueryConsumed={handleCaptureQueryConsumed} />
       case 'search':
-        return <SearchView onCaptureQuery={handleCaptureQuery} onNoteSelect={handleNoteSelect} />
+        return <SearchView onCaptureQuery={handleCaptureQuery} onNoteSelect={handleNoteSelect} deletedNotePath={deletedNotePath} />
       case 'queue':
         return <QueueView />
       default:
@@ -70,8 +81,8 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="flex flex-col h-screen overflow-hidden" style={{ background: '#070707' }}>
-        <Header />
+      <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg)]">
+        <Header onLogout={handleLogout} />
         <main className="flex-1 overflow-hidden">
           <AnimatePresence mode="wait">
             <motion.div
@@ -94,6 +105,7 @@ export default function App() {
           notePath={selectedNote}
           query={searchQuery || undefined}
           onClose={handleBackToSearch}
+          onNoteDeleted={handleNoteDeleted}
         />
       </div>
     </ErrorBoundary>

@@ -53,10 +53,11 @@ export const TextCapture = forwardRef<TextCaptureRef, TextCaptureProps>(
       <textarea
         ref={textareaRef}
         placeholder="what's on your mind..."
+        aria-label="capture a thought"
         onKeyDown={handleKeyDown}
         disabled={loading}
-        className="w-full h-full resize-none bg-transparent text-[17px] font-light text-[#f5f5f5] placeholder-[rgba(245,245,245,0.2)] outline-none leading-relaxed"
-        style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}
+      className="w-full h-full resize-none bg-transparent text-base text-[var(--text)] placeholder-[rgba(245,245,245,0.2)] outline-none leading-relaxed focus-visible:ring-1 focus-visible:ring-[var(--gold)]"
+      style={{ fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400 }}
       />
     )
   }

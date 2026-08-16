@@ -21,6 +21,7 @@ function extractDomain(url: string): string {
 export const UrlCapture = forwardRef<UrlCaptureRef, UrlCaptureProps>(
   function UrlCapture({ onSubmit, loading }, ref) {
     const [url, setUrl] = useState('')
+    const [note, setNote] = useState('')
     const inputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
@@ -30,8 +31,10 @@ export const UrlCapture = forwardRef<UrlCaptureRef, UrlCaptureProps>(
     useImperativeHandle(ref, () => ({
       submit: async () => {
         if (!url.trim()) return
-        await onSubmit(url)
+        const content = note.trim() ? `${url}\n\n${note.trim()}` : url
+        await onSubmit(content)
         setUrl('')
+        setNote('')
       },
     }))
 
@@ -39,7 +42,11 @@ export const UrlCapture = forwardRef<UrlCaptureRef, UrlCaptureProps>(
       if (e.key === 'Enter') {
         e.preventDefault()
         if (url.trim()) {
-          onSubmit(url).then(() => setUrl(''))
+          const content = note.trim() ? `${url}\n\n${note.trim()}` : url
+          onSubmit(content).then(() => {
+            setUrl('')
+            setNote('')
+          })
         }
       }
     }
@@ -78,11 +85,15 @@ export const UrlCapture = forwardRef<UrlCaptureRef, UrlCaptureProps>(
 
         {/* Optional note */}
         <div className="note-input">
+          <label htmlFor="url-note" className="sr-only">add a note</label>
           <input
+            id="url-note"
             type="text"
             placeholder="add a note... (optional)"
-            className="w-full bg-transparent text-base text-[rgba(245,245,245,0.3)] placeholder-[rgba(245,245,245,0.2)] outline-none"
-            style={{ fontWeight: 300 }}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            className="w-full bg-transparent text-base outline-none"
+            style={{ color: "rgba(245,245,245,0.5)", fontFamily: "'IBM Plex Mono', monospace", fontWeight: 400 }}
           />
         </div>
       </div>

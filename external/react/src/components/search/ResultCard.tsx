@@ -33,7 +33,7 @@ export function ResultCard({ result, index = 0 }: ResultCardProps) {
           {result.title || result.note_path}
         </span>
         <span className="text-xs text-muted-foreground ml-3 shrink-0 tabular-nums">
-          {result.score.toFixed(2)}
+          {result.score.toFixed(1)}
         </span>
       </div>
 

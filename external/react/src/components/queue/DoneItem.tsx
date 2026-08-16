@@ -30,7 +30,7 @@ export function DoneItem({ job }: DoneItemProps) {
   return (
     <div className="done-item">
       <div className="done-check">
-        <Check className="w-3 h-3" style={{ color: '#3ddc84' }} />
+        <Check className="w-3 h-3" style={{ color: "var(--ok)" }} />
       </div>
       <div className="done-body">
         <div className="done-title">{title}</div>

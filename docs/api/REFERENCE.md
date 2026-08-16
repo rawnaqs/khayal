@@ -184,7 +184,6 @@ curl -X POST http://localhost:1133/v1/queue/abc123/discard \
 ---
 
 ### GET /notes/{path}
-
 Read a note from the vault by its relative path. Returns parsed frontmatter and markdown sections. The path must be URL-encoded (e.g., `khayal%2F2026-04-29-note.md` for `khayal/2026-04-29-note.md`).
 
 **Parameters:**
@@ -245,6 +244,33 @@ curl "http://localhost:1133/v1/notes/khayal%2F2026-04-29-note.md?q=golang" \
 
 ---
 
+### DELETE /notes/{path}
+
+Delete a note from the vault. This is a **soft-delete**: the note file is moved to `<inbox>/.khayal-trash/` with a timestamp suffix, and all associated search index data (FTS5, chunks, entities) is removed.
+
+**Parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| path | Yes | URL-encoded relative path to note (e.g., `inbox%2Fnote.md`) |
+
+**Example:**
+```bash
+curl -X DELETE "http://localhost:1133/v1/notes/inbox%2F2026-04-29-note.md" \
+  -H "X-Khayal-Token: your-token"
+```
+
+**Response:** 204 No Content
+
+**Error codes:**
+| Code | HTTP Status | Description |
+|------|-------------|-------------|
+| NOTE_INVALID_PATH | 400 | URL-encoded path could not be decoded or path outside inbox |
+| NOTE_NOT_FOUND | 404 | Note does not exist in the vault inbox |
+| NOTE_DELETE_FAILED | 500 | Failed to delete note from vault |
+
+---
+
 ## Error Responses
 
 All errors follow this format:
@@ -283,6 +309,7 @@ All errors return `{"error": "...", "code": "..."}`. See SPEC.md Error Taxonomy 
 | NOTE_INVALID_PATH | 400 | Invalid path encoding |
 | NOTE_NOT_FOUND | 404 | Note not found in vault inbox |
 | NOTE_READ_ERROR | 500 | Failed to read or parse note |
+| NOTE_DELETE_FAILED | 500 | Failed to delete note from vault |
 | COUNT_ERROR | 500 | Database error |
 
 ### Examples

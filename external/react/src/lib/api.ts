@@ -149,6 +149,10 @@ export class KhayalClient {
       throw new Error(error.error || `Request failed: ${response.status}`)
     }
 
+    if (response.status === 204) {
+      return undefined as T
+    }
+
     return response.json()
   }
 
@@ -223,6 +227,11 @@ export class KhayalClient {
     const encodedPath = encodeURIComponent(notePath)
     const qs = query ? '?' + params.toString() : ''
     return this.request<NoteResponse>('GET', `/v1/notes/${encodedPath}${qs}`)
+  }
+
+  async deleteNote(notePath: string): Promise<{ success: boolean }> {
+    const encodedPath = encodeURIComponent(notePath)
+    return this.request<{ success: boolean }>('DELETE', `/v1/notes/${encodedPath}`)
   }
 }
 

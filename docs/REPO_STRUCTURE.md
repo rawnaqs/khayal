@@ -422,6 +422,8 @@ func (c *Client) Health(ctx context.Context) (*HealthResponse, error)
 | GET | /v1/queue/:id | queue.go |
 | POST | /v1/queue/:id/retry | queue.go |
 | POST | /v1/queue/:id/discard | queue.go |
+| GET | /v1/notes/{path} | notes.go |
+| DELETE | /v1/notes/{path} | notes.go |
 | GET | /\* | static.go (SPA) |
 
 ---

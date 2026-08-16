@@ -1,9 +1,13 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -147,4 +151,62 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func (s *Server) deleteNoteHandler(w http.ResponseWriter, r *http.Request) {
+	rawPath := chi.URLParam(r, "path")
+
+	notePath, err := url.PathUnescape(rawPath)
+	if err != nil {
+		WriteError(w, "invalid path encoding", "NOTE_INVALID_PATH", http.StatusBadRequest)
+		return
+	}
+
+	if err := s.vault.DeleteNote(notePath); err != nil {
+		if os.IsNotExist(err) || strings.Contains(err.Error(), "not found") ||
+			strings.Contains(err.Error(), "no such file") {
+			s.logger.Error("note not found for deletion",
+				"path", notePath,
+				"error", err,
+			)
+			WriteError(w, "note not found", "NOTE_NOT_FOUND", http.StatusNotFound)
+			return
+		}
+		if errors.Is(err, vault.ErrVaultPathOutsideInbox) ||
+			errors.Is(err, vault.ErrVaultPathOutsideVault) ||
+			strings.Contains(err.Error(), "path must be within") {
+			s.logger.Error("invalid path for deletion",
+				"path", notePath,
+				"error", err,
+			)
+			WriteError(w, "invalid path", "NOTE_INVALID_PATH", http.StatusBadRequest)
+			return
+		}
+		s.logger.Error("failed to delete note from vault",
+			"path", notePath,
+			"error", err,
+		)
+		WriteError(w, "failed to delete note", "NOTE_DELETE_FAILED", http.StatusInternalServerError)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	if err := s.queue.DeleteFromIndex(ctx, notePath); err != nil {
+		s.logger.Warn("failed to remove note from search indices after vault delete",
+			"path", notePath,
+			"error", err,
+		)
+	}
+
+	if err := s.queue.InvalidateStatsCache(ctx); err != nil {
+		s.logger.Warn("failed to invalidate stats cache after delete",
+			"path", notePath,
+			"error", err,
+		)
+	}
+
+	s.logger.Info("note deleted", "path", notePath)
+	WriteNoContent(w)
 }

@@ -50,7 +50,7 @@ export function ResultCompact({ result, rank, query, onSelect }: ResultCompactPr
           ))}
         </div>
       </div>
-      <span className="rc-score">{result.score.toFixed(2)}</span>
+      <span className="rc-score">{result.score.toFixed(1)}</span>
     </div>
   )
 }

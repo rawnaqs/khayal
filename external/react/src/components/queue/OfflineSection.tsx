@@ -43,7 +43,7 @@ export function OfflineSection({ items, onSync }: OfflineSectionProps) {
     <div className="off-card">
       <div className="off-hdr">
         <div className="off-title-row">
-          <Zap className="w-4 h-4 text-[#C9933A]" />
+          <Zap className="w-4 h-4 text-[var(--gold)]" />
           <span className="off-title">offline</span>
         </div>
         <span className="off-ct">{items.length} waiting</span>
@@ -59,7 +59,7 @@ export function OfflineSection({ items, onSync }: OfflineSectionProps) {
       </div>
       <div className="sync-btn" onClick={onSync}>
         <span className="sync-txt">sync {items.length} captures</span>
-        <Upload className="w-4 h-4 text-[#C9933A]" />
+        <Upload className="w-4 h-4 text-[var(--gold)]" />
       </div>
     </div>
   )

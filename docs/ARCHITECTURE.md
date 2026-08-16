@@ -300,6 +300,7 @@ Auth: X-Khayal-Token: <token>
 | GET | /v1/queue | Job list with pagination |
 | GET | /v1/queue/:id | Single job status |
 | GET | /v1/notes/:path | Read a note by path with optional excerpt context |
+| DELETE | /v1/notes/:path | Soft-delete note (move to .khayal-trash) |
 
 ## Capture Interface Model
 

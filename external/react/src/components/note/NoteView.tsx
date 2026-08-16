@@ -1,14 +1,17 @@
 import { useState, useEffect } from "react";
 import { useNote } from "@/hooks/useNote";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { useToast } from "@/hooks/use-toast";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ExcerptView } from "./ExcerptView";
 import { FullNoteView } from "./FullNoteView";
+import { createClient } from "@/lib/api";
 
 interface NoteViewProps {
   notePath: string | null;
   query?: string;
   onClose: () => void;
+  onNoteDeleted?: (notePath: string) => void;
 }
 
 function getTypeBadgeClass(type: string) {
@@ -33,13 +36,30 @@ function formatDate(dateStr: string) {
   }
 }
 
-export function NoteView({ notePath, query, onClose }: NoteViewProps) {
+export function NoteView({ notePath, query, onClose, onNoteDeleted }: NoteViewProps) {
   const { note, loading, error } = useNote(notePath, query);
   const [view, setView] = useState<"excerpt" | "full">("excerpt");
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setView("excerpt");
   }, [notePath]);
+
+  const handleDelete = async () => {
+    if (!notePath || deleting) return
+    setDeleting(true)
+    try {
+      const client = createClient()
+      await client.deleteNote(notePath)
+      toast({ title: "Note deleted" })
+      onNoteDeleted?.(notePath)
+    } catch (err) {
+      toast({ title: "Failed to delete note", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" })
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <Sheet
@@ -53,8 +73,8 @@ export function NoteView({ notePath, query, onClose }: NoteViewProps) {
         side="right"
         className="w-[90vw] sm:max-w-[500px] p-0 flex flex-col [&>button:first-of-type]:hidden focus:outline-none"
         style={{
-          background: "#0d0d0d",
-          borderLeft: "1px solid rgba(255,255,255,0.08)",
+          background: "var(--s1)",
+          borderLeft: "1px solid var(--border2)",
           paddingBottom: 'max(env(safe-area-inset-bottom), 0px)',
         }}
       >
@@ -63,19 +83,19 @@ export function NoteView({ notePath, query, onClose }: NoteViewProps) {
           className="flex items-center gap-3 px-5 py-4 border-b border-white/5 shrink-0"
           style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}
         >
-          <h2
+          <SheetTitle
             className="flex-1 text-base font-semibold truncate"
             style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}
           >
             {loading ? (
               <Skeleton
                 className="h-5 w-48"
-                style={{ background: "#1a1a1a" }}
+                style={{ background: "var(--s3)" }}
               />
             ) : (
               note?.title || "Note"
             )}
-          </h2>
+          </SheetTitle>
         </div>
 
         {/* Content */}
@@ -84,25 +104,25 @@ export function NoteView({ notePath, query, onClose }: NoteViewProps) {
             <div className="space-y-4">
               <Skeleton
                 className="h-4 w-32"
-                style={{ background: "#1a1a1a" }}
+                style={{ background: "var(--s3)" }}
               />
               <div className="flex gap-2">
                 <Skeleton
                   className="h-5 w-16 rounded-full"
-                  style={{ background: "#1a1a1a" }}
+                  style={{ background: "var(--s3)" }}
                 />
                 <Skeleton
                   className="h-5 w-20 rounded-full"
-                  style={{ background: "#1a1a1a" }}
+                  style={{ background: "var(--s3)" }}
                 />
               </div>
               <Skeleton
                 className="h-24 w-full rounded-xl"
-                style={{ background: "#1a1a1a" }}
+                style={{ background: "var(--s3)" }}
               />
               <Skeleton
                 className="h-40 w-full rounded-xl"
-                style={{ background: "#1a1a1a" }}
+                style={{ background: "var(--s3)" }}
               />
             </div>
           )}
@@ -167,7 +187,7 @@ export function NoteView({ notePath, query, onClose }: NoteViewProps) {
               {/* Footer */}
               <div
                 className="text-xs pt-4 mt-4 border-t border-white/5"
-                style={{ color: "rgba(245,245,245,0.3)" }}
+                style={{ color: "var(--t3)" }}
               >
                 <div className="font-mono truncate">{note.note_path}</div>
                 {note.created_at && (
@@ -178,6 +198,14 @@ export function NoteView({ notePath, query, onClose }: NoteViewProps) {
                     )}
                   </div>
                 )}
+                <button
+                  className="mt-3 text-xs underline-offset-2 hover:underline disabled:opacity-50"
+                  style={{ color: "var(--bad)" }}
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? "Deleting..." : "Delete note"}
+                </button>
               </div>
             </>
           )}

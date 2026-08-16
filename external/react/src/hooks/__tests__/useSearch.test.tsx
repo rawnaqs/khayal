@@ -178,4 +178,50 @@ describe('useSearch', () => {
       })
     )
   })
+
+  describe('removeNote', () => {
+    it('should remove a note from results by path', async () => {
+      const mockSearch = vi.fn().mockResolvedValue({
+        query: 'test',
+        mode: 'hybrid',
+        results: [
+          { id: '1', note_path: 'inbox/a.md', title: 'Note A', excerpt: '', score: 0.9, type: 'text', created_at: '' },
+          { id: '2', note_path: 'inbox/b.md', title: 'Note B', excerpt: '', score: 0.8, type: 'text', created_at: '' },
+          { id: '3', note_path: 'inbox/c.md', title: 'Note C', excerpt: '', score: 0.7, type: 'text', created_at: '' },
+        ],
+        total: 3,
+        took_ms: 100,
+      })
+      const { createClient } = await import('@/lib/api')
+      ;(createClient as ReturnType<typeof vi.fn>).mockReturnValue({ search: mockSearch })
+
+      const { result } = renderHook(() => useSearch())
+
+      await act(async () => {
+        await result.current.search('test')
+      })
+
+      expect(result.current.results?.results).toHaveLength(3)
+      expect(result.current.results?.total).toBe(3)
+
+      act(() => {
+        result.current.removeNote('inbox/b.md')
+      })
+
+      expect(result.current.results?.results).toHaveLength(2)
+      expect(result.current.results?.total).toBe(2)
+      expect(result.current.results?.results[0].note_path).toBe('inbox/a.md')
+      expect(result.current.results?.results[1].note_path).toBe('inbox/c.md')
+    })
+
+    it('should handle removeNote when results are null', async () => {
+      const { result } = renderHook(() => useSearch())
+
+      act(() => {
+        result.current.removeNote('inbox/x.md')
+      })
+
+      expect(result.current.results).toBeNull()
+    })
+  })
 })

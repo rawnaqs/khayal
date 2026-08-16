@@ -134,8 +134,9 @@ export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureVie
             className="send"
             onClick={handleSend}
             disabled={loading}
+            aria-label="capture"
           >
-            <SendHorizontal className="w-4 h-4" style={{ color: '#000' }} />
+            <SendHorizontal className="w-4 h-4 text-[var(--bg)]" />
           </button>
         </div>
       </div>

@@ -54,7 +54,7 @@ describe('constants.ts', () => {
     it('should have SEARCH_RESULTS, QUEUE_JOBS, and RECENT_SEARCHES', () => {
       expect(LIMITS.SEARCH_RESULTS).toBe(20)
       expect(LIMITS.QUEUE_JOBS).toBe(50)
-      expect(LIMITS.RECENT_SEARCHES).toBe(10)
+      expect(LIMITS.RECENT_SEARCHES).toBe(6)
     })
 
     it('should have DONE_JOBS_SHOWN, TAGS_HERO, TAGS_COMPACT', () => {

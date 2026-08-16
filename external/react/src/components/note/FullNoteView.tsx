@@ -67,7 +67,7 @@ export function FullNoteView({ note }: FullNoteViewProps) {
             target="_blank"
             rel="noopener noreferrer"
             style={{
-              color: '#c9933a',
+              color: 'var(--gold)',
               fontSize: '0.875rem',
               textDecoration: 'underline',
             }}

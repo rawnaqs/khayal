@@ -17,6 +17,8 @@ vi.mock('lucide-react', () => ({
   AlertCircle: () => <div data-testid="alert-icon" />,
 }))
 
+const mockRemoveNote = vi.fn()
+
 // Mock hooks
 vi.mock('@/hooks/useSearch', () => ({
   useSearch: () => ({
@@ -25,6 +27,7 @@ vi.mock('@/hooks/useSearch', () => ({
     error: null,
     search: vi.fn(),
     clear: vi.fn(),
+    removeNote: mockRemoveNote,
   }),
 }))
 
@@ -57,6 +60,7 @@ describe('SearchView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.getItem.mockReturnValue(null)
+    mockRemoveNote.mockClear()
   })
 
   it('should render with search bar and suggestions', () => {
@@ -124,5 +128,13 @@ describe('SearchView', () => {
     fireEvent.change(input, { target: { value: 'test query' } })
 
     expect(input).toHaveValue('test query')
+  })
+
+  it('should call removeNote when deletedNotePath changes', () => {
+    const { rerender } = render(<SearchView deletedNotePath={null} />)
+    expect(mockRemoveNote).not.toHaveBeenCalled()
+
+    rerender(<SearchView deletedNotePath="inbox/deleted.md" />)
+    expect(mockRemoveNote).toHaveBeenCalledWith('inbox/deleted.md')
   })
 })

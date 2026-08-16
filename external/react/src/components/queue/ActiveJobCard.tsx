@@ -1,29 +1,13 @@
-import type { QueueJob } from '@/lib/api'
-import { PROCESSING_STEPS } from '@/lib/constants'
+import type { QueueJob } from "@/lib/api";
+import { timeAgo } from "@/lib/time";
+import { getStepsForType } from "../capture/CaptureResult";
 
 interface ActiveJobCardProps {
-  job: QueueJob
-}
-
-function timeAgo(dateStr: string) {
-  try {
-    const date = new Date(dateStr)
-    const now = new Date()
-    const diff = Math.floor((now.getTime() - date.getTime()) / 1000)
-    if (diff < 60) return `${diff}s ago`
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-    return `${Math.floor(diff / 3600)}h ago`
-  } catch {
-    return ''
-  }
-}
-
-function getSteps(type: string): string[] {
-  return PROCESSING_STEPS[type] || ['saved', 'processing']
+  job: QueueJob;
 }
 
 export function ActiveJobCard({ job }: ActiveJobCardProps) {
-  const steps = getSteps(job.type)
+  const steps = getStepsForType(job.type);
 
   return (
     <>
@@ -43,15 +27,18 @@ export function ActiveJobCard({ job }: ActiveJobCardProps) {
         </div>
         <div className="prog-labels">
           {steps.map((step, i) => (
-            <span key={step} className={`prog-step ${i === 0 ? 'done' : ''}`}>
+            <span key={step} className={`prog-step ${i === 0 ? "done" : ""}`}>
               {step}
             </span>
           ))}
         </div>
         <div className="prog-bar">
-          <div className="prog-fill" style={{ animation: 'indeterminate 2s linear infinite' }} />
+          <div
+            className="prog-fill"
+            style={{ animation: "indeterminate 2s linear infinite" }}
+          />
         </div>
       </div>
     </>
-  )
+  );
 }

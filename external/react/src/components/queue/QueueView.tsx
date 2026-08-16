@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
-import { RefreshCw, FileText, Link, Image } from "lucide-react";
+import { RefreshCw, FileText, Link, Image, Inbox } from "lucide-react";
 import { QueueMetrics } from "./QueueMetrics";
 import { ActiveJobCard } from "./ActiveJobCard";
 import { FailedJobCard } from "./FailedJobCard";
@@ -13,19 +13,7 @@ import { useQueue } from "@/hooks/useQueue";
 import { useToast } from "@/hooks/use-toast";
 import { getOfflineQueue } from "@/lib/offline";
 import { cn } from "@/lib/utils";
-
-function timeAgo(dateStr: string) {
-  try {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-    if (diff < 60) return `${diff}s ago`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-    return `${Math.floor(diff / 3600)}h ago`;
-  } catch {
-    return "";
-  }
-}
+import { timeAgo, truncateContent } from "@/lib/time";
 
 function getTypeIcon(type: string) {
   switch (type) {
@@ -51,12 +39,6 @@ function getTypeIconClass(type: string) {
     default:
       return "t";
   }
-}
-
-function truncateContent(content: string, maxLen = 50) {
-  if (!content) return "";
-  if (content.length <= maxLen) return content;
-  return content.slice(0, maxLen - 3) + "...";
 }
 
 export function QueueView() {
@@ -210,10 +192,25 @@ export function QueueView() {
           </div>
           {doneJobs.length > 5 && (
             <div className="done-expand">
-              {doneJobs.length - 5} more · scroll to expand
+              {doneJobs.length - 5} more
             </div>
           )}
         </>
+      )}
+
+      {/* Empty state */}
+      {!loading && jobs.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12 gap-3">
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Inbox className="w-5 h-5" style={{ color: "rgba(245,245,245,0.15)" }} />
+          </div>
+          <div className="text-sm font-semibold" style={{ color: "rgba(245,245,245,0.5)" }}>
+            queue is empty
+          </div>
+          <div className="text-xs text-center leading-relaxed" style={{ fontFamily: "'IBM Plex Mono', monospace", color: "rgba(245,245,245,0.2)", fontSize: 10 }}>
+            captured items being processed<br />will appear here
+          </div>
+        </div>
       )}
 
       {/* Offline section */}
@@ -224,7 +221,9 @@ export function QueueView() {
         <button
           onClick={handleRefresh}
           disabled={loading}
-          className="flex items-center gap-2 text-xs text-[rgba(245,245,245,0.3)] hover:text-[rgba(245,245,245,0.5)] transition-colors"
+          aria-label="refresh queue"
+          className="flex items-center gap-2 text-xs transition-colors"
+          style={{ color: "rgba(245,245,245,0.3)" }}
         >
           <RefreshCw className={cn("w-3 h-3", loading && "animate-spin")} />
           refresh

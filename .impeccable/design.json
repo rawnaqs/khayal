@@ -1,0 +1,321 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-12T00:00:00Z",
+  "title": "Design System: Khayal",
+  "extensions": {
+    "colorMeta": {
+      "flame-gold": {
+        "role": "primary",
+        "displayName": "Flame Gold",
+        "canonical": "#c9933a",
+        "tonalRamp": [
+          "oklch(15% 0.02 75)",
+          "oklch(25% 0.04 75)",
+          "oklch(35% 0.06 75)",
+          "oklch(50% 0.09 75)",
+          "oklch(60% 0.11 75)",
+          "oklch(70% 0.14 75)",
+          "oklch(80% 0.12 75)",
+          "oklch(92% 0.06 75)"
+        ]
+      },
+      "pale-flame": {
+        "role": "primary",
+        "displayName": "Pale Flame",
+        "canonical": "#e8b86d",
+        "tonalRamp": [
+          "oklch(25% 0.03 80)",
+          "oklch(40% 0.06 80)",
+          "oklch(55% 0.09 80)",
+          "oklch(65% 0.11 80)",
+          "oklch(75% 0.11 80)",
+          "oklch(82% 0.11 80)",
+          "oklch(88% 0.08 80)",
+          "oklch(95% 0.04 80)"
+        ]
+      },
+      "near-void": {
+        "role": "neutral",
+        "displayName": "Near-Void",
+        "canonical": "#070707",
+        "tonalRamp": [
+          "oklch(2% 0 0)",
+          "oklch(4% 0 0)",
+          "oklch(6% 0 0)",
+          "oklch(10% 0 0)",
+          "oklch(13% 0 0)",
+          "oklch(17% 0 0)",
+          "oklch(22% 0 0)",
+          "oklch(30% 0 0)"
+        ]
+      },
+      "bone": {
+        "role": "neutral",
+        "displayName": "Bone",
+        "canonical": "#f5f5f5",
+        "tonalRamp": [
+          "oklch(30% 0 0)",
+          "oklch(45% 0 0)",
+          "oklch(60% 0 0)",
+          "oklch(75% 0 0)",
+          "oklch(86% 0 0)",
+          "oklch(92% 0 0)",
+          "oklch(96% 0 0)",
+          "oklch(98% 0 0)"
+        ]
+      },
+      "green-signal": {
+        "role": "tertiary",
+        "displayName": "Green Signal",
+        "canonical": "#3ddc84",
+        "tonalRamp": [
+          "oklch(20% 0.04 155)",
+          "oklch(35% 0.07 155)",
+          "oklch(45% 0.09 155)",
+          "oklch(55% 0.12 155)",
+          "oklch(65% 0.15 155)",
+          "oklch(75% 0.17 155)",
+          "oklch(80% 0.18 155)",
+          "oklch(90% 0.12 155)"
+        ]
+      },
+      "amber-pulse": {
+        "role": "tertiary",
+        "displayName": "Amber Pulse",
+        "canonical": "#ffb340",
+        "tonalRamp": [
+          "oklch(25% 0.04 80)",
+          "oklch(40% 0.07 80)",
+          "oklch(55% 0.10 80)",
+          "oklch(65% 0.13 80)",
+          "oklch(75% 0.15 80)",
+          "oklch(80% 0.15 80)",
+          "oklch(87% 0.10 80)",
+          "oklch(95% 0.05 80)"
+        ]
+      },
+      "red-warning": {
+        "role": "tertiary",
+        "displayName": "Red Warning",
+        "canonical": "#ff4d4d",
+        "tonalRamp": [
+          "oklch(20% 0.05 25)",
+          "oklch(30% 0.08 25)",
+          "oklch(40% 0.12 25)",
+          "oklch(50% 0.17 25)",
+          "oklch(60% 0.22 30)",
+          "oklch(70% 0.18 30)",
+          "oklch(80% 0.12 30)",
+          "oklch(92% 0.06 30)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Greetings, stat big numbers, hero numbers. Bricolage Grotesque 800, 22-32px, -0.03em tracking. Capture view only."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Primary input text and body copy. IBM Plex Mono 400, 16px minimum on inputs. The workhorse reading font."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Section headers, metadata, timestamps, chip text, type badges. IBM Plex Mono 700, 9px, 0.05em tracking, uppercase."
+      }
+    },
+    "shadows": [
+      {
+        "name": "send-button-glow",
+        "value": "0 4px 16px rgba(201,147,58,0.3)",
+        "purpose": "The single deliberate shadow in the system. Applied to the primary send button to make the most important action feel physically present."
+      },
+      {
+        "name": "send-button-hover",
+        "value": "0 4px 16px rgba(201,147,58,0.2)",
+        "purpose": "Hover intensification of the send button glow."
+      },
+      {
+        "name": "online-dot-glow",
+        "value": "0 0 8px #3ddc84",
+        "purpose": "Subtle glow on the green online indicator dot in the header."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-standard",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Default easing for hover transitions and state changes. 150-200ms duration."
+      },
+      {
+        "name": "ease-press",
+        "value": "cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Press-down easing on tappable elements. scale(0.95-0.98) over 150ms."
+      },
+      {
+        "name": "drain-bar",
+        "value": "linear",
+        "purpose": "Auto-dismiss animation on capture result tiles. Width drains from 100% to 0% over 3-4s."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "mobile",
+        "value": "0px"
+      },
+      {
+        "name": "desktop",
+        "value": "768px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Send Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The most important action on screen. 50px gold gradient circle with glow. Used for submitting captures.",
+      "html": "<button class=\"ds-send-btn\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#000\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><line x1=\"12\" y1=\"19\" x2=\"12\" y2=\"5\"/><polyline points=\"5 12 12 5 19 12\"/></svg></button>",
+      "css": ".ds-send-btn { width: 50px; height: 50px; border-radius: 50%; background: linear-gradient(135deg, #c9933a 0%, #a67830 100%); border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px rgba(201,147,58,0.3); flex-shrink: 0; transition: transform 0.15s ease, box-shadow 0.2s ease; } .ds-send-btn:hover { box-shadow: 0 4px 16px rgba(201,147,58,0.2); } .ds-send-btn:active { transform: scale(0.95); } .ds-send-btn:disabled { opacity: 0.3; pointer-events: none; } .ds-send-btn:focus-visible { outline: 2px solid #c9933a; outline-offset: 2px; }"
+    },
+    {
+      "name": "Mode Chip Selected",
+      "kind": "chip",
+      "refersTo": "chip-selected",
+      "description": "An active mode selector chip. Solid gold with dark text. Used for search modes and capture type selection.",
+      "html": "<button class=\"ds-chip-selected\">hybrid</button>",
+      "css": ".ds-chip-selected { padding: 4px 10px; border-radius: 100px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 700; border: 1px solid #c9933a; cursor: pointer; letter-spacing: 0.5px; text-transform: uppercase; transition: all 0.15s ease; background: #c9933a; color: #000; box-shadow: 0 3px 10px rgba(201,147,58,0.25); } .ds-chip-selected:focus-visible { outline: 2px solid #c9933a; outline-offset: 1px; }"
+    },
+    {
+      "name": "Mode Chip Unselected",
+      "kind": "chip",
+      "refersTo": "chip-unselected",
+      "description": "An inactive mode selector chip. Transparent with subtle border. Used for search modes and capture type selection.",
+      "html": "<button class=\"ds-chip-unselected\">semantic</button>",
+      "css": ".ds-chip-unselected { padding: 4px 10px; border-radius: 100px; font-family: 'IBM Plex Mono', monospace; font-size: 9px; font-weight: 700; border: 1px solid rgba(255,255,255,0.09); cursor: pointer; letter-spacing: 0.5px; text-transform: uppercase; transition: all 0.15s ease; background: transparent; color: rgba(245,245,245,0.2); } .ds-chip-unselected:hover { border-color: rgba(201,147,58,0.3); color: rgba(245,245,245,0.4); } .ds-chip-unselected:focus-visible { outline: 2px solid rgba(201,147,58,0.5); outline-offset: 1px; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "input-search",
+      "description": "The primary search field. 16px monospace text on Slate background with gold focus ring.",
+      "html": "<div class=\"ds-search-bar\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"rgba(245,245,245,0.2)\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/></svg><input type=\"text\" class=\"ds-search-input\" value=\"distributed systems\" readonly /></div>",
+      "css": ".ds-search-bar { display: flex; align-items: center; gap: 10px; background: #141414; border: 1px solid rgba(255,255,255,0.09); border-radius: 12px; padding: 11px 14px; transition: border-color 0.15s ease, box-shadow 0.15s ease; max-width: 360px; } .ds-search-bar:focus-within { border-color: rgba(201,147,58,0.3); box-shadow: 0 0 16px rgba(201,147,58,0.1), inset 0 0 0 1px rgba(201,147,58,0.08); } .ds-search-input { font-family: 'IBM Plex Mono', monospace; font-size: 16px; color: #f5f5f5; font-weight: 400; flex: 1; letter-spacing: -0.2px; background: transparent; border: none; outline: none; min-height: 44px; } .ds-search-input::placeholder { color: rgba(245,245,245,0.2); }"
+    },
+    {
+      "name": "Result Card",
+      "kind": "card",
+      "refersTo": "card-standard",
+      "description": "A standard search result card with title, metadata, type badge, tags, and excerpt.",
+      "html": "<div class=\"ds-result-card\"><div class=\"ds-rc-title-row\"><span class=\"ds-rc-title\">CAP Theorem Notes</span><span class=\"ds-rc-score\">0.94</span></div><div class=\"ds-rc-meta\"><span class=\"ds-rc-date\">Mar 3, 2026</span><span class=\"ds-badge-type\">text</span><span class=\"ds-rc-tag\">#distributed</span></div><p class=\"ds-rc-excerpt\">...consistency and availability cannot both be guaranteed in distributed systems...</p></div>",
+      "css": ".ds-result-card { background: #0d0d0d; border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 10px 12px; cursor: pointer; transition: background 0.15s ease; max-width: 360px; } .ds-result-card:hover { background: #141414; border-color: rgba(255,255,255,0.09); } .ds-rc-title-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; } .ds-rc-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 13px; font-weight: 600; color: #f5f5f5; line-height: 1.3; letter-spacing: -0.1px; } .ds-rc-score { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: rgba(245,245,245,0.2); flex-shrink: 0; } .ds-rc-meta { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; } .ds-rc-date { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.2); } .ds-badge-type { font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 2px 6px; border-radius: 100px; font-weight: 700; letter-spacing: 0.4px; background: rgba(61,220,132,0.08); color: #3ddc84; border: 1px solid rgba(61,220,132,0.14); } .ds-rc-tag { font-family: 'IBM Plex Mono', monospace; font-size: 9px; padding: 2px 6px; border-radius: 100px; font-weight: 700; background: rgba(201,147,58,0.08); color: #e8b86d; border: 1px solid rgba(201,147,58,0.14); } .ds-rc-excerpt { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: rgba(245,245,245,0.5); line-height: 1.6; font-style: italic; border-left: 1.5px solid rgba(201,147,58,0.2); padding-left: 9px; margin: 0; }"
+    },
+    {
+      "name": "Hero Result Card",
+      "kind": "card",
+      "refersTo": "card-standard",
+      "description": "The top-ranked search result with a gold gradient top accent line, ghost number, and premium treatment.",
+      "html": "<div class=\"ds-hero-card\"><span class=\"ds-hero-ghost\">1</span><h3 class=\"ds-hero-title\">CAP Theorem Notes</h3><div class=\"ds-rc-meta\"><span class=\"ds-rc-date\">Mar 3, 2026</span><span class=\"ds-badge-type\">text</span><span class=\"ds-rc-tag\">#distributed</span></div><p class=\"ds-rc-excerpt\">...consistency and availability cannot both be guaranteed...</p></div>",
+      "css": ".ds-hero-card { background: #141414; border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 14px; position: relative; overflow: hidden; cursor: pointer; max-width: 360px; } .ds-hero-card::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, #c9933a 0%, transparent 55%); opacity: 0.6; } .ds-hero-ghost { position: absolute; right: 10px; top: 6px; font-family: 'Bricolage Grotesque', sans-serif; font-size: 48px; font-weight: 800; color: rgba(201,147,58,0.06); line-height: 1; letter-spacing: -3px; pointer-events: none; } .ds-hero-title { font-family: 'Bricolage Grotesque', sans-serif; font-size: 14px; font-weight: 700; color: #f5f5f5; line-height: 1.35; margin: 0 0 7px; padding-right: 28px; letter-spacing: -0.2px; }"
+    },
+    {
+      "name": "Navigation Tab Active",
+      "kind": "nav",
+      "refersTo": "nav-tab-active",
+      "description": "An active bottom navigation tab with gold icon, label, and a sliding 20px×2px gold indicator bar.",
+      "html": "<div class=\"ds-nav-tab ds-nav-active\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#c9933a\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"15 3 21 3 21 9\"/><polyline points=\"9 21 3 21 3 15\"/><line x1=\"21\" y1=\"3\" x2=\"14\" y2=\"10\"/><line x1=\"3\" y1=\"21\" x2=\"10\" y2=\"14\"/></svg><span class=\"ds-nav-label\">capture</span><div class=\"ds-nav-bar\"></div></div>",
+      "css": ".ds-nav-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; } .ds-nav-active svg { stroke: #c9933a; } .ds-nav-label { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.2); letter-spacing: 0.8px; } .ds-nav-active .ds-nav-label { color: #c9933a; } .ds-nav-bar { width: 20px; height: 2px; border-radius: 100px; background: #c9933a; margin: 0 auto; }"
+    },
+    {
+      "name": "Success Capture Tile",
+      "kind": "custom",
+      "refersTo": "card-standard",
+      "description": "A capture result tile showing success state with green styling, tags, and auto-dismiss drain bar.",
+      "html": "<div class=\"ds-tile-ok\"><div class=\"ds-tile-ok-icon\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#3ddc84\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg></div><div class=\"ds-tile-inner\"><div class=\"ds-tile-top\"><span class=\"ds-tile-title\">saved</span><span class=\"ds-tile-time\">3ms</span></div><span class=\"ds-tile-sub\">text</span><div class=\"ds-tile-tags\"><span class=\"ds-rc-tag\">#react</span><span class=\"ds-rc-tag\">#performance</span></div><div class=\"ds-tile-bar\"><div class=\"ds-tile-bar-fill\"></div></div></div></div>",
+      "css": ".ds-tile-ok { background: rgba(61,220,132,0.05); border: 1px solid rgba(61,220,132,0.12); border-radius: 14px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; max-width: 380px; } .ds-tile-ok-icon { width: 30px; height: 30px; border-radius: 50%; background: rgba(61,220,132,0.1); border: 1px solid rgba(61,220,132,0.18); display: flex; align-items: center; justify-content: center; flex-shrink: 0; } .ds-tile-inner { flex: 1; min-width: 0; } .ds-tile-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; } .ds-tile-title { font-size: 13px; font-weight: 700; color: #f5f5f5; } .ds-tile-time { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.2); } .ds-tile-sub { font-family: 'IBM Plex Mono', monospace; font-size: 9px; color: rgba(245,245,245,0.2); margin-top: 2px; } .ds-tile-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; } .ds-tile-bar { height: 2px; background: rgba(255,255,255,0.04); border-radius: 100px; margin-top: 8px; overflow: hidden; } .ds-tile-bar-fill { height: 100%; background: #3ddc84; border-radius: 100px; animation: ds-drain 3s linear forwards; } @keyframes ds-drain { from { width: 100%; } to { width: 0%; } }"
+    },
+    {
+      "name": "Bottom Navigation Bar",
+      "kind": "nav",
+      "refersTo": null,
+      "description": "Fixed bottom navigation with three tabs, glass blur backdrop, and safe area padding.",
+      "html": "<nav class=\"ds-bottom-nav\"><div class=\"ds-nav-tab ds-nav-active\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#c9933a\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"17 1 21 5 17 9\"/><path d=\"M3 11V9a4 4 0 0 1 4-4h14\"/><polyline points=\"7 23 3 19 7 15\"/><path d=\"M21 13v2a4 4 0 0 1-4 4H3\"/></svg><span class=\"ds-nav-label\" style=\"color:#c9933a\">capture</span><div class=\"ds-nav-bar\"></div></div><div class=\"ds-nav-tab\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"rgba(245,245,245,0.2)\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"11\" cy=\"11\" r=\"8\"/><line x1=\"21\" y1=\"21\" x2=\"16.65\" y2=\"16.65\"/></svg><span class=\"ds-nav-label\">search</span></div><div class=\"ds-nav-tab\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"rgba(245,245,245,0.2)\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><polyline points=\"12 6 12 12 16 14\"/></svg><span class=\"ds-nav-label\">queue</span></div></nav>",
+      "css": ".ds-bottom-nav { display: flex; padding: 10px 20px max(env(safe-area-inset-bottom), 16px); border-top: 1px solid rgba(255,255,255,0.05); background: rgba(7,7,7,0.92); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); flex-shrink: 0; max-width: 400px; } .ds-nav-bar { width: 20px; height: 2px; border-radius: 100px; background: #c9933a; margin: 0 auto; }"
+    },
+    {
+      "name": "Header Icon Button (Logout)",
+      "kind": "button",
+      "refersTo": "button-icon",
+      "description": "A 24px square icon button in the header cluster. Slate background, subtle border, smoke icon; border and icon lift to gold on hover.",
+      "html": "<button class=\"ds-icon-btn\"><svg width=\"11\" height=\"11\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\"/><polyline points=\"16 17 21 12 16 7\"/><line x1=\"21\" y1=\"12\" x2=\"9\" y2=\"12\"/></svg></button>",
+      "css": ".ds-icon-btn { width: 24px; height: 24px; min-height: 0; border-radius: 7px; background: #141414; border: 1px solid rgba(255,255,255,0.09); color: rgba(245,245,245,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: color 0.15s ease, border-color 0.15s ease; } .ds-icon-btn:hover { border-color: #c9933a; color: #c9933a; } .ds-icon-btn:focus-visible { outline: 2px solid rgba(201,147,58,0.5); outline-offset: 1px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Lamp Room",
+    "overview": "A quiet chamber lit by a single warm flame. Every surface is precise and considered — never decorative. Gold is illumination, not ornament. Light reveals; it never blinds. The interface recedes so thought can advance.\n\nKhayal's design language is a dark thermal palette anchored by Flame Gold (#C9933A), a warm, aged gold that glows rather than shouts. Near-void backgrounds (#070707) give depth without weight. The single accent color appears on at most 10% of any screen — its rarity is what gives it authority. When it appears, it marks the most important action, state, or result on the page.\n\nThe system is anchored in two typefaces: Bricolage Grotesque carries display hierarchy with weight and letter-spacing precision — it never shouts, even at 32px. IBM Plex Mono handles body, UI, labels, and metadata with the clarity of a tool built for daily use. Monospace here is honest: it is the font of data, code, measurements, and controls — never a costume for \"technical.\"\n\nSurfaces are flat at rest. Depth is conveyed through tonal layering (four background stops from #070707 to #1C1C1C) rather than shadows. The only shadow in the system is the gold glow on the primary send button — a deliberate exception that makes the most important action feel consequential.",
+    "keyCharacteristics": [
+      "Single-accent thermal palette: one gold on layered near-void darks",
+      "Monospace as honest material, not aesthetic signifier",
+      "Flat-by-default surfaces with tonal depth, not shadow",
+      "Deliberate rarity of the primary color — restraint is the luxury",
+      "Tactile, deliberate interactions: every press feels consequential",
+      "Rounded form language with a pulse: fully round pills, 16px card corners, 50% circle on the send button"
+    ],
+    "rules": [
+      {
+        "name": "The One Flame Rule",
+        "body": "Flame Gold is used on ≤10% of any given screen. Its rarity is the point. When it appears, it marks the single most important action or state. Never use it decoratively.",
+        "section": "colors"
+      },
+      {
+        "name": "The Thermal Depth Rule",
+        "body": "Lightness alone carries elevation. A surface at #070707 is background; #0D0D0D is first elevation; #141414 is card level; #1C1C1C is hover/active. No shadow participates in this hierarchy.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ghost Border Rule",
+        "body": "All default borders use rgba(255,255,255,0.05). Stronger emphasis bumps to 0.09. Gold borders enter only for active/focus states and never exceed rgba(201,147,58,0.3).",
+        "section": "colors"
+      },
+      {
+        "name": "The 16px Floor Rule",
+        "body": "All text inputs render at minimum 16px. This prevents iOS Safari from auto-zooming on focus. The visual density of the UI is achieved through labels and metadata at 9px — never by shrinking input text.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Leading Zero Rule",
+        "body": "Numeric display values (streak count, note count, capture count) use letter-spacing of -0.04em to -0.06em with weight 800. No leading zeros, no monospace numerals — these are values, not data tables.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "Surfaces are flat at rest. Shadows appear only as a response to state (the send button's default glow, hover intensification). A card with both a border and a shadow is a ghost card — never use both.",
+        "section": "elevation"
+      },
+      {
+        "name": "The No Ghost Card Rule",
+        "body": "Declare elevation once: a border or a shadow. Never a 1px border beneath a wide soft shadow. Cards that need lift use a lighter background from the tonal scale; cards that need containment use a hairline border.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use Flame Gold (#C9933A) as the single accent on at most 10% of any screen. Its rarity is the point.",
+      "Do use the four-step background scale (#070707 → #0D0D0D → #141414 → #1C1C1C) for all depth. Never add a shadow where a tonal step would suffice.",
+      "Do use Bricolage Grotesque at weight 800 for all display and stat numbers. Weight 600-700 for titles. Never use weight 300 or 400 for display.",
+      "Do use IBM Plex Mono for all labels, metadata, timestamps, code, and measurements. It is functional material, not decoration.",
+      "Do maintain the 16px minimum on all text inputs — this prevents iOS auto-zoom.",
+      "Do respect the shape pulse hierarchy: 50% for the send button only, 100px for pills/chips/badges, 16-20px for cards, 12-14px for inputs.",
+      "Do use backdrop-filter: blur() only on the bottom navigation bar. Glass elsewhere feels decorative rather than functional."
+    ],
+    "donts": [
+      "Don't add a second accent color. The system is one gold. Semantic colors (green, amber, red) are functional signals, not design accents.",
+      "Don't use box-shadow on cards. The send button's glow is the single deliberate exception.",
+      "Don't combine a 1px border with a box-shadow on the same element. Declare elevation once.",
+      "Don't use monospace as an aesthetic signifier for \"technical.\" IBM Plex Mono appears where it is honest: code, data, labels, measurements, and UI controls.",
+      "Don't use gradient text. Emphasis comes from weight or size within the two-typeface system.",
+      "Don't introduce horizontal scroll. The PWA is a single-column layout at all viewport widths.",
+      "Don't shrink input text below 16px. The visual density of the UI is achieved through 9px labels and metadata — never by reducing input legibility."
+    ]
+  }
+}

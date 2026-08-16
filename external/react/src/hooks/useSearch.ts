@@ -36,11 +36,20 @@ export function useSearch() {
     setError(null)
   }
 
+  const removeNote = useCallback((notePath: string) => {
+    setResults(prev => {
+      if (!prev?.results) return prev
+      const filtered = prev.results.filter(r => r.note_path !== notePath)
+      return { ...prev, results: filtered, total: filtered.length }
+    })
+  }, [])
+
   return {
     loading,
     results,
     error,
     search,
     clear,
+    removeNote,
   }
 }

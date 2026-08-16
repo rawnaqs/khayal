@@ -627,3 +627,138 @@ func TestNoteHandler_InvalidPath(t *testing.T) {
 	// For now, just skip this test case as it's not reliably testable
 	t.Skip("path traversal test not reliably testable with httptest")
 }
+
+// Delete Note Handler Tests
+
+func TestDeleteNoteHandler_Success(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.close()
+
+	notePath := "inbox/test-delete.md"
+	absPath := filepath.Join(ts.Vault.BasePath(), notePath)
+	testContent := `---
+created: 2024-01-01T00:00:00Z
+type: text
+---
+# Test Delete Note
+
+This note will be deleted.
+`
+	os.WriteFile(absPath, []byte(testContent), 0644)
+
+	r := chi.NewRouter()
+	r.Delete("/v1/notes/{path}", ts.Server.deleteNoteHandler)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/notes/inbox%2Ftest-delete.md", nil)
+	req.Header.Set("X-Khayal-Token", "test-token")
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("expected status 204, got %d, body: %s", rec.Code, rec.Body.String())
+	}
+
+	if _, err := os.Stat(absPath); !os.IsNotExist(err) {
+		t.Error("expected note file to be moved to trash")
+	}
+
+	trashDir := filepath.Join(ts.Vault.InboxPath(), ".khayal-trash")
+	entries, err := os.ReadDir(trashDir)
+	if err != nil {
+		t.Fatalf("failed to read trash dir: %v", err)
+	}
+	found := false
+	for _, e := range entries {
+		if e.Name()[:len("test-delete.md")] == "test-delete.md" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("expected deleted note in trash directory")
+	}
+}
+
+func TestDeleteNoteHandler_NotFound(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.close()
+
+	r := chi.NewRouter()
+	r.Delete("/v1/notes/{path}", ts.Server.deleteNoteHandler)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/notes/inbox%2Fnonexistent.md", nil)
+	req.Header.Set("X-Khayal-Token", "test-token")
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("expected status 404, got %d", rec.Code)
+	}
+}
+
+func TestDeleteNoteHandler_InvalidPath(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.close()
+
+	r := chi.NewRouter()
+	r.Delete("/v1/notes/{path}", ts.Server.deleteNoteHandler)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/notes/inbox%2F..%2Foutside.md", nil)
+	req.Header.Set("X-Khayal-Token", "test-token")
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for path outside inbox, got %d", rec.Code)
+	}
+}
+
+func TestDeleteNoteHandler_InvalidatesStatsCache(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.close()
+
+	notePath := "inbox/test-delete-stats.md"
+	absPath := filepath.Join(ts.Vault.BasePath(), notePath)
+	testContent := `---
+created: 2024-01-01T00:00:00Z
+type: text
+---
+# Stats Cache Test
+
+This note will be deleted to test cache invalidation.
+`
+	os.WriteFile(absPath, []byte(testContent), 0644)
+
+	ctx := context.Background()
+
+	// Pre-compute stats to seed the cache
+	_, err := ts.Queue.RecomputeStats(ctx)
+	if err != nil {
+		t.Fatalf("failed to seed stats cache: %v", err)
+	}
+
+	r := chi.NewRouter()
+	r.Delete("/v1/notes/{path}", ts.Server.deleteNoteHandler)
+
+	req := httptest.NewRequest(http.MethodDelete, "/v1/notes/inbox%2Ftest-delete-stats.md", nil)
+	req.Header.Set("X-Khayal-Token", "test-token")
+	rec := httptest.NewRecorder()
+
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("expected status 204, got %d, body: %s", rec.Code, rec.Body.String())
+	}
+
+	// Verify stats cache was invalidated
+	cached, err := ts.Queue.LoadStatsCache(ctx)
+	if err != nil {
+		t.Fatalf("failed to load stats cache: %v", err)
+	}
+	if cached != "" {
+		t.Error("expected stats cache to be invalidated, but it still exists")
+	}
+}

@@ -49,15 +49,16 @@ function removeRecentSearch(query: string) {
 interface SearchViewProps {
   onCaptureQuery?: (query: string) => void;
   onNoteSelect?: (notePath: string, query?: string) => void;
+  deletedNotePath?: string | null;
 }
 
-export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {}) {
+export function SearchView({ onCaptureQuery, onNoteSelect, deletedNotePath }: SearchViewProps = {}) {
   const [query, setQuery] = useState('')
   const [searchedQuery, setSearchedQuery] = useState("")
   const [mode, setMode] = useState<SearchMode>('hybrid')
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [recentSearches, setRecentSearches] = useState<string[]>(getRecentSearches)
-  const { loading, results, error, search } = useSearch()
+  const { loading, results, error, search, removeNote } = useSearch()
   const { toast } = useToast()
 
   useEffect(() => {
@@ -65,6 +66,12 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
       toast({ title: 'Search failed', description: error, variant: 'destructive' })
     }
   }, [error, toast])
+
+  useEffect(() => {
+    if (deletedNotePath) {
+      removeNote(deletedNotePath)
+    }
+  }, [deletedNotePath, removeNote])
 
   const handleSearch = useCallback((searchQuery: string, searchMode?: SearchMode) => {
     const q = searchQuery.trim()
@@ -121,10 +128,11 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
       {/* Search bar */}
       <div className="srch-area">
         <div className={cn('srch-bar', hasTyped && 'active')}>
-          <Search />
+          <Search className="w-3.5 h-3.5" aria-hidden="true" />
           <input
             type="text"
             placeholder='Search your vault...'
+            aria-label="search your vault"
             value={query}
             onChange={(e) => e.target.value ? setQuery(e.target.value) : handleClear()}
             onKeyDown={(e) => {
@@ -143,10 +151,17 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
           ) : null}
         </div>
         <div className="modes">
-          <span className={cn('mc', mode === 'hybrid' && 'on')} onClick={() => handleModeChange('hybrid')}>hybrid</span>
-          <span className={cn('mc', mode === 'keyword' && 'on')} onClick={() => handleModeChange('keyword')}>keyword</span>
-          <span className={cn('mc', mode === 'semantic' && 'on')} onClick={() => handleModeChange('semantic')}>semantic</span>
+          <button className={cn('mc', mode === 'hybrid' && 'on')} onClick={() => handleModeChange('hybrid')} aria-label="hybrid search">hybrid</button>
+          <button className={cn('mc', mode === 'keyword' && 'on')} onClick={() => handleModeChange('keyword')} aria-label="keyword search">keyword</button>
+          <button className={cn('mc', mode === 'semantic' && 'on')} onClick={() => handleModeChange('semantic')} aria-label="semantic search">semantic</button>
         </div>
+        {mode && (
+          <div className="mt-1 text-xs tracking-wide" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: "rgba(245,245,245,0.2)" }}>
+            {mode === 'hybrid' && 'combines keyword and meaning search'}
+            {mode === 'keyword' && 'matches exact words and phrases'}
+            {mode === 'semantic' && 'finds notes by meaning'}
+          </div>
+        )}
       </div>
 
       {/* Content */}
