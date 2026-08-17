@@ -180,7 +180,12 @@ khayal/
 │       │   │   │   └── RetryAllBanner.tsx   # Retry all failed
 │       │   │   ├── layout/
 │       │   │   │   ├── BottomNav.tsx        # Tab navigation
-│       │   │   │   └── Header.tsx           # Top bar
+│       │   │   │   └── Header.tsx           # Top bar (brand + security icon)
+│       │   │   ├── lock/
+│       │   │   │   ├── LockScreen.tsx       # Unlock gate (PRF) when locked
+│       │   │   │   └── LockSetupPrompt.tsx  # One-time post-onboarding decision
+│       │   │   ├── settings/
+│       │   │   │   └── SecuritySheet.tsx    # Security drawer (enable/disable)
 │       │   │   ├── ui/                      # shadcn/ui components
 │       │   │   │   ├── button.tsx
 │       │   │   │   ├── input.tsx
@@ -193,6 +198,7 @@ khayal/
 │       │   │   │   ├── tabs.tsx
 │       │   │   │   ├── skeleton.tsx
 │       │   │   │   ├── sheet.tsx
+│       │   │   │   ├── switch.tsx
 │       │   │   │   └── dialog.tsx
 │       │   │   ├── Onboarding.tsx           # First-run setup
 │       │   │   └── ErrorBoundary.tsx        # Error catching
@@ -203,6 +209,7 @@ khayal/
 │       │   │   ├── useQueue.ts              # Queue polling
 │       │   │   ├── useServerStatus.ts       # Health polling
 │       │   │   ├── useSubmitLock.ts         # Prevent double-submit
+│       │   │   ├── useVaultLock.tsx          # App-lock state + token/key context
 │       │   │   ├── use-toast.ts             # Toast notifications
 │       │   │   └── __tests__/
 │       │   │       ├── useCapture.test.tsx
@@ -211,6 +218,8 @@ khayal/
 │       │   ├── lib/
 │       │   │   ├── api.ts                   # KhayalClient, type definitions
 │       │   │   ├── offline.ts               # IndexedDB queue + background sync
+│       │   │   ├── secureVault.ts           # WebAuthn PRF + AES-GCM primitives
+│       │   │   ├── vaultStorage.ts          # IndexedDB vault record + queue
 │       │   │   ├── constants.ts             # Shared constants (storage keys, limits, timeouts)
 │       │   │   ├── utils.ts                 # Utility functions (cn, etc.)
 │       │   │   └── __tests__/

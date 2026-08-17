@@ -3,16 +3,16 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LockSetupPrompt } from "@/components/lock/LockSetupPrompt";
+import { useVaultLock } from "@/hooks/useVaultLock";
 import { STORAGE_KEYS } from "@/lib/constants";
 
-interface OnboardingProps {
-  onComplete: () => void;
-}
-
-export function Onboarding({ onComplete }: OnboardingProps) {
+export function Onboarding() {
+  const { setupPrf, completeOnboarding } = useVaultLock();
   const [token, setToken] = useState("");
   const [error, setError] = useState("");
   const [testing, setTesting] = useState(false);
+  const [validated, setValidated] = useState<string | null>(null);
 
   const testConnection = async () => {
     if (!token) {
@@ -33,15 +33,38 @@ export function Onboarding({ onComplete }: OnboardingProps) {
         throw new Error("Invalid token");
       }
 
-      localStorage.setItem(STORAGE_KEYS.HOST, host);
-      localStorage.setItem(STORAGE_KEYS.TOKEN, token);
-      onComplete();
+      if (localStorage.getItem(STORAGE_KEYS.LOCK_SETUP_DECIDED)) {
+        completeOnboarding(token, false);
+      } else {
+        setValidated(token);
+      }
     } catch {
       setError("Cannot connect. Check your token.");
     } finally {
       setTesting(false);
     }
   };
+
+  if (validated !== null) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen p-6 bg-background">
+        <Card className="w-full max-w-sm glass border-primary/20 shadow-[0_0_40px_hsl(var(--primary)/0.1)]">
+          <CardHeader className="text-center pb-2">
+            <CardTitle className="text-2xl font-bold tracking-tight">
+              connected <span className="text-primary">✓</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <LockSetupPrompt
+              onSetupPrf={() => setupPrf(validated)}
+              onRemember={() => completeOnboarding(validated, true)}
+              onDontRemember={() => completeOnboarding(validated, false)}
+            />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center h-screen p-6 bg-background">

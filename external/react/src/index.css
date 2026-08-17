@@ -157,13 +157,12 @@
 
   .ver {
     font-family: "IBM Plex Mono", monospace;
-    font-size: 9px;
-    color: rgba(245, 245, 245, 0.2);
-    background: #141414;
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    padding: 3px 8px;
-    border-radius: 100px;
+    font-size: 8px;
+    font-weight: 400;
+    color: rgba(245, 245, 245, 0.25);
     letter-spacing: 0.3px;
+    margin-left: 3px;
+    vertical-align: super;
   }
 
   .update-icon {
@@ -2663,7 +2662,7 @@
 }
 
 .note-section-heading {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 11px;
   font-weight: 600;
   color: #c9933a;
@@ -2686,7 +2685,7 @@
 }
 
 .note-list li::before {
-  content: '•';
+  content: "•";
   position: absolute;
   left: 0;
   color: #c9933a;
@@ -2710,7 +2709,7 @@
 }
 
 .excerpt-label {
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.5px;

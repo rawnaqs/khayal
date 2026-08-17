@@ -1,4 +1,6 @@
 import '@testing-library/jest-dom'
+import 'fake-indexeddb/auto'
+import { IDBFactory } from 'fake-indexeddb'
 
 // Mock localStorage
 const localStorageMock = {
@@ -32,7 +34,7 @@ if (!window.performance) {
   })
 }
 
-// Mock idb-keyval
+// Mock idb-keyval (legacy store, still used by the one-time migration)
 vi.mock('idb-keyval', () => {
   const store = new Map()
   return {
@@ -53,8 +55,9 @@ vi.mock('idb-keyval', () => {
   }
 })
 
-// Reset mocks before each test
+// Reset mocks and IndexedDB before each test
 beforeEach(() => {
   vi.clearAllMocks()
   localStorageMock.getItem.mockReturnValue(null)
+  globalThis.indexedDB = new IDBFactory()
 })

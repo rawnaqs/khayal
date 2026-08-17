@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { createClient, type CaptureResponse } from '@/lib/api'
 import { saveOffline } from '@/lib/offline'
+import { useVaultLock } from '@/hooks/useVaultLock'
 
 export function useCapture() {
+  const { token, session } = useVaultLock()
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<CaptureResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -22,20 +24,20 @@ export function useCapture() {
 
     try {
       if (!navigator.onLine) {
-        await saveOffline({ type, content })
+        await saveOffline({ type, content }, session)
         setIsOffline(true)
         setProcessingTime(Math.round(performance.now() - startTime))
         return
       }
 
-      const client = createClient()
+      const client = createClient(token)
       const response = await client.capture({ type, content })
       setProcessingTime(Math.round(performance.now() - startTime))
       setResult(response)
     } catch (err) {
       setProcessingTime(Math.round(performance.now() - startTime))
       if (err instanceof Error && err.message.includes('fetch')) {
-        await saveOffline({ type, content })
+        await saveOffline({ type, content }, session)
         setIsOffline(true)
       } else {
         setError(err instanceof Error ? err.message : 'Capture failed')
@@ -62,7 +64,7 @@ export function useCapture() {
         return
       }
 
-      const client = createClient()
+      const client = createClient(token)
       const response = await client.uploadImage(file, note)
       setProcessingTime(Math.round(performance.now() - startTime))
       setResult(response)

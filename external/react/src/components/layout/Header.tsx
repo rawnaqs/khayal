@@ -1,9 +1,12 @@
-import { ArrowUpCircle } from "lucide-react";
+import { useState } from "react";
+import { ArrowUpCircle, Shield } from "lucide-react";
 import { useServerStatus } from "@/hooks/useServerStatus";
+import { SecuritySheet } from "@/components/settings/SecuritySheet";
 import { APP_VERSION, GITHUB_RELEASES_URL } from "@/lib/constants";
 
 export function Header() {
   const { status, health } = useServerStatus();
+  const [securityOpen, setSecurityOpen] = useState(false);
 
   const version = health?.version || APP_VERSION;
   const hasUpdate = health?.update?.available;
@@ -15,9 +18,10 @@ export function Header() {
     <header className="hdr">
       <div className="brand">
         <img src="/icon.svg" alt="khayal" className="mark" />
-        <span className="bname">khayal</span>
-      </div>
-      <div className="flex items-center gap-2">
+        <span className="bname">
+          khayal
+          <span className="ver">v{version}</span>
+        </span>
         {hasUpdate && (
           <a
             href={GITHUB_RELEASES_URL}
@@ -28,7 +32,16 @@ export function Header() {
             <ArrowUpCircle size={14} className="update-icon" />
           </a>
         )}
-        {version && <span className="ver">v{version}</span>}
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setSecurityOpen(true)}
+          className="flex items-center justify-center w-6 h-6 min-h-0 rounded-md text-[rgba(245,245,245,0.4)] hover:text-[rgba(245,245,245,0.8)] transition-colors"
+          title="security"
+          aria-label="security"
+        >
+          <Shield size={14} />
+        </button>
         <div
           className="online"
           style={{
@@ -37,6 +50,7 @@ export function Header() {
           }}
         />
       </div>
+      <SecuritySheet open={securityOpen} onOpenChange={setSecurityOpen} />
     </header>
   );
 }

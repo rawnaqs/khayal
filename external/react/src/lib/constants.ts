@@ -10,6 +10,7 @@ export const STORAGE_KEYS = {
   TOKEN: "khayal_token",
   HOST: "khayal_host",
   RECENT_SEARCHES: "khayal-recent-searches",
+  LOCK_SETUP_DECIDED: "khayal-lock-setup-decided",
 } as const;
 
 // Search suggestions (shown in idle state)
@@ -61,3 +62,14 @@ export const TYPE_FILTERS = ["all", "text", "article", "image"] as const;
 
 // Search modes
 export const SEARCH_MODES = ["hybrid", "keyword", "semantic"] as const;
+
+// Vault lock
+export const VAULT_LOCK = {
+  DB_NAME: "khayal-offline",
+  STORE_OFFLINE: "offline",
+  STORE_VAULT: "vault",
+  DB_VERSION: 2,
+  PRF_SALT_BYTES: 32,
+} as const;
+
+export type LockMode = "none" | "prf";

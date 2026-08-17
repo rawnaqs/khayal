@@ -11,6 +11,7 @@ import { OfflineSection } from "./OfflineSection";
 import { LIMITS } from "@/lib/constants";
 import { useQueue } from "@/hooks/useQueue";
 import { useToast } from "@/hooks/use-toast";
+import { useVaultLock } from "@/hooks/useVaultLock";
 import { getOfflineQueue } from "@/lib/offline";
 import { cn } from "@/lib/utils";
 
@@ -62,13 +63,14 @@ function truncateContent(content: string, maxLen = 50) {
 export function QueueView() {
   const { loading, jobs, fetchQueue, retryJob, discardJob } = useQueue();
   const { toast } = useToast();
+  const { session } = useVaultLock();
   const [offlineItems, setOfflineItems] = useState<
     Array<{ id: string; content: string; timestamp: number }>
   >([]);
 
   const handleRefresh = useCallback(() => {
     fetchQueue();
-    getOfflineQueue().then((items) => {
+    getOfflineQueue(session).then((items) => {
       setOfflineItems(
         items.map((i) => ({
           id: i.id,
@@ -77,7 +79,7 @@ export function QueueView() {
         })),
       );
     });
-  }, [fetchQueue]);
+  }, [fetchQueue, session]);
 
   useEffect(() => {
     handleRefresh();

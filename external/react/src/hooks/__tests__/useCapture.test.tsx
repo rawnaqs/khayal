@@ -15,6 +15,14 @@ vi.mock('@/lib/offline', () => ({
   saveOffline: vi.fn().mockResolvedValue('offline-123'),
 }))
 
+// Mock the vault lock context
+vi.mock('@/hooks/useVaultLock', () => ({
+  useVaultLock: () => ({
+    token: null,
+    session: { mode: 'none', key: null, token: undefined },
+  }),
+}))
+
 describe('useCapture', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -67,7 +75,7 @@ describe('useCapture', () => {
       await result.current.capture('text', 'test content')
     })
 
-    expect(saveOffline).toHaveBeenCalledWith({ type: 'text', content: 'test content' })
+    expect(saveOffline).toHaveBeenCalledWith({ type: 'text', content: 'test content' }, expect.anything())
     expect(result.current.isOffline).toBe(true)
   })
 
@@ -83,7 +91,7 @@ describe('useCapture', () => {
       await result.current.capture('text', 'test content')
     })
 
-    expect(saveOffline).toHaveBeenCalledWith({ type: 'text', content: 'test content' })
+    expect(saveOffline).toHaveBeenCalledWith({ type: 'text', content: 'test content' }, expect.anything())
     expect(result.current.isOffline).toBe(true)
   })
 
