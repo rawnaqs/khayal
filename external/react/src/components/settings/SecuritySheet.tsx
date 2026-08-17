@@ -65,7 +65,7 @@ export function SecuritySheet({ open, onOpenChange }: SecuritySheetProps) {
     if (ok) {
       toast({ title: "Lock disabled" });
     } else {
-      setError("Re-authentication failed. Lock stays on.");
+      setError("couldn't verify. lock stays on.");
     }
   };
 

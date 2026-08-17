@@ -15,7 +15,7 @@ export function LockScreen() {
     setError("");
     const ok = await unlock();
     setBusy(false);
-    if (!ok) setError("Could not unlock. Try again.");
+    if (!ok) setError("can't unlock. try again.");
   }, [unlock]);
 
   useEffect(() => {

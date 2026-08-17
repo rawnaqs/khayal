@@ -13,7 +13,7 @@ export function TokenRememberChoice({
     <div className="flex flex-col gap-3">
       <span className="text-lg font-bold">face id isn't supported here</span>
       <p className="text-muted-foreground text-sm">
-        This device doesn't support Face ID / Touch ID unlock. You can choose
+        this device doesn't support face id / touch id unlock. you can choose
         not to remember your token, so you'll enter it each time you open
         khayal (e.g. from your password manager).
       </p>
@@ -84,12 +84,12 @@ export function LockSetupPrompt({
     <div className="flex flex-col gap-3 p-6">
       <span className="text-lg font-bold">secure this device?</span>
       <p className="text-muted-foreground text-sm">
-        Require Face ID / Touch ID to open khayal on this device. You can turn
-        this on or off anytime in Settings.
+        require face id / touch id to open khayal on this device. you can turn
+        this on or off anytime in the security sheet.
       </p>
       <p className="text-muted-foreground text-xs opacity-70">
-        Protects against casual access to an unlocked device — not a fully
-        compromised device. If you lose this device's Face ID, you can always
+        protects against casual access to an unlocked device — not a fully
+        compromised device. if you lose this device's face id, you can always
         reconnect using your server token; nothing is deleted.
       </p>
       <Button onClick={beginPrf}>set up face id</Button>
