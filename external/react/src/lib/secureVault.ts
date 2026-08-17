@@ -5,7 +5,7 @@ export interface PrfRegistration {
   prfEnabled: boolean;
 }
 
-// ── Base64 helpers ──
+// Base64 helpers
 
 function bytesOf(input: ArrayBuffer | Uint8Array): Bytes {
   if (input instanceof Uint8Array) return new Uint8Array(input);
@@ -60,7 +60,7 @@ export function generateSalt(length: number): Bytes {
   return randomBytes(length);
 }
 
-// ── Feature detection ──
+// Feature detection
 
 export async function isPlatformAuthenticatorAvailable(): Promise<boolean> {
   if (
@@ -77,7 +77,7 @@ export async function isPlatformAuthenticatorAvailable(): Promise<boolean> {
   }
 }
 
-// ── WebAuthn PRF registration / assertion ──
+// WebAuthn PRF registration / assertion
 
 export async function registerPrfCredential(): Promise<PrfRegistration> {
   const credential = (await navigator.credentials.create({
@@ -130,7 +130,7 @@ export async function getPrfOutput(
   return toBytes(output);
 }
 
-// ── Key derivation ──
+// Key derivation
 
 export async function deriveKeyFromPrf(prfOutput: Bytes): Promise<CryptoKey> {
   try {
@@ -164,7 +164,7 @@ export async function deriveKeyFromPrf(prfOutput: Bytes): Promise<CryptoKey> {
   }
 }
 
-// ── AES-GCM encrypt / decrypt ──
+// AES-GCM encrypt / decrypt
 
 export async function encryptWithKey(
   key: CryptoKey,

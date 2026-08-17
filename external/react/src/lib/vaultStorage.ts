@@ -49,7 +49,7 @@ function txDone(tx: IDBTransaction): Promise<void> {
   });
 }
 
-// ── One-time migration from the legacy idb-keyval store ──
+// One-time migration from the legacy idb-keyval store
 
 let migrated = false;
 
@@ -80,7 +80,7 @@ export async function migrateOfflineQueue(): Promise<void> {
   }
 }
 
-// ── Vault record ──
+// Vault record
 
 export async function getVaultRecord(): Promise<VaultRecord | null> {
   const db = await openDB();
@@ -105,7 +105,7 @@ export async function deleteVaultRecord(): Promise<void> {
   await txDone(tx);
 }
 
-// ── Offline queue (raw storage) ──
+// Offline queue (raw storage)
 
 export async function getAllOfflineItems(): Promise<OfflineQueueItem[]> {
   const db = await openDB();
