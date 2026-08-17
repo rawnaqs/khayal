@@ -18,8 +18,10 @@ export function Header() {
     <header className="hdr">
       <div className="brand">
         <img src="/icon.svg" alt="khayal" className="mark" />
-        <span className="bname">khayal</span>
-        <span className="ver self-end">v{version}</span>
+        <span className="bname">
+          khayal
+          <span className="ver">v{version}</span>
+        </span>
         {hasUpdate && (
           <a
             href={GITHUB_RELEASES_URL}
@@ -34,7 +36,7 @@ export function Header() {
       <div className="flex items-center gap-2">
         <button
           onClick={() => setSecurityOpen(true)}
-          className="flex items-center justify-center w-6 h-6 rounded-md text-[rgba(245,245,245,0.4)] hover:text-[rgba(245,245,245,0.8)] transition-colors"
+          className="flex items-center justify-center w-6 h-6 min-h-0 rounded-md text-[rgba(245,245,245,0.4)] hover:text-[rgba(245,245,245,0.8)] transition-colors"
           title="security"
           aria-label="security"
         >

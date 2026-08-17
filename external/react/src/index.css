@@ -157,9 +157,12 @@
 
   .ver {
     font-family: "IBM Plex Mono", monospace;
-    font-size: 9px;
-    color: rgba(245, 245, 245, 0.2);
+    font-size: 8px;
+    font-weight: 400;
+    color: rgba(245, 245, 245, 0.25);
     letter-spacing: 0.3px;
+    margin-left: 3px;
+    vertical-align: super;
   }
 
   .update-icon {
