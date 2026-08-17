@@ -50,6 +50,7 @@ Khayal and Obsidian are complementary. Khayal is a capture and retrieval layer �
   - Offline capture queue (syncs when server is back)
   - Works as installable PWA on iOS and desktop
   - Live pipeline visualization for queued notes
+  - Optional Face ID / Touch ID app lock (WebAuthn PRF) that encrypts the token at rest
 - **CLI** — Full client (`kl`) + server admin (`khayal`)
 - **Updates** — Built-in update checker via GitHub releases
 

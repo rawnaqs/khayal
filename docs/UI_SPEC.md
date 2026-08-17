@@ -97,12 +97,19 @@ src/
 │   │   └── RetryAllBanner.tsx  ← retry all failed
 │   ├── layout/
 │   │   ├── BottomNav.tsx       ← bottom navigation
-│   │   └── Header.tsx          ← minimal top bar
+│   │   └── Header.tsx          ← minimal top bar (brand + security icon)
+│   ├── lock/
+│   │   ├── LockScreen.tsx      ← unlock gate (PRF) shown when locked
+│   │   └── LockSetupPrompt.tsx ← one-time post-onboarding decision
+│   ├── settings/
+│   │   └── SecuritySheet.tsx   ← security drawer (enable/disable)
 │   ├── ui/                      ← shadcn/ui components
-│   │   └── sheet.tsx            ← slide-over panel (note detail)
+│   │   ├── sheet.tsx            ← slide-over panel (note detail)
+│   │   └── switch.tsx           ← toggle (lock on/off)
 │   ├── Onboarding.tsx           ← first-run setup
 │   └── ErrorBoundary.tsx        ← error catching
 ├── hooks/
+│   ├── useVaultLock.tsx         ← app-lock state + token/key context
 │   ├── useCapture.ts            ← capture with offline fallback
 │   ├── useSearch.ts             ← search execution
 │   ├── useStats.ts              ← polling stats
@@ -113,6 +120,8 @@ src/
 ├── lib/
 │   ├── api.ts                   ← KhayalClient
 │   ├── offline.ts               ← IndexedDB + background sync
+│   ├── secureVault.ts           ← WebAuthn PRF + AES-GCM primitives
+│   ├── vaultStorage.ts          ← IndexedDB vault record + queue
 │   ├── constants.ts             ← shared constants
 │   └── utils.ts                 ← utility functions
 ├── sw.ts                        ← service worker (Workbox + bg sync)
@@ -359,6 +368,97 @@ Test connection before saving. Show error if unreachable.
 
 ---
 
+## App lock — WebAuthn PRF (Face ID / Touch ID)
+
+An **optional** app-lock gate that encrypts the server token (and the offline
+queue) at rest using a key derived from the platform authenticator via the
+WebAuthn PRF extension. Client-side only — no server or API changes.
+
+### What it protects against
+
+- **In scope:** casual/opportunistic physical access to an unlocked device.
+- **Out of scope:** an attacker with sustained access to an unlocked,
+  authenticated device (devtools, browser storage inspection, OS compromise).
+  This is a client-side web app — it cannot defend against a fully
+  compromised endpoint. Stated plainly in the setup copy; never oversold.
+
+### Lock states
+
+```
+none  → token in localStorage, plaintext (default, current behavior)
+prf   → token + offline queue encrypted, key derived from WebAuthn PRF
+```
+
+There is **no passcode tier**. If the device/browser doesn't support a
+platform authenticator, the setup prompt instead offers token-persistence
+choices (see below) — never a PIN.
+
+### Setup prompt (once, after onboarding)
+
+Shown immediately after the Onboarding connection test succeeds, and **only
+once per device**. The decision is persisted in
+`localStorage['khayal-lock-setup-decided']` so the prompt never re-appears.
+
+- **Biometrics available** → "secure this device?" with `set up face id`
+  (PRF registration) or `skip for now` (remember the token).
+- **Biometrics unavailable** → "face id isn't supported here" with
+  `don't remember my token` (token held in memory only; re-enter each open
+  via password manager) or `remember my token` (plaintext `localStorage`).
+
+Either way, onboarding always completes — the prompt never blocks the app.
+
+### Registration flow
+
+1. Feature-detect
+   `PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()`.
+2. If unavailable → fall through to the persistence choice.
+3. `navigator.credentials.create({ ... extensions: { prf: {} } })` with
+   `residentKey: "required"`, `userVerification: "required"`.
+4. If `getClientExtensionResults().prf.enabled` → generate a random 32-byte
+   salt, store `{ credentialId, salt, mode: "prf" }` in IndexedDB, encrypt the
+   token + offline queue under the PRF-derived key, delete plaintext copies.
+5. If PRF is unsupported/cancelled → persistence choice (never PIN).
+
+### Unlock flow (every app open, when `prf`)
+
+- Load the vault record, run `navigator.credentials.get({ prf: { eval: { first: salt } } })`.
+- `HKDF(prfOutput)` → AES-GCM-256 key → decrypt token + offline queue.
+- Hold the plaintext token in memory only (React context, cleared on reload).
+- On failure/cancel: "try again" + "reconnect instead".
+
+### Security drawer
+
+A shield icon in `Header.tsx` opens a bottom `Sheet` ("security"):
+
+- `none` → `set up face id`; on unsupported devices, the same
+  `remember / don't remember` choice as setup.
+- `prf` → a `Switch` (checked) to disable. Disabling re-authenticates via the
+  same PRF ceremony before decrypting and writing the token back to
+  `localStorage` and deleting the vault record.
+
+### Recovery
+
+Losing the biometric credential does not lose notes — the vault lives on the
+server. `LockScreen` offers "reconnect instead", which clears the vault record
+and re-runs the onboarding (host + token entry). This is a re-onboard, not a
+restore.
+
+### Background sync
+
+When `prf` is active the service worker's background sync skips (it cannot
+decrypt the queue); queued items flush next time the app is opened and
+unlocked. When `none`, behavior is unchanged.
+
+### What gets encrypted
+
+1. `token` — the `X-Khayal-Token` value.
+2. `offline-queue` — captured note content waiting to sync.
+
+Recent searches and UI prefs stay plaintext (not sensitive enough to justify
+the complexity).
+
+---
+
 ## PWA manifest
 
 The manifest is generated by `vite-plugin-pwa` (not a standalone file). Configuration is in `vite.config.ts`:
@@ -512,7 +612,18 @@ export const STORAGE_KEYS = {
   TOKEN: 'khayal_token',
   HOST: 'khayal_host',
   RECENT_SEARCHES: 'khayal-recent-searches',
+  LOCK_SETUP_DECIDED: 'khayal-lock-setup-decided',
 }
+
+export const VAULT_LOCK = {
+  DB_NAME: 'khayal-offline',   // same DB as offline queue
+  STORE_OFFLINE: 'offline',
+  STORE_VAULT: 'vault',
+  DB_VERSION: 2,
+  PRF_SALT_BYTES: 32,
+}
+
+export type LockMode = 'none' | 'prf'
 
 export const SEARCH_SUGGESTIONS = ['people', 'payments', 'this week', 'ideas', 'decisions', 'meetings']
 
@@ -557,7 +668,9 @@ No sidebar — bottom nav only
 No modals for capture — inline state changes
 No pull to refresh — auto-refresh on focus
 No pagination — infinite scroll on search results
-No settings page in v1 — just the three views
+No dedicated settings tab — a header icon + security sheet is enough
+No passcode/PIN lock — WebAuthn PRF only (persistence choice as fallback)
+No inactivity-timeout re-lock — open/closed only
 ```
 
 ---

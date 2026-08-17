@@ -267,6 +267,7 @@ No other code changes required. See `docs/phases/phase-4-llm.md` for details.
 | Config | 600 permissions |
 | Logging | Never log token or request body |
 | Media | Audio/video stored in ~/.config/khayal/media/ |
+| PWA lock | Optional WebAuthn PRF app lock — encrypts the token + offline queue at rest (see [UI_SPEC.md](UI_SPEC.md)) |
 
 ## Data Locations
 
