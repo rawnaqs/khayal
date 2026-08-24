@@ -376,11 +376,19 @@ func (q *Queue) ListJobs(ctx context.Context, status string, limit, offset int) 
 	for rows.Next() {
 		var job Job
 		var createdAtStr string
+		var notePath, sourceURL, sourceFile, userContext, content, errorStr sql.NullString
 		var processedAtStr sql.NullString
-		if err := rows.Scan(&job.ID, &job.Type, &job.Status, &job.NotePath, &job.SourceURL, &job.SourceFile,
-			&job.Content, &job.UserContext, &createdAtStr, &processedAtStr, &job.Error, &job.Retries); err != nil {
+		if err := rows.Scan(&job.ID, &job.Type, &job.Status, &notePath, &sourceURL, &sourceFile,
+			&content, &userContext, &createdAtStr, &processedAtStr, &errorStr, &job.Retries); err != nil {
 			return nil, 0, err
 		}
+
+		job.NotePath = notePath.String
+		job.SourceURL = sourceURL.String
+		job.SourceFile = sourceFile.String
+		job.UserContext = userContext.String
+		job.Content = content.String
+		job.Error = errorStr.String
 
 		var parseErr error
 		job.CreatedAt, parseErr = time.Parse(time.RFC3339, createdAtStr)
@@ -413,11 +421,18 @@ func (q *Queue) GetPendingJobs(ctx context.Context, limit int) ([]Job, error) {
 	for rows.Next() {
 		var job Job
 		var createdAtStr string
+		var notePath, sourceURL, sourceFile, userContext, content, errorStr sql.NullString
 		var processedAtStr sql.NullString
-		if err := rows.Scan(&job.ID, &job.Type, &job.Status, &job.NotePath, &job.SourceURL, &job.SourceFile,
-			&job.Content, &job.UserContext, &createdAtStr, &processedAtStr, &job.Error, &job.Retries); err != nil {
+		if err := rows.Scan(&job.ID, &job.Type, &job.Status, &notePath, &sourceURL, &sourceFile,
+			&content, &userContext, &createdAtStr, &processedAtStr, &errorStr, &job.Retries); err != nil {
 			return nil, err
 		}
+		job.NotePath = notePath.String
+		job.SourceURL = sourceURL.String
+		job.SourceFile = sourceFile.String
+		job.UserContext = userContext.String
+		job.Content = content.String
+		job.Error = errorStr.String
 
 		var parseErr error
 		job.CreatedAt, parseErr = time.Parse(time.RFC3339, createdAtStr)

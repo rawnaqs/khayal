@@ -886,3 +886,36 @@ func TestInitSchemaIdempotent(t *testing.T) {
 	}
 	_ = q2.Close()
 }
+
+func TestListJobsHandlesNullColumns(t *testing.T) {
+	tmpDir := t.TempDir()
+	q, err := NewQueue(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+	// Raw insert leaves every optional column NULL — exactly what external
+	// fixtures or future writers could produce.
+	if _, err := q.db.ExecContext(ctx, `
+		INSERT INTO jobs (id, type, status, created_at)
+		VALUES ('raw-1', 'text', 'done', ?)`,
+		time.Now().UTC().Format(time.RFC3339)); err != nil {
+		t.Fatal(err)
+	}
+
+	jobs, total, err := q.ListJobs(ctx, "all", 10, 0)
+	if err != nil {
+		t.Fatalf("ListJobs with NULL columns: %v", err)
+	}
+	if total != 1 || len(jobs) != 1 || jobs[0].ID != "raw-1" {
+		t.Fatalf("unexpected result: total=%d jobs=%+v", total, jobs)
+	}
+
+	pending, err := q.GetPendingJobs(ctx, 10)
+	if err != nil {
+		t.Fatalf("GetPendingJobs with NULL columns: %v", err)
+	}
+	_ = pending
+}
