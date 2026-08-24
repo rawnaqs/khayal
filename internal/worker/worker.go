@@ -270,8 +270,10 @@ func (w *Worker) chainConnections(ctx context.Context, ingestJobID, notePath str
 	)
 }
 
-// processConnections runs the connection engine for one note and stores
-// the ranked result on the job row.
+// processConnections runs the connection engine for one note, writes the
+// ranked results onto the job row, and mirrors verified connections into
+// the note's frontmatter as Obsidian wikilinks. Only targets that exist on
+// disk become links (vault safety: never write broken wikilinks).
 func (w *Worker) processConnections(ctx context.Context, job *queue.Job) error {
 	conns, err := connections.Find(ctx, w.queue, job.NotePath, w.connCfg)
 	if err != nil {
@@ -281,5 +283,21 @@ func (w *Worker) processConnections(ctx context.Context, job *queue.Job) error {
 	if err != nil {
 		return fmt.Errorf("marshal connections: %w", err)
 	}
-	return w.queue.UpdateJobResult(ctx, job.ID, payload)
+	if err := w.queue.UpdateJobResult(ctx, job.ID, payload); err != nil {
+		return fmt.Errorf("store connections result: %w", err)
+	}
+
+	links := make([]string, 0, len(conns))
+	for _, c := range conns {
+		if w.vault.NoteExists(c.NotePath) {
+			links = append(links, c.NotePath)
+		} else {
+			w.logger.Warn("connection target missing on disk, skipping link",
+				"note_path", job.NotePath, "target", c.NotePath)
+		}
+	}
+	if len(links) == 0 && len(conns) == 0 {
+		return nil // nothing found; also clears any stale block
+	}
+	return w.vault.SetConnections(job.NotePath, links)
 }
