@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/rawnaqs/khayal/internal/chunk"
 	"github.com/rawnaqs/khayal/internal/config"
 	"github.com/rawnaqs/khayal/internal/constants"
 	"github.com/rawnaqs/khayal/internal/ingest"
@@ -18,27 +19,29 @@ import (
 )
 
 type Worker struct {
-	queue   *queue.Queue
-	vault   *vault.Writer
-	llm     llm.LLMExt
-	config  config.WorkerConfig
-	jobs    chan string
-	wg      sync.WaitGroup
-	running atomic.Bool
-	logger  *slog.Logger
+	queue     *queue.Queue
+	vault     *vault.Writer
+	llm       llm.LLMExt
+	config    config.WorkerConfig
+	chunkOpts chunk.Options
+	jobs      chan string
+	wg        sync.WaitGroup
+	running   atomic.Bool
+	logger    *slog.Logger
 }
 
-func NewWorker(cfg config.WorkerConfig, q *queue.Queue, v *vault.Writer, l llm.LLMExt, logger *slog.Logger) *Worker {
+func NewWorker(cfg config.WorkerConfig, chunkOpts chunk.Options, q *queue.Queue, v *vault.Writer, l llm.LLMExt, logger *slog.Logger) *Worker {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &Worker{
-		queue:  q,
-		vault:  v,
-		llm:    l,
-		config: cfg,
-		jobs:   make(chan string, 1000),
-		logger: logger,
+		queue:     q,
+		vault:     v,
+		llm:       l,
+		config:    cfg,
+		chunkOpts: chunkOpts,
+		jobs:      make(chan string, 1000),
+		logger:    logger,
 	}
 }
 
@@ -143,11 +146,11 @@ func (w *Worker) processJob(jobID string) {
 
 	switch job.Type {
 	case "text":
-		notePath, processErr = ingest.IngestText(ctx, job, w.vault, w.queue, w.llm)
+		notePath, processErr = ingest.IngestText(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts)
 	case "image":
-		notePath, processErr = ingest.IngestImage(ctx, job, w.vault, w.queue, w.llm)
+		notePath, processErr = ingest.IngestImage(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts)
 	case "article":
-		notePath, processErr = ingest.IngestArticle(ctx, job, w.vault, w.queue, w.llm)
+		notePath, processErr = ingest.IngestArticle(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts)
 	default:
 		processErr = fmt.Errorf("unknown job type: %s", job.Type)
 	}

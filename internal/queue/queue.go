@@ -32,10 +32,11 @@ type JobStore interface {
 	ResetStuckJobs(ctx context.Context) error
 	CountByStatus(ctx context.Context, status string) (int, error)
 	DeleteJob(ctx context.Context, id string) error
-	SaveEmbedding(ctx context.Context, jobID, model string, embedding []float32) error
 	SearchKeyword(ctx context.Context, query string, limit int, from, to *time.Time) ([]SearchResult, error)
 	SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int, minScore float64, from, to *time.Time) ([]SearchResult, error)
 	SaveChunk(ctx context.Context, notePath string, chunkIdx int, content string, embedding []float32) error
+	DeleteChunksByNote(ctx context.Context, notePath string) error
+	CountChunks(ctx context.Context, notePath string) (int, error)
 	IndexNote(ctx context.Context, notePath, title, content, tags string) error
 	UpdateNoteIndex(ctx context.Context, notePath, title, content, tags string) error
 	DeleteFromIndex(ctx context.Context, notePath string) error
@@ -125,15 +126,9 @@ func (q *Queue) initSchema() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)`,
 		`CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at)`,
-		`CREATE TABLE IF NOT EXISTS embeddings (
-			id TEXT PRIMARY KEY,
-			job_id TEXT NOT NULL,
-			vector BLOB NOT NULL,
-			model TEXT NOT NULL,
-			created_at TEXT NOT NULL,
-			FOREIGN KEY (job_id) REFERENCES jobs(id)
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_embeddings_job ON embeddings(job_id)`,
+		// v1.1: drop the legacy per-job embeddings table; chunks is the
+		// canonical vector store.
+		`DROP TABLE IF EXISTS embeddings`,
 		`CREATE TABLE IF NOT EXISTS entities (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			note_path TEXT NOT NULL,
@@ -474,17 +469,6 @@ func (q *Queue) DeleteJob(ctx context.Context, id string) error {
 	return err
 }
 
-func (q *Queue) SaveEmbedding(ctx context.Context, jobID, model string, embedding []float32) error {
-	id := uuid.New().String()
-	blob := encodeEmbedding(embedding)
-
-	_, err := q.db.ExecContext(ctx, `
-		INSERT INTO embeddings (id, job_id, vector, model, created_at)
-		VALUES (?, ?, ?, ?, ?)`,
-		id, jobID, blob, model, time.Now().UTC().Format(time.RFC3339))
-	return err
-}
-
 func (q *Queue) SearchKeyword(ctx context.Context, query string, limit int, from, to *time.Time) ([]SearchResult, error) {
 	baseSQL := `
 		SELECT j.id, j.note_path, j.type, j.created_at,
@@ -705,6 +689,52 @@ func (q *Queue) SaveChunk(ctx context.Context, notePath string, chunkIdx int, co
 		VALUES (?, ?, ?, ?, ?)`,
 		notePath, chunkIdx, content, blob, time.Now().UTC().Format(time.RFC3339))
 	return err
+}
+
+// CountChunks returns the number of stored chunks for a note.
+func (q *Queue) CountChunks(ctx context.Context, notePath string) (int, error) {
+	var n int
+	err := q.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM chunks WHERE note_path = ?`, notePath).Scan(&n)
+	return n, err
+}
+
+// DeleteChunksByNote removes all stored chunks for a note.
+func (q *Queue) DeleteChunksByNote(ctx context.Context, notePath string) error {
+	_, err := q.db.ExecContext(ctx, `DELETE FROM chunks WHERE note_path = ?`, notePath)
+	return err
+}
+
+// ChunkRow is one chunk of a note: its index, text, and embedding.
+type ChunkRow struct {
+	Idx       int
+	Content   string
+	Embedding []float32
+}
+
+// ReplaceChunks atomically replaces all stored chunks for a note. Either the
+// note ends up with exactly the given rows, or its previous chunks survive —
+// a partial set is never persisted.
+func (q *Queue) ReplaceChunks(ctx context.Context, notePath string, rows []ChunkRow) error {
+	tx, err := q.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM chunks WHERE note_path = ?`, notePath); err != nil {
+		return err
+	}
+	for _, r := range rows {
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO chunks (note_path, chunk_idx, content, embedding, created_at)
+			VALUES (?, ?, ?, ?, ?)`,
+			notePath, r.Idx, r.Content, encodeEmbedding(r.Embedding),
+			time.Now().UTC().Format(time.RFC3339)); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags string) error {

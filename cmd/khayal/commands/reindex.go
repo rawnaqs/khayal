@@ -12,6 +12,8 @@ import (
 
 	cli "github.com/rawnaqs/khayal/cmd/khayal/internal"
 	"github.com/rawnaqs/khayal/internal/config"
+	"github.com/rawnaqs/khayal/internal/ingest"
+	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/spf13/cobra"
 )
@@ -25,8 +27,10 @@ func newReindexCmd() *cobra.Command {
 		Short: "Rebuild search index from vault",
 		Long: `Scan the vault and rebuild the search index.
 
-Updates FTS5 index for all notes. Use --force to reindex
-everything even if unchanged. Shows progress bar.`,
+Updates the FTS5 keyword index for all notes and regenerates
+chunk-level embeddings used by semantic search. Use --force to
+reindex everything even if unchanged. Use --fts-only to skip
+embedding regeneration (no Ollama needed). Shows progress bar.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runReindex(force, ftsOnly)
 		},
@@ -106,6 +110,17 @@ func runReindex(force bool, ftsOnly bool) error {
 
 	ctx := context.Background()
 
+	var llmClient llm.LLMExt
+	if !ftsOnly {
+		llmClient, err = llm.NewLLM(cfg.LLM)
+		if err != nil {
+			logger := slog.Default()
+			logger.Debug("llm init failed", "error", err)
+			cli.Fatal(cli.ExitDep, "cannot reach LLM backend — start Ollama, or use --fts-only to skip embedding rebuild")
+			return err
+		}
+	}
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
 
@@ -157,6 +172,16 @@ func runReindex(force bool, ftsOnly bool) error {
 			logger.Error("failed to index note", "file", file, "error", err)
 			errors++
 			continue
+		}
+
+		// Rebuild chunk embeddings (atomic replace per note)
+		if !ftsOnly {
+			body := ingest.StripFrontmatter(content)
+			if err := ingest.SaveChunksForNote(ctx, q, llmClient, relPath, body, cfg.Search.ChunkOptions()); err != nil {
+				logger.Warn("failed to rebuild chunks", "file", file, "error", err)
+				errors++
+				continue
+			}
 		}
 
 		processed++

@@ -11,12 +11,13 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/rawnaqs/khayal/internal/chunk"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 )
 
-func IngestArticle(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt) (string, error) {
+func IngestArticle(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt, chunkOpts chunk.Options) (string, error) {
 	title, content, err := scrapeArticle(job.SourceURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to scrape article: %w", err)
@@ -84,15 +85,7 @@ func IngestArticle(ctx context.Context, job *queue.Job, v *vault.Writer, q *queu
 		return "", fmt.Errorf("failed to index note: %w", err)
 	}
 
-	embedContent := title + "\n\n" + summary + "\n\n" + strings.Join(keyIdeas, "\n")
-	embedding, err := llmClient.Embed(embedContent)
-	if err != nil {
-		return notePath, nil
-	}
-
-	if err := q.SaveChunk(ctx, notePath, 0, combinedContent, embedding); err != nil {
-		return notePath, nil
-	}
+	saveChunks(ctx, q, llmClient, notePath, combinedContent, chunkOpts)
 
 	return notePath, nil
 }
@@ -145,8 +138,6 @@ func scrapeArticle(url string) (title, content string, err error) {
 	}
 
 	content = strings.Join(paragraphs, "\n\n")
-
-
 
 	logger.Debug("scraped article", "title", title, "content_length", len(content))
 

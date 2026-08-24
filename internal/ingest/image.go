@@ -8,12 +8,13 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/rawnaqs/khayal/internal/chunk"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 )
 
-func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt) (string, error) {
+func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt, chunkOpts chunk.Options) (string, error) {
 	imagePath := v.ResolveMediaPath(job.SourceFile)
 	description, err := llmClient.DescribeImage(imagePath)
 	if err != nil {
@@ -76,14 +77,7 @@ func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.
 		return "", fmt.Errorf("failed to index note: %w", err)
 	}
 
-	embedding, err := llmClient.Embed(contextText)
-	if err != nil {
-		return notePath, nil
-	}
-
-	if err := q.SaveChunk(ctx, notePath, 0, contextText, embedding); err != nil {
-		return notePath, nil
-	}
+	saveChunks(ctx, q, llmClient, notePath, contextText, chunkOpts)
 
 	return notePath, nil
 }
