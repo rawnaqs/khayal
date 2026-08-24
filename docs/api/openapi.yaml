@@ -638,6 +638,17 @@ components:
     Job:
       type: object
       properties:
+
+        result:
+          description: >
+            JSON payload stored by enrichment job types. For connections
+            jobs: {"connections": [{type, note_path, excerpt, score, label}]}.
+          type: object
+          nullable: true
+        connections_job_id:
+          type: string
+          nullable: true
+          description: Set on ingest jobs after their connections job is chained.
         id:
           type: string
         type:
