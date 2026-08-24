@@ -17,9 +17,9 @@ import (
 )
 
 type mockLLMForIngest struct {
-	embedCalls     atomic.Int32
-	batchCalls     atomic.Int32
-	batchSizes     chan int
+	embedCalls atomic.Int32
+	batchCalls atomic.Int32
+
 	batchSizesMu   sync.Mutex
 	batchSizesList []int
 }
