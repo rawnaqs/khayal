@@ -919,3 +919,63 @@ func TestListJobsHandlesNullColumns(t *testing.T) {
 	}
 	_ = pending
 }
+
+func TestTopSimilarChunks(t *testing.T) {
+	tmpDir := t.TempDir()
+	q, err := NewQueue(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	mk := func(id, path string, age time.Duration, vec []float32) {
+		j := &Job{ID: id, Type: "text", Status: "done", NotePath: path,
+			Content: "content " + id, CreatedAt: now.Add(-age)}
+		if err := q.CreateJob(ctx, j); err != nil {
+			t.Fatal(err)
+		}
+		if err := q.SaveChunk(ctx, path, 0, "chunk text "+id, vec); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	mk("old-a", "khayal/a.md", 30*24*time.Hour, []float32{1, 0, 0})
+	mk("old-b", "khayal/b.md", 20*24*time.Hour, []float32{0.9, 0.1, 0}) // slightly less similar
+	mk("recent", "khayal/recent.md", 1*time.Hour, []float32{1, 0, 0})   // age-excluded
+	mk("old-c", "khayal/c.md", 15*24*time.Hour, []float32{0, 1, 0})     // low similarity
+
+	query := []float32{1, 0, 0}
+	cutoff := now.Add(-7 * 24 * time.Hour)
+
+	got, err := q.TopSimilarChunks(ctx, query, 5, 0.5, cutoff, "khayal/self.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("expected a and b only, got %+v", got)
+	}
+	if got[0].NotePath != "khayal/a.md" || got[0].Score < 0.999 {
+		t.Errorf("top = %+v, want self-similar ~1.0", got[0])
+	}
+	if got[1].NotePath != "khayal/b.md" {
+		t.Errorf("second = %+v", got[1])
+	}
+	// Raw scores, not rescaled: b must keep its true cosine (~0.994).
+	if got[1].Score > 0.999 {
+		t.Errorf("scores must not be rescaled; b=%v", got[1].Score)
+	}
+
+	// Self exclusion.
+	self, err := q.TopSimilarChunks(ctx, query, 5, 0.5, cutoff, "khayal/a.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range self {
+		if m.NotePath == "khayal/a.md" {
+			t.Error("self not excluded")
+		}
+	}
+}

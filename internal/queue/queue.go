@@ -1994,3 +1994,73 @@ func (q *Queue) LinkConnectionsJob(ctx context.Context, ingestJobID, connJobID s
 	}
 	return lastErr
 }
+
+// RawChunkMatch is one older note's best chunk under a raw-cosine query,
+// reported without any score normalization.
+type RawChunkMatch struct {
+	NotePath  string
+	CreatedAt string
+	Content   string
+	Score     float64
+}
+
+// TopSimilarChunks finds notes created before cutoff whose best chunk has
+// raw cosine similarity >= minScore to the query embedding, excluding the
+// query note itself. Scores are true cosines — no rescaling — so callers
+// can treat them as confidence values.
+func (q *Queue) TopSimilarChunks(ctx context.Context, embedding []float32, limit int, minScore float64, cutoff time.Time, excludePath string) ([]RawChunkMatch, error) {
+	if len(embedding) == 0 {
+		return nil, nil
+	}
+
+	best := make(map[string]RawChunkMatch)
+	offset := 0
+	for {
+		rows, err := q.db.QueryContext(ctx, `
+			SELECT c.note_path, j.created_at, c.content, c.embedding
+			FROM chunks c
+			JOIN jobs j ON c.note_path = j.note_path
+			WHERE c.embedding IS NOT NULL AND j.created_at < ? AND c.note_path != ?
+			LIMIT ? OFFSET ?`,
+			cutoff.UTC().Format(time.RFC3339), excludePath, batchSize, offset)
+		if err != nil {
+			return nil, err
+		}
+
+		hasRows := false
+		for rows.Next() {
+			hasRows = true
+			var notePath, createdAt, content string
+			var blob []byte
+			if err := rows.Scan(&notePath, &createdAt, &content, &blob); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			score := cosine(embedding, decodeEmbedding(blob))
+			if score < minScore {
+				continue
+			}
+			if cur, ok := best[notePath]; !ok || score > cur.Score {
+				best[notePath] = RawChunkMatch{NotePath: notePath, CreatedAt: createdAt, Content: content, Score: score}
+			}
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		if !hasRows || offset >= maxSearchChunks {
+			break
+		}
+		offset += batchSize
+	}
+
+	out := make([]RawChunkMatch, 0, len(best))
+	for _, m := range best {
+		out = append(out, m)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Score > out[j].Score })
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}

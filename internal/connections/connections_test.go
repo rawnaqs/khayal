@@ -185,3 +185,138 @@ func TestRankAndLimit(t *testing.T) {
 		paths[c.NotePath] = true
 	}
 }
+
+func TestFind_AmountRequiresCorroboration(t *testing.T) {
+	ctx := context.Background()
+
+	build := func(t *testing.T, curVec, otherVec []float32) (*queue.Queue, func()) {
+		q, closeQ := setup(t)
+		now := time.Now().UTC()
+		cur := &queue.Job{ID: "cur", Type: "text", Status: "done",
+			NotePath: "khayal/current.md", Content: "invoice 2000",
+			CreatedAt: now.Add(-30 * 24 * time.Hour)}
+		if err := q.CreateJob(ctx, cur); err != nil {
+			t.Fatal(err)
+		}
+		if err := q.SaveEntities(ctx, "khayal/current.md", queue.NoteEntities{Amounts: []string{"2000"}}); err != nil {
+			t.Fatal(err)
+		}
+		if curVec != nil {
+			if err := q.SaveChunk(ctx, "khayal/current.md", 0, "cur text", curVec); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		old := &queue.Job{ID: "old", Type: "text", Status: "done",
+			NotePath: "khayal/old.md", Content: "budget 2000 elsewhere",
+			CreatedAt: now.Add(-30 * 24 * time.Hour)}
+		if err := q.CreateJob(ctx, old); err != nil {
+			t.Fatal(err)
+		}
+		if err := q.SaveEntities(ctx, "khayal/old.md", queue.NoteEntities{Amounts: []string{"2000"}}); err != nil {
+			t.Fatal(err)
+		}
+		if otherVec != nil {
+			if err := q.SaveChunk(ctx, "khayal/old.md", 0, "old text", otherVec); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return q, closeQ
+	}
+
+	t.Run("bare number coincidence suppressed", func(t *testing.T) {
+		q, closeQ := build(t,
+			[]float32{1, 0, 0},
+			[]float32{0, 1, 0}) // unrelated content
+		defer closeQ()
+		got, err := Find(ctx, q, "khayal/current.md", testCfg())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range got {
+			if c.NotePath == "khayal/old.md" {
+				t.Errorf("uncorroborated amount leaked: %+v", got)
+			}
+		}
+	})
+
+	t.Run("semantically close pair surfaces", func(t *testing.T) {
+		q, closeQ := build(t,
+			[]float32{1, 0, 0},
+			[]float32{0.995, 0.03, 0}) // near-identical topic
+		defer closeQ()
+		got, err := Find(ctx, q, "khayal/current.md", testCfg())
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, c := range got {
+			if c.Type == "amount" && c.NotePath == "khayal/old.md" {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("corroborated amount missing: %+v", got)
+		}
+	})
+
+	t.Run("shared person corroborates", func(t *testing.T) {
+		q, closeQ := setup(t)
+		defer closeQ()
+		now := time.Now().UTC()
+		for _, j := range []*queue.Job{
+			{ID: "c2", Type: "text", Status: "done", NotePath: "khayal/c2.md",
+				Content: "paid Alice 2000", CreatedAt: now.Add(-30 * 24 * time.Hour)},
+			{ID: "o2", Type: "text", Status: "done", NotePath: "khayal/o2.md",
+				Content: "alice invoice 2000 old", CreatedAt: now.Add(-40 * 24 * time.Hour)},
+		} {
+			if err := q.CreateJob(ctx, j); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, p := range []string{"khayal/c2.md", "khayal/o2.md"} {
+			if err := q.SaveEntities(ctx, p, queue.NoteEntities{
+				People: []string{"Alice"}, Amounts: []string{"2000"}}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		got, err := Find(ctx, q, "khayal/c2.md", testCfg())
+		if err != nil {
+			t.Fatal(err)
+		}
+		found := false
+		for _, c := range got {
+			if c.NotePath == "khayal/o2.md" {
+				found = true // person wins dedup; presence proves corroboration path
+			}
+		}
+		if !found {
+			t.Errorf("expected o2 via person corroboration: %+v", got)
+		}
+	})
+}
+
+func TestFind_SimilarReportsTrueCosine(t *testing.T) {
+	q, closeQ := setup(t)
+	defer closeQ()
+	ctx := context.Background()
+
+	mkOldNote(t, ctx, q, "cur", "khayal/current.md", "current",
+		[]float32{3, 4, 0}, nil)
+	mkOldNote(t, ctx, q, "old-sim", "khayal/old-sim.md", "similar",
+		[]float32{4, 3, 0}, nil) // cos = 24/25 = 0.96
+
+	got, err := Find(ctx, q, "khayal/current.md", testCfg())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range got {
+		if c.NotePath == "khayal/old-sim.md" && c.Type == "similar" {
+			if c.Score < 0.949 || c.Score > 0.971 {
+				t.Errorf("Score = %v, want ~0.96 true cosine", c.Score)
+			}
+			return
+		}
+	}
+	t.Fatalf("similar connection missing: %+v", got)
+}

@@ -1165,6 +1165,12 @@ Find past notes mentioning the same financial amounts. Amounts normalized to int
 Detection: SQL query against entities table (type = 'amount')
 Filter:    note age > 7 days
 Label:     "you've mentioned [amount] before"
+Corroboration: an amount match surfaces ONLY when the pair also shares a
+person entity OR has raw cosine similarity within 0.10 of the similarity
+threshold — bare numeric equality across unrelated notes is suppressed.
+Similarity scores reported for type 1 are true cosines (never rescaled);
+the default threshold is 0.72, inside the measured gap between unrelated
+(~0.49) and related (~0.79) nomic-embed-text pairs.
 ```
 
 #### Type 4 — Contradicting Thoughts (v1.2)

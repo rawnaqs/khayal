@@ -5,6 +5,7 @@ package connections
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"time"
 
@@ -17,7 +18,7 @@ type Connection struct {
 	Type     string  `json:"type"` // "similar" | "person" | "amount"
 	NotePath string  `json:"note_path"`
 	Excerpt  string  `json:"excerpt"`
-	Score    float64 `json:"score"`
+	Score    float64 `json:"score"` // true cosine for "similar"; 1.0 for entity matches
 	Label    string  `json:"label"`
 }
 
@@ -32,7 +33,7 @@ var priority = map[string]int{
 // satisfies it; narrow for tests.
 type Store interface {
 	GetChunkEmbeddingForNote(ctx context.Context, notePath string) ([]float32, bool, error)
-	SearchSemantic(ctx context.Context, queryEmbedding []float32, limit int, minScore float64, from, to *time.Time) ([]queue.SearchResult, error)
+	TopSimilarChunks(ctx context.Context, embedding []float32, limit int, minScore float64, cutoff time.Time, excludePath string) ([]queue.RawChunkMatch, error)
 	GetEntitiesByNote(ctx context.Context, notePath, entityType string) ([]string, error)
 	GetNotesByEntity(ctx context.Context, entityValue, entityType string, cutoff time.Time) ([]queue.EntityMatch, error)
 	CountNotesByEntity(ctx context.Context, entityValue, entityType string, cutoff time.Time, excludePath string) (int, error)
@@ -47,23 +48,36 @@ func Find(ctx context.Context, q Store, notePath string, cfg config.ConnectionsC
 	}
 	cutoff := time.Now().UTC().AddDate(0, 0, -cfg.MinAgeDays)
 
-	var conns []Connection
-
-	sim, err := findSimilar(ctx, q, notePath, cutoff, cfg.SimilarityThreshold)
-	if err == nil {
-		conns = append(conns, sim...)
-	} else {
-		fmt.Println("connections: similar skipped:", err)
+	// The current note's own embedding powers both the similar detector and
+	// amount corroboration. Missing chunks (pre-v1.1 notes) degrade both.
+	selfEmb, hasEmb, err := q.GetChunkEmbeddingForNote(ctx, notePath)
+	if err != nil {
+		return nil, err
 	}
 
+	var conns []Connection
+
+	if hasEmb {
+		sim, err := findSimilar(ctx, q, selfEmb, notePath, cutoff, cfg.SimilarityThreshold)
+		if err == nil {
+			conns = append(conns, sim...)
+		} else {
+			fmt.Println("connections: similar skipped:", err)
+		}
+	}
+
+	personByPath := map[string]bool{}
 	if config.IsOn(cfg.Types.Person) {
 		p, err := findByEntity(ctx, q, notePath, "person", cutoff)
 		if err == nil {
 			conns = append(conns, p...)
+			for _, c := range p {
+				personByPath[c.NotePath] = true
+			}
 		}
 	}
 	if config.IsOn(cfg.Types.Amount) {
-		a, err := findByEntity(ctx, q, notePath, "amount", cutoff)
+		a, err := findAmounts(ctx, q, selfEmb, hasEmb, personByPath, notePath, cutoff, cfg.SimilarityThreshold)
 		if err == nil {
 			conns = append(conns, a...)
 		}
@@ -72,29 +86,22 @@ func Find(ctx context.Context, q Store, notePath string, cfg config.ConnectionsC
 	return rankAndLimit(conns, cfg.MaxPerCapture), nil
 }
 
-// findSimilar reuses the note's own stored chunk embedding — no extra LLM
-// call. SearchSemantic's date filter (to=cutoff) enforces the age window.
-func findSimilar(ctx context.Context, q Store, notePath string, cutoff time.Time, threshold float64) ([]Connection, error) {
-	emb, ok, err := q.GetChunkEmbeddingForNote(ctx, notePath)
-	if err != nil || !ok {
-		return nil, err
-	}
-	results, err := q.SearchSemantic(ctx, emb, 5, threshold, nil, &cutoff)
+// findSimilar reports raw-cosine matches from older notes — scores are true
+// confidence values, never rescaled.
+func findSimilar(ctx context.Context, q Store, selfEmb []float32, notePath string, cutoff time.Time, threshold float64) ([]Connection, error) {
+	matches, err := q.TopSimilarChunks(ctx, selfEmb, 5, threshold, cutoff, notePath)
 	if err != nil {
 		return nil, err
 	}
 
 	var conns []Connection
-	for _, r := range results {
-		if r.NotePath == notePath || r.Score < threshold {
-			continue
-		}
-		created, _ := time.Parse(time.RFC3339, r.CreatedAt)
+	for _, m := range matches {
+		created, _ := time.Parse(time.RFC3339, m.CreatedAt)
 		conns = append(conns, Connection{
 			Type:     "similar",
-			NotePath: r.NotePath,
-			Excerpt:  r.Excerpt,
-			Score:    r.Score,
+			NotePath: m.NotePath,
+			Excerpt:  m.Content,
+			Score:    m.Score,
 			Label:    fmt.Sprintf("you thought about this %s", formatAge(created)),
 		})
 	}
@@ -131,6 +138,69 @@ func findByEntity(ctx context.Context, q Store, notePath, entityType string, cut
 		}
 	}
 	return conns, nil
+}
+
+// findAmounts surfaces amount matches only when corroborated: the pair must
+// ALSO share a person entity or be semantically close (within 0.10 of the
+// similarity threshold). Bare numeric equality across unrelated notes is
+// almost always coincidence.
+func findAmounts(ctx context.Context, q Store, selfEmb []float32, hasEmb bool,
+	sharedPerson map[string]bool, notePath string, cutoff time.Time, threshold float64) ([]Connection, error) {
+
+	values, err := q.GetEntitiesByNote(ctx, notePath, "amount")
+	if err != nil {
+		return nil, err
+	}
+
+	var conns []Connection
+	for _, val := range values {
+		matches, err := q.GetNotesByEntity(ctx, val, "amount", cutoff)
+		if err != nil {
+			continue
+		}
+		for _, m := range matches {
+			if m.NotePath == notePath {
+				continue
+			}
+			if !sharedPerson[m.NotePath] {
+				if !hasEmb {
+					continue // no way to corroborate
+				}
+				otherEmb, ok, err := q.GetChunkEmbeddingForNote(ctx, m.NotePath)
+				if err != nil || !ok {
+					continue
+				}
+				if cosineSim(selfEmb, otherEmb) < threshold-0.10 {
+					continue
+				}
+			}
+			label := "you've mentioned this amount before"
+			conns = append(conns, Connection{
+				Type:     "amount",
+				NotePath: m.NotePath,
+				Excerpt:  m.Excerpt,
+				Score:    1.0,
+				Label:    label,
+			})
+		}
+	}
+	return conns, nil
+}
+
+func cosineSim(a, b []float32) float64 {
+	if len(a) == 0 || len(b) == 0 || len(a) != len(b) {
+		return 0
+	}
+	var dot, na, nb float64
+	for i := range a {
+		dot += float64(a[i]) * float64(b[i])
+		na += float64(a[i]) * float64(a[i])
+		nb += float64(b[i]) * float64(b[i])
+	}
+	if na == 0 || nb == 0 {
+		return 0
+	}
+	return dot / (math.Sqrt(na) * math.Sqrt(nb))
 }
 
 func otherCount(q Store, ctx context.Context, val, typ string, cutoff time.Time, exclude string) int {

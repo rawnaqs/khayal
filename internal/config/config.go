@@ -296,8 +296,10 @@ func (c *Config) ApplyDefaults() {
 	if c.Connections.MaxPerCapture <= 0 {
 		c.Connections.MaxPerCapture = 3
 	}
+	// 0.72 sits inside the measured gap between unrelated notes (~0.49)
+	// and topically related ones (~0.79) for nomic-embed-text raw cosines.
 	if c.Connections.SimilarityThreshold <= 0 {
-		c.Connections.SimilarityThreshold = 0.85
+		c.Connections.SimilarityThreshold = 0.72
 	}
 	if c.LLM.TruncateTextTokens == 0 {
 		c.LLM.TruncateTextTokens = 2000
