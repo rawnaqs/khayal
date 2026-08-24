@@ -143,11 +143,21 @@ func (c SearchConfig) ChunkOptions() chunk.Options {
 
 type ConnectionsConfig struct {
 	// Enabled gates the whole feature; nil means true (default on).
-	Enabled             *bool            `yaml:"enabled"`
-	MinAgeDays          int              `yaml:"min_age_days"`
+	Enabled *bool `yaml:"enabled"`
+	// MinAgeDays: nil means the 7-day default; an explicit 0 is honored
+	// (surface everything up to now) — needed for testing setups.
+	MinAgeDays          *int             `yaml:"min_age_days"`
 	MaxPerCapture       int              `yaml:"max_per_capture"`
 	SimilarityThreshold float64          `yaml:"similarity_threshold"`
 	Types               ConnectionsTypes `yaml:"types"`
+}
+
+// AgeDays resolves the minimum-age setting: nil -> 7, negative -> 7.
+func (c ConnectionsConfig) AgeDays() int {
+	if c.MinAgeDays == nil || *c.MinAgeDays < 0 {
+		return 7
+	}
+	return *c.MinAgeDays
 }
 
 // ConnectionsTypes toggles individual connection types; nil means on.
@@ -289,9 +299,6 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.Search.ChunkOverlapWords <= 0 {
 		c.Search.ChunkOverlapWords = d.OverlapWords
-	}
-	if c.Connections.MinAgeDays <= 0 {
-		c.Connections.MinAgeDays = 7
 	}
 	if c.Connections.MaxPerCapture <= 0 {
 		c.Connections.MaxPerCapture = 3

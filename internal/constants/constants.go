@@ -111,6 +111,7 @@ Output format: Plain descriptive text. Do NOT use bullet points or numbered list
 
 Rules:
 - people: full names of real people mentioned (not fictional, not the author)
+- Never extract the author, first-person pronouns (I, me, we), or single letters as people
 - amounts: monetary or numerical amounts (e.g. "$2,000", "2k", "500 users")
 - dates: specific dates or date ranges mentioned (e.g. "March 2024", "2019-03-03")
 - places: cities, countries, regions, specific locations

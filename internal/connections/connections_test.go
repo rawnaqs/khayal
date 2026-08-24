@@ -10,12 +10,14 @@ import (
 	"github.com/rawnaqs/khayal/internal/queue"
 )
 
+func intPtr(v int) *int { return &v }
+
 func testCfg() config.ConnectionsConfig {
 	return config.ConnectionsConfig{
 		Enabled:             nil, // on
-		MinAgeDays:          7,
+		MinAgeDays:          intPtr(7),
 		MaxPerCapture:       3,
-		SimilarityThreshold: 0.85,
+		SimilarityThreshold: 0.72,
 	}
 }
 

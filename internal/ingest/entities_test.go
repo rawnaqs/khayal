@@ -116,3 +116,19 @@ func TestNormalizeEntities(t *testing.T) {
 		t.Errorf("URLs = %v, want [https://example.com]", got.URLs)
 	}
 }
+
+func TestNormalizeEntities_PeopleJunkFiltered(t *testing.T) {
+	raw := llm.EntityResult{
+		People: []string{"I", "Alice", "X", "We", "bob"},
+	}
+	got := NormalizeEntities(raw)
+	want := []string{"Alice", "bob"}
+	if len(got.People) != len(want) {
+		t.Fatalf("People = %v, want %v", got.People, want)
+	}
+	for i := range want {
+		if got.People[i] != want[i] {
+			t.Errorf("People[%d] = %q, want %q", i, got.People[i], want[i])
+		}
+	}
+}

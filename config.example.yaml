@@ -81,7 +81,7 @@ search:
 
 connections:
   enabled: true              # master switch for proactive connections
-  min_age_days: 7            # never surface notes younger than this
+  min_age_days: 7            # never surface notes younger than this (explicit 0 = same-day allowed)
   max_per_capture: 3         # strict quality gate
   similarity_threshold: 0.72 # raw-cosine cutoff (unrelated ~0.49, related ~0.79)
   types:

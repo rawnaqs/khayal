@@ -1875,7 +1875,7 @@ func (q *Queue) GetNotesByEntity(ctx context.Context, entityValue, entityType st
 		SELECT e.note_path, j.created_at
 		FROM entities e
 		JOIN jobs j ON e.note_path = j.note_path
-		WHERE e.entity_value = ? AND e.entity_type = ? AND j.created_at < ?
+		WHERE LOWER(e.entity_value) = LOWER(?) AND e.entity_type = ? AND j.created_at < ?
 		GROUP BY e.note_path
 		ORDER BY j.created_at DESC
 		LIMIT 10`,
@@ -1906,7 +1906,7 @@ func (q *Queue) CountNotesByEntity(ctx context.Context, entityValue, entityType 
 		SELECT COUNT(DISTINCT e.note_path)
 		FROM entities e
 		JOIN jobs j ON e.note_path = j.note_path
-		WHERE e.entity_value = ? AND e.entity_type = ? AND j.created_at < ? AND e.note_path != ?`,
+		WHERE LOWER(e.entity_value) = LOWER(?) AND e.entity_type = ? AND j.created_at < ? AND e.note_path != ?`,
 		entityValue, entityType, cutoff.UTC().Format(time.RFC3339), excludePath).Scan(&n)
 	return n, err
 }

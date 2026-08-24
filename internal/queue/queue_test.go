@@ -979,3 +979,43 @@ func TestTopSimilarChunks(t *testing.T) {
 		}
 	}
 }
+
+func TestGetNotesByEntityCaseInsensitive(t *testing.T) {
+	tmpDir := t.TempDir()
+	q, err := NewQueue(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	for _, j := range []*Job{
+		{ID: "b1", Type: "text", Status: "done", NotePath: "khayal/b1.md",
+			Content: "met Bob", CreatedAt: now.Add(-30 * 24 * time.Hour)},
+		{ID: "b2", Type: "text", Status: "done", NotePath: "khayal/b2.md",
+			Content: "met bob again", CreatedAt: now.Add(-20 * 24 * time.Hour)},
+	} {
+		if err := q.CreateJob(ctx, j); err != nil {
+			t.Fatal(err)
+		}
+	}
+	casing := map[string]string{"khayal/b1.md": "Bob", "khayal/b2.md": "bob"}
+	for path, val := range casing {
+		if err := q.SaveEntities(ctx, path, NoteEntities{People: []string{val}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Query with either casing must find BOTH notes.
+	for _, query := range []string{"Bob", "bob", "BOB"} {
+		matches, err := q.GetNotesByEntity(ctx, query, "person", now.Add(-10*24*time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(matches) != 2 {
+			t.Errorf("query %q matched %d notes, want 2", query, len(matches))
+		}
+	}
+}

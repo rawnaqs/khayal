@@ -46,7 +46,7 @@ func Find(ctx context.Context, q Store, notePath string, cfg config.ConnectionsC
 	if !config.IsOn(cfg.Enabled) {
 		return nil, nil
 	}
-	cutoff := time.Now().UTC().AddDate(0, 0, -cfg.MinAgeDays)
+	cutoff := time.Now().UTC().AddDate(0, 0, -cfg.AgeDays())
 
 	// The current note's own embedding powers both the similar detector and
 	// amount corroboration. Missing chunks (pre-v1.1 notes) degrade both.

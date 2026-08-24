@@ -46,3 +46,13 @@ log:
 
 db:
   path: khayal.db
+
+connections:
+  enabled: true
+  min_age_days: 0   # test setup: allow same-day connections
+  max_per_capture: 3
+  similarity_threshold: 0.72
+  types:
+    similar: true
+    person: true
+    amount: true
