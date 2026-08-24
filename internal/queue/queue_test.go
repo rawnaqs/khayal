@@ -866,3 +866,23 @@ func TestUpdateJobResultAndLink(t *testing.T) {
 		t.Errorf("link not persisted: %q", src.ConnectionsJobID)
 	}
 }
+
+func TestInitSchemaIdempotent(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	q, err := NewQueue(dbPath)
+	if err != nil {
+		t.Fatalf("first open: %v", err)
+	}
+	if err := q.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Second open must tolerate already-applied migrations.
+	q2, err := NewQueue(dbPath)
+	if err != nil {
+		t.Fatalf("second open: %v", err)
+	}
+	_ = q2.Close()
+}

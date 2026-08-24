@@ -136,10 +136,6 @@ func (q *Queue) initSchema() error {
 		// v1.1: drop the legacy per-job embeddings table; chunks is the
 		// canonical vector store.
 		`DROP TABLE IF EXISTS embeddings`,
-		// v1.1 phase 2: connections support. Tolerated-duplicate ALTERs —
-		// "duplicate column name" errors mean an already-migrated DB.
-		`ALTER TABLE jobs ADD COLUMN result TEXT`,
-		`ALTER TABLE jobs ADD COLUMN connections_job_id TEXT`,
 		`CREATE TABLE IF NOT EXISTS entities (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			note_path TEXT NOT NULL,
@@ -169,6 +165,19 @@ func (q *Queue) initSchema() error {
 	for _, stmt := range statements {
 		if _, err := q.db.Exec(stmt); err != nil {
 			return fmt.Errorf("failed to execute: %w", err)
+		}
+	}
+
+	// v1.1 phase 2 migrations: idempotent column adds. SQLite has no
+	// "ADD COLUMN IF NOT EXISTS", so a duplicate-column error means an
+	// already-migrated database and is treated as success.
+	for _, alter := range []string{
+		`ALTER TABLE jobs ADD COLUMN result TEXT`,
+		`ALTER TABLE jobs ADD COLUMN connections_job_id TEXT`,
+	} {
+		if _, err := q.db.Exec(alter); err != nil &&
+			!strings.Contains(err.Error(), "duplicate column name") {
+			return fmt.Errorf("failed to migrate: %w", err)
 		}
 	}
 
