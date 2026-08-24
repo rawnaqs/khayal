@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/rawnaqs/khayal/internal/chunk"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -83,6 +85,31 @@ func TestConfigValidation(t *testing.T) {
 				t.Error("expected token to be auto-generated")
 			}
 		})
+	}
+}
+
+func TestApplyDefaults(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Search = SearchConfig{} // simulates a config file with no search section
+	cfg.ApplyDefaults()
+
+	if cfg.Search.MaxResults != 50 {
+		t.Errorf("MaxResults = %d, want 50", cfg.Search.MaxResults)
+	}
+	if cfg.Search.ChunkTargetWords != 175 {
+		t.Errorf("ChunkTargetWords = %d, want 175", cfg.Search.ChunkTargetWords)
+	}
+	if cfg.Search.ChunkMinWords != 50 {
+		t.Errorf("ChunkMinWords = %d, want 50", cfg.Search.ChunkMinWords)
+	}
+	if cfg.Search.ChunkOverlapWords != 35 {
+		t.Errorf("ChunkOverlapWords = %d, want 35", cfg.Search.ChunkOverlapWords)
+	}
+
+	d := chunk.DefaultOptions()
+	got := cfg.Search.ChunkOptions()
+	if got != d {
+		t.Errorf("ChunkOptions() = %+v, want %+v", got, d)
 	}
 }
 

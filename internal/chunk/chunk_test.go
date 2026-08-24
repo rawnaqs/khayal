@@ -152,6 +152,33 @@ func TestChunkText_WallOfTextStaysWhole(t *testing.T) {
 	}
 }
 
+func TestChunkText_ZeroOverlapPreservesContent(t *testing.T) {
+	// Regression: with OverlapWords=0, no paragraph may be dropped or
+	// misclassified as an overlap prefix during finalize.
+	text := "one two three four five\n\nsix seven eight\n\nnine ten eleven twelve\n\nthirteen fourteen fifteen sixteen"
+	opts := Options{TargetWords: 8, MinWords: 4, OverlapWords: 0}
+	chunks := ChunkText(text, opts)
+
+	joined := ""
+	for i, c := range chunks {
+		if i > 0 {
+			joined += "\n\n"
+		}
+		joined += c.Content
+	}
+
+	for _, para := range []string{
+		"one two three four five",
+		"six seven eight",
+		"nine ten eleven twelve",
+		"thirteen fourteen fifteen sixteen",
+	} {
+		if !strings.Contains(joined, para) {
+			t.Errorf("paragraph %q missing from output:\n%s", para, joined)
+		}
+	}
+}
+
 func TestChunkText_WordCount(t *testing.T) {
 	chunks := ChunkText(
 		"hello world this is a test note with many words here",

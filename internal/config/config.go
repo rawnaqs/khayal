@@ -267,7 +267,7 @@ func (c *Config) ApplyDefaults() {
 	if c.Search.ChunkMinWords <= 0 {
 		c.Search.ChunkMinWords = d.MinWords
 	}
-	if c.Search.ChunkOverlapWords < 0 {
+	if c.Search.ChunkOverlapWords <= 0 {
 		c.Search.ChunkOverlapWords = d.OverlapWords
 	}
 	if c.LLM.TruncateTextTokens == 0 {

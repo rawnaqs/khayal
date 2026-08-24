@@ -54,6 +54,14 @@ func (e ErrEmbeddingCountMismatch) Error() string {
 // FTS-indexed at this point, so chunk failures fail open and only the
 // vectors are skipped.
 func saveChunks(ctx context.Context, q *queue.Queue, llmClient llm.LLMExt, notePath, content string, opts chunk.Options) {
+	chunks := chunk.ChunkText(content, opts)
+	slog.Debug("chunk indexing",
+		"note_path", notePath,
+		"content_chars", len(content),
+		"paragraphs", strings.Count(content, "\n\n")+1,
+		"opts", opts,
+		"chunks", len(chunks),
+	)
 	if err := SaveChunksForNote(ctx, q, llmClient, notePath, content, opts); err != nil {
 		slog.Warn("chunk indexing failed", "note_path", notePath, "error", err)
 	}

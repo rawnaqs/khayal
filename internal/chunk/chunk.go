@@ -45,9 +45,10 @@ func ChunkText(text string, opts Options) []Chunk {
 			content := strings.Join(cur, paraSep)
 			chunks = append(chunks, Chunk{Content: content, WordCount: curWords})
 
-			overlapActive = true
 			cur = nil
+			overlapActive = false
 			if op := joinWords(takeLastNWords(content, opts.OverlapWords)); op != "" {
+				overlapActive = true
 				cur = append(cur, op)
 				curWords = wordCount(op)
 			} else {
