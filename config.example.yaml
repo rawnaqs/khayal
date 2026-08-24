@@ -73,6 +73,12 @@ search:
   rrf_k: 60
   min_semantic_score: 0.5
 
+  # Chunk-level semantic indexing: notes are split into overlapping,
+  # paragraph-aligned chunks and each chunk is embedded separately.
+  chunk_target_words: 175    # words per chunk
+  chunk_min_words: 50        # smaller fragments merge into the previous chunk
+  chunk_overlap_words: 35    # words carried between consecutive chunks
+
 log:
   level: info
   worker_level: info

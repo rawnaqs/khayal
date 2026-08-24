@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/rawnaqs/khayal/internal/chunk"
 	"github.com/rawnaqs/khayal/internal/config"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
@@ -15,6 +18,28 @@ import (
 
 type mockLLMForIngest struct {
 	embedCalls atomic.Int32
+	batchCalls atomic.Int32
+
+	batchSizesMu   sync.Mutex
+	batchSizesList []int
+}
+
+func newMockLLMForIngest() *mockLLMForIngest {
+	return &mockLLMForIngest{}
+}
+
+func (m *mockLLMForIngest) recordBatch(n int) {
+	m.batchSizesMu.Lock()
+	defer m.batchSizesMu.Unlock()
+	m.batchSizesList = append(m.batchSizesList, n)
+}
+
+func (m *mockLLMForIngest) batchSizesSnapshot() []int {
+	m.batchSizesMu.Lock()
+	defer m.batchSizesMu.Unlock()
+	out := make([]int, len(m.batchSizesList))
+	copy(out, m.batchSizesList)
+	return out
 }
 
 func (m *mockLLMForIngest) Embed(text string) ([]float32, error) {
@@ -23,6 +48,8 @@ func (m *mockLLMForIngest) Embed(text string) ([]float32, error) {
 }
 
 func (m *mockLLMForIngest) EmbedBatch(texts []string) ([][]float32, error) {
+	m.batchCalls.Add(1)
+	m.recordBatch(len(texts))
 	result := make([][]float32, len(texts))
 	for i := range texts {
 		result[i] = make([]float32, 384)
@@ -210,7 +237,7 @@ func TestIngestText_BasicSuccess(t *testing.T) {
 	q, v, cleanup := setupTestIngest(t)
 	defer cleanup()
 
-	llm := &mockLLMForIngest{}
+	llm := newMockLLMForIngest()
 	ctx := context.Background()
 
 	job := &queue.Job{
@@ -220,7 +247,7 @@ func TestIngestText_BasicSuccess(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	notePath, err := IngestText(ctx, job, v, q, llm)
+	notePath, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions())
 	if err != nil {
 		t.Fatalf("IngestText failed: %v", err)
 	}
@@ -229,8 +256,76 @@ func TestIngestText_BasicSuccess(t *testing.T) {
 		t.Error("expected note path to be set")
 	}
 
-	if llm.embedCalls.Load() != 1 {
-		t.Errorf("expected 1 embed call, got %d", llm.embedCalls.Load())
+	if got := llm.batchCalls.Load(); got != 1 {
+		t.Errorf("expected 1 EmbedBatch call, got %d", got)
+	}
+	if sizes := llm.batchSizesSnapshot(); len(sizes) != 1 || sizes[0] != 1 {
+		t.Errorf("expected single-chunk batch, got sizes %v", sizes)
+	}
+	if n, err := q.CountChunks(ctx, notePath); err != nil || n != 1 {
+		t.Errorf("expected 1 stored chunk, got %d (err=%v)", n, err)
+	}
+}
+
+func TestIngestText_ChunksLongNote(t *testing.T) {
+	q, v, cleanup := setupTestIngest(t)
+	defer cleanup()
+
+	llm := newMockLLMForIngest()
+	ctx := context.Background()
+
+	para := strings.Repeat("alpha beta gamma delta epsilon ", 20) // 100 words
+	job := &queue.Job{
+		ID:   "test-job-long",
+		Type: "text",
+		Content: para + "\n\n" +
+			strings.Repeat(para+"\n\n", 5) + para, // 6 paragraphs
+		CreatedAt: time.Now(),
+	}
+
+	notePath, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions())
+	if err != nil {
+		t.Fatalf("IngestText failed: %v", err)
+	}
+
+	sizes := llm.batchSizesSnapshot()
+	if len(sizes) != 1 {
+		t.Fatalf("expected exactly one EmbedBatch call, got %d", len(sizes))
+	}
+	if sizes[0] < 3 {
+		t.Errorf("expected long note to produce >=3 chunks, got batch size %d", sizes[0])
+	}
+
+	stored, err := q.CountChunks(ctx, notePath)
+	if err != nil {
+		t.Fatalf("CountChunks failed: %v", err)
+	}
+	if stored != sizes[0] {
+		t.Errorf("stored chunks = %d, but EmbedBatch received %d texts", stored, sizes[0])
+	}
+}
+
+func TestIngestText_ShortNoteSingleChunk(t *testing.T) {
+	q, v, cleanup := setupTestIngest(t)
+	defer cleanup()
+
+	llm := newMockLLMForIngest()
+	ctx := context.Background()
+
+	job := &queue.Job{
+		ID:        "test-job-short",
+		Type:      "text",
+		Content:   "tiny thought",
+		CreatedAt: time.Now(),
+	}
+
+	notePath, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions())
+	if err != nil {
+		t.Fatalf("IngestText failed: %v", err)
+	}
+
+	if n, err := q.CountChunks(ctx, notePath); err != nil || n != 1 {
+		t.Errorf("expected short note stored as 1 chunk, got %d (err=%v)", n, err)
 	}
 }
 
@@ -250,7 +345,7 @@ func TestIngestText_ConcurrentExecution(t *testing.T) {
 	}
 
 	start := time.Now()
-	_, err := IngestText(ctx, job, v, q, llm)
+	_, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions())
 	elapsed := time.Since(start)
 
 	if err != nil {
@@ -277,7 +372,7 @@ func TestIngestText_FailFastOnError(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	_, err := IngestText(ctx, job, v, nil, failLLM)
+	_, err := IngestText(ctx, job, v, nil, failLLM, chunk.DefaultOptions())
 	if err == nil {
 		t.Error("expected error when ExtractTags fails")
 	}

@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -267,34 +268,6 @@ func TestIndexNote(t *testing.T) {
 	err = q.IndexNote(ctx, "inbox/test.md", "Test Title", "test content here", "golang,test")
 	if err != nil {
 		t.Fatalf("IndexNote() error = %v", err)
-	}
-}
-
-func TestSaveEmbedding(t *testing.T) {
-	tmpDir := t.TempDir()
-	dbPath := filepath.Join(tmpDir, "test.db")
-
-	q, err := NewQueue(dbPath)
-	if err != nil {
-		t.Fatalf("NewQueue() error = %v", err)
-	}
-	defer q.Close()
-
-	ctx := context.Background()
-	job := &Job{
-		Type:      "text",
-		Status:    "done",
-		CreatedAt: time.Now(),
-	}
-	q.CreateJob(ctx, job)
-
-	vector := make([]float32, 384)
-	for i := range vector {
-		vector[i] = float32(i) * 0.01
-	}
-
-	if err := q.SaveEmbedding(ctx, job.ID, "nomic-embed-text", vector); err != nil {
-		t.Fatalf("SaveEmbedding() error = %v", err)
 	}
 }
 
@@ -607,6 +580,61 @@ func TestContextCancellation(t *testing.T) {
 	err = q.CreateJob(ctx, job)
 	if err == nil {
 		t.Error("expected error for cancelled context")
+	}
+}
+
+func TestDeleteChunksByNote(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	q, err := NewQueue(dbPath)
+	if err != nil {
+		t.Fatalf("NewQueue() error = %v", err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+
+	// Deleting chunks for an unknown note is a no-op, not an error.
+	if err := q.DeleteChunksByNote(ctx, "inbox/missing.md"); err != nil {
+		t.Fatalf("DeleteChunksByNote(missing) error = %v", err)
+	}
+
+	for i := range 3 {
+		if err := q.SaveChunk(ctx, "inbox/note.md", i,
+			fmt.Sprintf("chunk %d content", i), make([]float32, 384)); err != nil {
+			t.Fatalf("SaveChunk() error = %v", err)
+		}
+	}
+	if err := q.SaveChunk(ctx, "inbox/other.md", 0,
+		"other note chunk", make([]float32, 384)); err != nil {
+		t.Fatalf("SaveChunk() error = %v", err)
+	}
+
+	if n, err := q.CountChunks(ctx, "inbox/note.md"); err != nil || n != 3 {
+		t.Fatalf("expected 3 chunks before delete, got %d (err=%v)", n, err)
+	}
+
+	if err := q.DeleteChunksByNote(ctx, "inbox/note.md"); err != nil {
+		t.Fatalf("DeleteChunksByNote() error = %v", err)
+	}
+
+	if n, err := q.CountChunks(ctx, "inbox/note.md"); err != nil || n != 0 {
+		t.Errorf("expected 0 chunks after delete, got %d (err=%v)", n, err)
+	}
+	if n, err := q.CountChunks(ctx, "inbox/other.md"); err != nil || n != 1 {
+		t.Errorf("expected other note untouched (1 chunk), got %d (err=%v)", n, err)
+	}
+
+	// Idempotent re-save: delete then insert again replaces cleanly.
+	for i := range 2 {
+		if err := q.SaveChunk(ctx, "inbox/note.md", i,
+			fmt.Sprintf("new chunk %d", i), make([]float32, 384)); err != nil {
+			t.Fatalf("SaveChunk() re-save error = %v", err)
+		}
+	}
+	if n, err := q.CountChunks(ctx, "inbox/note.md"); err != nil || n != 2 {
+		t.Errorf("expected 2 chunks after re-save, got %d (err=%v)", n, err)
 	}
 }
 

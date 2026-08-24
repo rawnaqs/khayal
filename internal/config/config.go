@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/rawnaqs/khayal/internal/chunk"
 	"gopkg.in/yaml.v3"
 )
 
@@ -90,23 +91,23 @@ type PromptConfig struct {
 	DescribeImage   string `yaml:"describe_image"`
 
 	// Per-bucket system prompt overrides (fall back to the base above if empty)
-	ExtractTagsText          string `yaml:"extract_tags_text"`
-	ExtractTagsArticle       string `yaml:"extract_tags_article"`
-	ExtractTagsImage         string `yaml:"extract_tags_image"`
-	SummarizeText            string `yaml:"summarize_text"`
-	SummarizeArticle         string `yaml:"summarize_article"`
-	ExtractKeyIdeasText      string `yaml:"extract_key_ideas_text"`
-	ExtractKeyIdeasArticle   string `yaml:"extract_key_ideas_article"`
+	ExtractTagsText        string `yaml:"extract_tags_text"`
+	ExtractTagsArticle     string `yaml:"extract_tags_article"`
+	ExtractTagsImage       string `yaml:"extract_tags_image"`
+	SummarizeText          string `yaml:"summarize_text"`
+	SummarizeArticle       string `yaml:"summarize_article"`
+	ExtractKeyIdeasText    string `yaml:"extract_key_ideas_text"`
+	ExtractKeyIdeasArticle string `yaml:"extract_key_ideas_article"`
 
 	// Per-bucket user prompt template overrides (uses %s for content)
-	ExtractTagsTextTemplate          string `yaml:"extract_tags_text_template"`
-	ExtractTagsArticleTemplate       string `yaml:"extract_tags_article_template"`
-	ExtractTagsImageTemplate         string `yaml:"extract_tags_image_template"`
-	SummarizeTextTemplate            string `yaml:"summarize_text_template"`
-	SummarizeArticleTemplate         string `yaml:"summarize_article_template"`
-	ExtractKeyIdeasTextTemplate      string `yaml:"extract_key_ideas_text_template"`
-	ExtractKeyIdeasArticleTemplate   string `yaml:"extract_key_ideas_article_template"`
-	DescribeImageTemplate            string `yaml:"describe_image_template"`
+	ExtractTagsTextTemplate        string `yaml:"extract_tags_text_template"`
+	ExtractTagsArticleTemplate     string `yaml:"extract_tags_article_template"`
+	ExtractTagsImageTemplate       string `yaml:"extract_tags_image_template"`
+	SummarizeTextTemplate          string `yaml:"summarize_text_template"`
+	SummarizeArticleTemplate       string `yaml:"summarize_article_template"`
+	ExtractKeyIdeasTextTemplate    string `yaml:"extract_key_ideas_text_template"`
+	ExtractKeyIdeasArticleTemplate string `yaml:"extract_key_ideas_article_template"`
+	DescribeImageTemplate          string `yaml:"describe_image_template"`
 }
 
 type WorkerConfig struct {
@@ -120,10 +121,23 @@ type DBConfig struct {
 }
 
 type SearchConfig struct {
-	MaxResults       int     `yaml:"max_results"`
-	MaxExcerpt       int     `yaml:"max_excerpt"`
-	RRFK             int     `yaml:"rrf_k"`
-	MinSemanticScore float64 `yaml:"min_semantic_score"`
+	MaxResults        int     `yaml:"max_results"`
+	MaxExcerpt        int     `yaml:"max_excerpt"`
+	RRFK              int     `yaml:"rrf_k"`
+	MinSemanticScore  float64 `yaml:"min_semantic_score"`
+	ChunkTargetWords  int     `yaml:"chunk_target_words"`
+	ChunkMinWords     int     `yaml:"chunk_min_words"`
+	ChunkOverlapWords int     `yaml:"chunk_overlap_words"`
+}
+
+// ChunkOptions converts the search config's chunk sizing fields into
+// chunker options.
+func (c SearchConfig) ChunkOptions() chunk.Options {
+	return chunk.Options{
+		TargetWords:  c.ChunkTargetWords,
+		MinWords:     c.ChunkMinWords,
+		OverlapWords: c.ChunkOverlapWords,
+	}
 }
 
 type LogConfig struct {
@@ -243,6 +257,18 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.Search.MinSemanticScore == 0 {
 		c.Search.MinSemanticScore = 0.5
+	}
+	// Chunk sizing: zero or negative values fall back to the chunk
+	// package's defaults — the single source of truth for these numbers.
+	d := chunk.DefaultOptions()
+	if c.Search.ChunkTargetWords <= 0 {
+		c.Search.ChunkTargetWords = d.TargetWords
+	}
+	if c.Search.ChunkMinWords <= 0 {
+		c.Search.ChunkMinWords = d.MinWords
+	}
+	if c.Search.ChunkOverlapWords <= 0 {
+		c.Search.ChunkOverlapWords = d.OverlapWords
 	}
 	if c.LLM.TruncateTextTokens == 0 {
 		c.LLM.TruncateTextTokens = 2000

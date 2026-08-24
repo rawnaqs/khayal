@@ -29,7 +29,7 @@ go mod tidy
 
 **Notes:**
 - Pin age to v1.2.0 (not @latest)
-- No chunker dependency (chunking dropped from v1.1)
+- Chunk-level indexing shipped separately (see GitHub issue #7): paragraph-aligned chunks with per-chunk embeddings, wired through ingest and `khayal reindex`
 
 ## Files Created
 

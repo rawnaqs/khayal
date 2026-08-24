@@ -468,26 +468,25 @@ func (c *OllamaClient) EmbedBatch(texts []string) ([][]float32, error) {
 		return nil, nil
 	}
 
-	prompts := make([]map[string]string, len(texts))
-	for i, text := range texts {
-		prompts[i] = map[string]string{"prompt": text}
-	}
-
-	reqBody := map[string]any{
-		"model":   c.embedModel,
-		"prompts": prompts,
-	}
-
-	body, err := json.Marshal(reqBody)
+	body, err := json.Marshal(map[string]any{
+		"model": c.embedModel,
+		"input": texts,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := c.httpClient.Post(c.baseURL+"/api/embeddings", "application/json", bytes.NewReader(body))
+	resp, err := c.httpClient.Post(c.baseURL+"/api/embed", "application/json", bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	// Ollama <0.3.0 has no batch endpoint — fall back to the legacy
+	// single-prompt route, one call per text.
+	if resp.StatusCode == http.StatusNotFound {
+		return c.embedBatchLegacy(texts)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("embed batch request failed with status %d", resp.StatusCode)
@@ -501,11 +500,23 @@ func (c *OllamaClient) EmbedBatch(texts []string) ([][]float32, error) {
 		return nil, err
 	}
 
-	if len(result.Embeddings) == 0 {
+	if len(result.Embeddings) != len(texts) {
 		return nil, fmt.Errorf("empty embeddings returned")
 	}
 
 	return result.Embeddings, nil
+}
+
+func (c *OllamaClient) embedBatchLegacy(texts []string) ([][]float32, error) {
+	out := make([][]float32, 0, len(texts))
+	for _, text := range texts {
+		vec, err := c.Embed(text)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, vec)
+	}
+	return out, nil
 }
 
 func parseJSONArray(result string) []string {

@@ -2,6 +2,7 @@
 
 | Phase | File | Description |
 |-------|------|-------------|
+| 0 | [GitHub issue #7](https://github.com/rawnaqs/khayal/issues/7) | Chunk-level indexing (shipped) |
 | 1 | [phase-1-entities.md](phase-1-entities.md) | Extract entities from notes |
 | 2 | [phase-2-connections.md](phase-2-connections.md) | Proactive connections |
 | 3 | [phase-3-vault.md](phase-3-vault.md) | Vault maintenance commands |

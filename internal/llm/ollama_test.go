@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/rawnaqs/khayal/internal/config"
@@ -14,8 +15,8 @@ import (
 func TestOllamaClient_EmbedBatch(t *testing.T) {
 	var receivedBody map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/embeddings" {
-			t.Errorf("expected path /api/embeddings, got %s", r.URL.Path)
+		if r.URL.Path != "/api/embed" {
+			t.Errorf("expected path /api/embed, got %s", r.URL.Path)
 		}
 
 		if r.Header.Get("Content-Type") != "application/json" {
@@ -30,13 +31,13 @@ func TestOllamaClient_EmbedBatch(t *testing.T) {
 			t.Errorf("expected model test-embed-model, got %v", receivedBody["model"])
 		}
 
-		prompts, ok := receivedBody["prompts"].([]any)
+		input, ok := receivedBody["input"].([]any)
 		if !ok {
-			t.Fatal("expected prompts to be an array")
+			t.Fatal("expected input to be an array")
 		}
 
-		if len(prompts) != 2 {
-			t.Errorf("expected 2 prompts, got %d", len(prompts))
+		if len(input) != 2 || input[0] != "text 1" || input[1] != "text 2" {
+			t.Errorf("expected inputs [\"text 1\" \"text 2\"], got %v", input)
 		}
 
 		json.NewEncoder(w).Encode(map[string]any{
@@ -67,14 +68,70 @@ func TestOllamaClient_EmbedBatch(t *testing.T) {
 	}
 }
 
+func TestOllamaClient_EmbedBatch_LegacyFallback(t *testing.T) {
+	var mu sync.Mutex
+	legacyCalls := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/embed":
+			w.WriteHeader(http.StatusNotFound)
+		case "/api/embeddings":
+			var receivedBody map[string]any
+			if err := json.NewDecoder(r.Body).Decode(&receivedBody); err != nil {
+				t.Fatalf("failed to decode legacy request: %v", err)
+			}
+			prompt, ok := receivedBody["prompt"].(string)
+			if !ok {
+				t.Fatalf("expected string prompt, got %v", receivedBody["prompt"])
+			}
+			mu.Lock()
+			legacyCalls++
+			idx := legacyCalls - 1
+			mu.Unlock()
+
+			var vec []float32
+			switch prompt {
+			case "text 1":
+				vec = []float32{0.1, 0.2, 0.3}
+			case "text 2":
+				vec = []float32{0.4, 0.5, 0.6}
+			default:
+				t.Fatalf("unexpected prompt %q", prompt)
+			}
+			_ = idx
+			json.NewEncoder(w).Encode(map[string]any{"embedding": vec})
+		default:
+			t.Fatalf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client := NewOllamaClient(server.URL, "test-embed-model", "test-text-model", "test-vision-model")
+	results, err := client.EmbedBatch([]string{"text 1", "text 2"})
+	if err != nil {
+		t.Fatalf("EmbedBatch fallback failed: %v", err)
+	}
+
+	mu.Lock()
+	calls := legacyCalls
+	mu.Unlock()
+	if calls != 2 {
+		t.Errorf("expected 2 legacy calls, got %d", calls)
+	}
+	if len(results) != 2 || results[1][0] != 0.4 {
+		t.Errorf("expected ordered results [2 vectors, second starting 0.4], got %v", results)
+	}
+}
+
 func TestOllamaClient_EmbedBatch_SingleText(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var receivedBody map[string]any
 		json.NewDecoder(r.Body).Decode(&receivedBody)
 
-		prompts := receivedBody["prompts"].([]any)
-		if len(prompts) != 1 {
-			t.Errorf("expected 1 prompt, got %d", len(prompts))
+		input := receivedBody["input"].([]any)
+		if len(input) != 1 {
+			t.Errorf("expected 1 input, got %d", len(input))
 		}
 
 		json.NewEncoder(w).Encode(map[string]any{
@@ -110,6 +167,9 @@ func TestOllamaClient_EmbedBatch_EmptyInput(t *testing.T) {
 
 func TestOllamaClient_EmbedBatch_HTTPError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/embed" {
+			t.Fatalf("expected path /api/embed, got %s", r.URL.Path)
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()
