@@ -44,7 +44,7 @@ Khayal and Obsidian are complementary. Khayal is a capture and retrieval layer �
 
 - **Capture** — Text, images, URLs, articles with zero friction
 - **Process** — Tags, summaries, key ideas via local LLM
-- **Search** — Keyword (FTS5) + semantic (embeddings) hybrid
+- **Search** — Keyword (FTS5) + semantic (chunk-level embeddings) hybrid, with passage-level excerpts
 - **Store** — Plain markdown in your vault, yours forever
 - **PWA** — Web interface, works offline, update notifications
   - Offline capture queue (syncs when server is back)
@@ -170,6 +170,11 @@ worker:
 db:
   path: khayal.db
 
+search:
+  chunk_target_words: 175    # semantic search indexes paragraph-aligned chunks
+  chunk_min_words: 50
+  chunk_overlap_words: 35
+
 log:
   level: info
   file: logs/khayal.log
@@ -200,7 +205,7 @@ All on your machine. Back up the vault directory — it's plain markdown.
 | `khayal stop` | Graceful shutdown |
 | `khayal restart` | Stop + start |
 | `khayal status` | Server status + update check |
-| `khayal reindex` | Rebuild search index |
+| `khayal reindex` | Rebuild search index (FTS + chunk embeddings) |
 | `khayal config` | View config (token redacted) |
 
 ### Client (`kl`)

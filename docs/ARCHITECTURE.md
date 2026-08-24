@@ -121,15 +121,15 @@ User Input → API Server → Vault Writer → Search Index → Response
 ### Capture (Image/URL - Asynchronous)
 
 ```
-User Input → API Server → Job Queue → Worker → Ingest → Vault
-                (queued)              (async)   (10-15s) (done)
+User Input → API Server → Job Queue → Worker → Ingest → Vault → Chunk Index
+                (queued)              (async)   (10-15s) (done)  (batch embed)
 ```
 
 ### Search
 
 ```
 Query → API Server → Keyword Search (FTS5)
-                  → Semantic Search (embeddings)
+                  → Semantic Search (chunk embeddings, best chunk per note)
                   → Hybrid Combine → Results
 ```
 
@@ -274,7 +274,7 @@ No other code changes required. See `docs/phases/phase-4-llm.md` for details.
 ```
 ~/.config/khayal/
 ├── config.yaml          ← Main config (600 permissions)
-├── khayal.db            ← SQLite: queue + embeddings
+├── khayal.db            ← SQLite: queue + FTS index + chunk vectors
 ├── logs/
 │   └── khayal.log       ← Request + system logs
 └── media/               ← Raw audio/video (not in vault)
