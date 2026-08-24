@@ -43,16 +43,24 @@ func IngestText(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Q
 		return "", fmt.Errorf("llm extraction failed: %w", err)
 	}
 
+	// Sequential enrichment pass — not part of the errgroup above.
+	rawEntities, err := llmClient.ExtractEntities(job.Content, llm.BucketText)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract entities: %w", err)
+	}
+	entities := NormalizeEntities(rawEntities)
+
 	title := extractTitle(job.Content)
 	now := time.Now().UTC()
 
 	note := &vault.Note{
 		Metadata: vault.NoteMetadata{
-			Created: job.CreatedAt,
-			Updated: &now,
-			Type:    "text",
-			Status:  "done",
-			Tags:    tags,
+			Created:  job.CreatedAt,
+			Updated:  &now,
+			Type:     "text",
+			Status:   "done",
+			Tags:     tags,
+			Entities: entities.toVaultBlock(),
 			History: []vault.HistoryEvent{
 				{At: now, Event: "processed"},
 			},
@@ -66,6 +74,10 @@ func IngestText(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Q
 	notePath, err := v.WriteNote(note, job.ID)
 	if err != nil {
 		return "", fmt.Errorf("failed to write note: %w", err)
+	}
+
+	if err := q.SaveEntities(ctx, notePath, entities.toQueue()); err != nil {
+		return "", fmt.Errorf("failed to save entities: %w", err)
 	}
 
 	if err := q.IndexNote(ctx, notePath, title, job.Content, strings.Join(tags, ",")); err != nil {

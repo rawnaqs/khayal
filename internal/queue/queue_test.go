@@ -638,6 +638,103 @@ func TestDeleteChunksByNote(t *testing.T) {
 	}
 }
 
+func TestSaveEntities(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	q, err := NewQueue(dbPath)
+	if err != nil {
+		t.Fatalf("NewQueue() error = %v", err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+
+	// Deleting entities for an unknown note is a no-op.
+	if err := q.DeleteEntities(ctx, "inbox/missing.md"); err != nil {
+		t.Fatalf("DeleteEntities(missing) error = %v", err)
+	}
+
+	ents := NoteEntities{
+		People:  []string{"John Doe"},
+		Amounts: []string{"2000", "3000"},
+		Dates:   []string{"March 2024"},
+	}
+	if err := q.SaveEntities(ctx, "inbox/note.md", ents); err != nil {
+		t.Fatalf("SaveEntities() error = %v", err)
+	}
+
+	var n int
+	if err := q.db.QueryRow(
+		`SELECT COUNT(*) FROM entities WHERE note_path='inbox/note.md' AND entity_type='person'`,
+	).Scan(&n); err != nil || n != 1 {
+		t.Errorf("person rows = %d (err=%v), want 1", n, err)
+	}
+	if err := q.db.QueryRow(
+		`SELECT COUNT(*) FROM entities WHERE note_path='inbox/note.md' AND entity_type='amount'`,
+	).Scan(&n); err != nil || n != 2 {
+		t.Errorf("amount rows = %d (err=%v), want 2", n, err)
+	}
+
+	// Idempotent: saving again replaces the enrichment rows.
+	if err := q.SaveEntities(ctx, "inbox/note.md", NoteEntities{
+		People: []string{"Jane Smith"},
+	}); err != nil {
+		t.Fatalf("SaveEntities(retry) error = %v", err)
+	}
+	if err := q.db.QueryRow(
+		`SELECT COUNT(*) FROM entities WHERE note_path='inbox/note.md'`,
+	).Scan(&n); err != nil || n != 1 {
+		t.Errorf("rows after re-save = %d (err=%v), want 1", n, err)
+	}
+}
+
+func TestSaveEntities_PreservesTitleAndTagRows(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "test.db")
+
+	q, err := NewQueue(dbPath)
+	if err != nil {
+		t.Fatalf("NewQueue() error = %v", err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+
+	// IndexNote writes 'title' and 'tag' rows into the same table.
+	if err := q.IndexNote(ctx, "inbox/note.md", "Test Title", "content", "golang,test"); err != nil {
+		t.Fatalf("IndexNote() error = %v", err)
+	}
+
+	if err := q.SaveEntities(ctx, "inbox/note.md", NoteEntities{
+		People: []string{"John Doe"},
+	}); err != nil {
+		t.Fatalf("SaveEntities() error = %v", err)
+	}
+
+	var n int
+	if err := q.db.QueryRow(
+		`SELECT COUNT(*) FROM entities WHERE note_path='inbox/note.md' AND entity_type IN ('title','tag')`,
+	).Scan(&n); err != nil || n != 3 {
+		t.Errorf("title/tag rows = %d (err=%v), want 3", n, err)
+	}
+	if err := q.db.QueryRow(
+		`SELECT COUNT(*) FROM entities WHERE note_path='inbox/note.md' AND entity_type='person'`,
+	).Scan(&n); err != nil || n != 1 {
+		t.Errorf("person rows = %d (err=%v), want 1", n, err)
+	}
+
+	// And re-indexing must not wipe enrichment rows either.
+	if err := q.UpdateNoteIndex(ctx, "inbox/note.md", "Test Title", "content", "golang,test"); err != nil {
+		t.Fatalf("UpdateNoteIndex() error = %v", err)
+	}
+	if err := q.db.QueryRow(
+		`SELECT COUNT(*) FROM entities WHERE note_path='inbox/note.md' AND entity_type='person'`,
+	).Scan(&n); err != nil || n != 1 {
+		t.Errorf("person rows after UpdateNoteIndex = %d (err=%v), want 1", n, err)
+	}
+}
+
 func TestJobStoreInterface(t *testing.T) {
 	var store JobStore = &Queue{}
 	_ = store

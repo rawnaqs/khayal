@@ -11,6 +11,14 @@
 - [ ] Build verification
 - [ ] Run go mod tidy
 
+## Deferred Decisions
+
+- [ ] **Dedupe identical normalized amounts**: the LLM may return `$2,000`
+  and `2k` as separate mentions; both normalize to `2000` and are stored as
+  two rows. Faithful to source, but proactive connections could fire twice
+  for one amount. Decide: dedupe at normalization time vs. dedupe at
+  connection-surface time. (Surfaced during phase-1 verification.)
+
 ## Existing Code (Verified)
 
 - **go.mod** — Already exists (go 1.25.8)

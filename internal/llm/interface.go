@@ -15,6 +15,19 @@ type LLMExt interface {
 	ExtractTags(content string, bucket string) ([]string, error)
 	Summarize(content string, bucket string) (string, error)
 	ExtractKeyIdeas(content string, bucket string) ([]string, error)
+	ExtractEntities(content string, bucket string) (EntityResult, error)
+}
+
+// EntityResult is the raw structured-entity output from the LLM,
+// before any normalization. Defined here rather than in ingest to
+// avoid an import cycle.
+type EntityResult struct {
+	People  []string `json:"people"`
+	Amounts []string `json:"amounts"`
+	Dates   []string `json:"dates"`
+	Places  []string `json:"places"`
+	Orgs    []string `json:"orgs"`
+	URLs    []string `json:"urls"`
 }
 
 const (

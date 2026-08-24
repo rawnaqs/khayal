@@ -55,16 +55,16 @@ func NewOllamaClientWithConcurrency(baseURL, embedModel, textModel, visionModel 
 		httpClient: &http.Client{
 			Timeout: constants.OllamaClientTimeout,
 		},
-		logger:              slog.Default(),
-		semaphore:           make(chan struct{}, maxConcurrent),
-		temperature:         constants.DefaultTemperature,
-		temperatureTags:     0.3,
+		logger:               slog.Default(),
+		semaphore:            make(chan struct{}, maxConcurrent),
+		temperature:          constants.DefaultTemperature,
+		temperatureTags:      0.3,
 		temperatureSummarize: 0.4,
-		temperatureKeyIdeas: 0.7,
-		temperatureVision:   0.7,
-		systemPrompts:       constants.DefaultSystemPrompts,
-		prompts:             constants.DefaultPromptTemplates,
-		perBucketSystem:     make(map[string]string),
+		temperatureKeyIdeas:  0.7,
+		temperatureVision:    0.7,
+		systemPrompts:        constants.DefaultSystemPrompts,
+		prompts:              constants.DefaultPromptTemplates,
+		perBucketSystem:      make(map[string]string),
 	}
 }
 
@@ -127,6 +127,8 @@ func (c *OllamaClient) getSystemPrompt(op, bucket string) string {
 		return c.systemPrompts.Summarize
 	case "extract_key_ideas":
 		return c.systemPrompts.ExtractKeyIdeas
+	case "extract_entities":
+		return c.systemPrompts.ExtractEntities
 	case "describe_image":
 		return c.systemPrompts.DescribeImage
 	default:
@@ -162,10 +164,26 @@ func (c *OllamaClient) SetPerBucketSystem(perBucket map[string]string) {
 	}
 }
 
-func (c *OllamaClient) SetTempTag(v float64)       { if v > 0 { c.temperatureTags = v } }
-func (c *OllamaClient) SetTempSummarize(v float64)  { if v > 0 { c.temperatureSummarize = v } }
-func (c *OllamaClient) SetTempKeyIdeas(v float64)   { if v > 0 { c.temperatureKeyIdeas = v } }
-func (c *OllamaClient) SetTempVision(v float64)     { if v > 0 { c.temperatureVision = v } }
+func (c *OllamaClient) SetTempTag(v float64) {
+	if v > 0 {
+		c.temperatureTags = v
+	}
+}
+func (c *OllamaClient) SetTempSummarize(v float64) {
+	if v > 0 {
+		c.temperatureSummarize = v
+	}
+}
+func (c *OllamaClient) SetTempKeyIdeas(v float64) {
+	if v > 0 {
+		c.temperatureKeyIdeas = v
+	}
+}
+func (c *OllamaClient) SetTempVision(v float64) {
+	if v > 0 {
+		c.temperatureVision = v
+	}
+}
 
 func (c *OllamaClient) acquire(ctx context.Context) error {
 	select {
@@ -414,6 +432,36 @@ func (c *OllamaClient) ExtractTags(content string, bucket string) ([]string, err
 	}
 
 	return tags, nil
+}
+
+// ExtractEntities pulls structured entities out of content. A malformed
+// LLM response degrades to an empty result rather than failing the job —
+// entities are enrichment, not core data.
+func (c *OllamaClient) ExtractEntities(content string, bucket string) (EntityResult, error) {
+	truncated := truncateForLLM(content, c.truncateLimit(bucket))
+
+	tmpl, ok := c.prompts.ExtractEntities[bucket]
+	if !ok {
+		tmpl = c.prompts.ExtractEntities["text"]
+	}
+	userPrompt := fmt.Sprintf(tmpl, truncated)
+
+	systemPrompt := c.getSystemPrompt("extract_entities", bucket)
+	result, err := c.GenerateWithSystemTemp(systemPrompt, userPrompt, c.getTemperature("extract_entities"))
+	if err != nil {
+		return EntityResult{}, fmt.Errorf("failed to extract entities: %w", err)
+	}
+
+	var parsed EntityResult
+	if err := json.NewDecoder(strings.NewReader(result)).Decode(&parsed); err != nil {
+		raw := result
+		if len(raw) > 200 {
+			raw = raw[:200]
+		}
+		c.logger.Warn("entity extraction: invalid JSON from LLM", "raw", raw)
+		return EntityResult{}, nil
+	}
+	return parsed, nil
 }
 
 func (c *OllamaClient) Summarize(content string, bucket string) (string, error) {

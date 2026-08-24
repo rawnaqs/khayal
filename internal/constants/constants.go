@@ -43,12 +43,18 @@ const (
 	DefaultTruncateArticleTokens = 12000
 )
 
+// Frontmatter limits
+const (
+	MaxEntitiesPerType = 10
+)
+
 // System prompts define the model's persona and output expectations.
 type SystemPrompts struct {
 	ExtractTags     string `yaml:"extract_tags"`
 	Summarize       string `yaml:"summarize"`
 	ExtractKeyIdeas string `yaml:"extract_key_ideas"`
 	DescribeImage   string `yaml:"describe_image"`
+	ExtractEntities string `yaml:"extract_entities"`
 }
 
 var DefaultSystemPrompts = SystemPrompts{
@@ -100,6 +106,23 @@ Include:
 - Colors, layout, and spatial relationships if relevant
 
 Output format: Plain descriptive text. Do NOT use bullet points or numbered lists. Write in flowing prose.`,
+
+	ExtractEntities: `You are a structured entity extractor for a personal knowledge base. Your task is to extract entities from the given content.
+
+Rules:
+- people: full names of real people mentioned (not fictional, not the author)
+- amounts: monetary or numerical amounts (e.g. "$2,000", "2k", "500 users")
+- dates: specific dates or date ranges mentioned (e.g. "March 2024", "2019-03-03")
+- places: cities, countries, regions, specific locations
+- orgs: company names, organization names, institutions
+- urls: any URLs mentioned in the content
+- Return empty arrays if nothing is found for a type
+- Maximum 10 items per type
+- Prefer full forms over abbreviations
+
+Output format: Respond with ONLY a valid JSON object with these exact keys. No markdown wrapping, no commentary, no text outside the object.
+Correct: {"people":["John Doe"],"amounts":["2000"],"dates":[],"places":[],"orgs":[],"urls":[]}
+Wrong: Here are the entities: {...}`,
 }
 
 // Prompt templates define per-bucket user prompts.
@@ -108,6 +131,7 @@ type PromptTemplates struct {
 	Summarize       map[string]string `yaml:"summarize"`
 	ExtractKeyIdeas map[string]string `yaml:"extract_key_ideas"`
 	DescribeImage   string            `yaml:"describe_image"`
+	ExtractEntities map[string]string `yaml:"extract_entities"`
 }
 
 var DefaultPromptTemplates = PromptTemplates{
@@ -125,4 +149,9 @@ var DefaultPromptTemplates = PromptTemplates{
 		"article": "Extract 3-5 distinct key ideas from this article:\n\n%s",
 	},
 	DescribeImage: "Describe this image in detail for later retrieval.",
+	ExtractEntities: map[string]string{
+		"text":    "Extract structured entities (people, amounts, dates, places, orgs, urls) from this thought:\n\n%s",
+		"article": "Extract structured entities (people, amounts, dates, places, orgs, urls) from this article:\n\n%s",
+		"image":   "Extract structured entities (people, amounts, dates, places, orgs, urls) from this image description:\n\n%s",
+	},
 }

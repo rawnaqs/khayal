@@ -43,7 +43,7 @@ Khayal and Obsidian are complementary. Khayal is a capture and retrieval layer �
 ## Features
 
 - **Capture** — Text, images, URLs, articles with zero friction
-- **Process** — Tags, summaries, key ideas via local LLM
+- **Process** — Tags, summaries, key ideas, entities via local LLM
 - **Search** — Keyword (FTS5) + semantic (chunk-level embeddings) hybrid, with passage-level excerpts
 - **Store** — Plain markdown in your vault, yours forever
 - **PWA** — Web interface, works offline, update notifications

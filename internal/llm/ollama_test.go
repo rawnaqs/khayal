@@ -365,14 +365,14 @@ func TestFactory_AppliesPromptConfig(t *testing.T) {
 	customArticleTemplate := "Custom article template: %s"
 
 	cfg := config.LLMConfig{
-		Provider:    "ollama",
-		OllamaHost:  server.URL,
-		EmbedModel:  "e",
-		TextModel:   "t",
-		VisionModel: "v",
+		Provider:          "ollama",
+		OllamaHost:        server.URL,
+		EmbedModel:        "e",
+		TextModel:         "t",
+		VisionModel:       "v",
 		MaxLLMConcurrency: 1,
 		Prompts: &config.PromptConfig{
-			ExtractTags:               customTagPrompt,
+			ExtractTags:                customTagPrompt,
 			ExtractTagsArticleTemplate: customArticleTemplate,
 		},
 	}
@@ -403,13 +403,13 @@ func TestFactory_AppliesTemperatureOverrides(t *testing.T) {
 	defer server.Close()
 
 	cfg := config.LLMConfig{
-		Provider:            "ollama",
-		OllamaHost:          server.URL,
-		EmbedModel:          "e",
-		TextModel:           "t",
-		VisionModel:         "v",
-		MaxLLMConcurrency:   1,
-		TemperatureTags:     0.2,
+		Provider:             "ollama",
+		OllamaHost:           server.URL,
+		EmbedModel:           "e",
+		TextModel:            "t",
+		VisionModel:          "v",
+		MaxLLMConcurrency:    1,
+		TemperatureTags:      0.2,
 		TemperatureSummarize: 0.35,
 		TemperatureKeyIdeas:  0.8,
 		TemperatureVision:    0.9,
@@ -433,5 +433,70 @@ func TestFactory_AppliesTemperatureOverrides(t *testing.T) {
 	}
 	if got := ollamaClient.getTemperature("describe_image"); got != 0.9 {
 		t.Errorf("vision temp = %f, want 0.9", got)
+	}
+}
+
+func TestOllamaClient_ExtractEntities(t *testing.T) {
+	tests := []struct {
+		name        string
+		response    string
+		status      int
+		wantErr     bool
+		errContains string
+		wantPeople  int
+	}{
+		{
+			name:       "valid JSON parses",
+			response:   `{"people":["John Doe"],"amounts":["2000"],"dates":[],"places":[],"orgs":["Acme"],"urls":[]}`,
+			status:     http.StatusOK,
+			wantPeople: 1,
+		},
+		{
+			name:       "invalid JSON degrades to empty result",
+			response:   `Here are the entities: {people: [John]}`,
+			status:     http.StatusOK,
+			wantPeople: 0,
+		},
+		{
+			name:        "generate error propagates",
+			response:    "",
+			status:      http.StatusInternalServerError,
+			wantErr:     true,
+			errContains: "500",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/generate" {
+					t.Fatalf("unexpected path %s", r.URL.Path)
+				}
+				w.WriteHeader(tt.status)
+				if tt.status == http.StatusOK {
+					json.NewEncoder(w).Encode(map[string]any{"response": tt.response})
+				}
+			}))
+			defer server.Close()
+
+			client := NewOllamaClient(server.URL, "embed", "text-model", "vision")
+			got, err := client.ExtractEntities("John Doe paid $2,000", BucketText)
+
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("error %v missing %q", err, tt.errContains)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got.People) != tt.wantPeople {
+				t.Errorf("people = %v, want %d entries", got.People, tt.wantPeople)
+			}
+		})
 	}
 }
