@@ -167,6 +167,31 @@ vault:
 
 ---
 
+## Frontmatter Entities Block (v1.1)
+
+Every processed note carries an `entities:` block between `tags:` and
+`history:` — always present, even when empty, so all notes share the same
+frontmatter shape. Values are LLM-extracted and normalized by khayal
+(amounts become plain integer strings).
+
+```yaml
+entities:
+  people:
+    - John Doe
+  amounts:
+    - 2000        # "$2,000" and "2k" both normalize to 2000
+  dates:
+    - March 2024
+  places:  []
+  urls:  []
+  orgs:
+    - Acme Corp
+```
+
+Field order is fixed: people, amounts, dates, places, urls, orgs.
+At most 10 values per field. The same entities live in the SQLite
+`entities` table for fast lookup.
+
 ## Reading Notes (Reader)
 
 The `vault.Reader` reads and parses markdown notes from the vault inbox. It parses YAML frontmatter and extracts markdown sections.

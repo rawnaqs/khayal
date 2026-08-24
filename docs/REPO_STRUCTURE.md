@@ -75,14 +75,14 @@ khayal/
 │   ├── ingest/
 │   │   ├── text.go                 # Text processing (tags, summary)
 │   │   ├── image.go                # Image processing (description, OCR)
-│   │   └── article.go             # Article scraping, summarization
+│   │   ├── article.go              # Article scraping, summarization
+│   │   ├── chunks.go               # Chunk + batch-embed + persist pipeline
+│   │   └── entities.go             # Entity extraction + normalization
 │   │
 │   ├── llm/
 │   │   ├── interface.go            # LLM interface definition
-│   │   ├── ollama.go              # Ollama client
-│   │   ├── groq.go                # Groq client
-│   │   ├── openai.go              # OpenAI client
-│   │   └── factory.go             # LLM factory
+│   │   ├── ollama.go               # Ollama client
+│   │   └── factory.go              # LLM factory
 │   │
 │   ├── vault/
 │   │   └── writer.go               # Markdown writer, frontmatter
@@ -368,6 +368,15 @@ type LLM interface {
     Ping() error
     Type() string
 }
+
+// LLMExt adds the enrichment extractions.
+type LLMExt interface {
+    LLM
+    ExtractTags(content, bucket string) ([]string, error)
+    Summarize(content, bucket string) (string, error)
+    ExtractKeyIdeas(content, bucket string) ([]string, error)
+    ExtractEntities(content, bucket string) (EntityResult, error)
+}
 ```
 
 ### Chunking (internal/chunk/chunk.go)
@@ -402,11 +411,16 @@ type JobStore interface {
         content string, embedding []float32) error
     DeleteChunksByNote(ctx context.Context, notePath string) error
     CountChunks(ctx context.Context, notePath string) (int, error)
+    SaveEntities(ctx context.Context, notePath string, ents NoteEntities) error
+    DeleteEntities(ctx context.Context, notePath string) error
 }
 ```
 
 `ReplaceChunks(notePath, rows)` atomically replaces a note's whole chunk
-set (used by ingest and `khayal reindex`).
+set (used by ingest and `khayal reindex`). The `entities` table has two
+independent writers: IndexNote/UpdateNoteIndex own `title`/`tag` rows,
+SaveEntities owns the six enrichment types (`person`, `amount`, `date`,
+`place`, `org`, `url`) — each deletes only its own types.
 
 ### Vault (internal/vault/writer.go)
 
