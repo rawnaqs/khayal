@@ -178,6 +178,18 @@ paths:
             type: boolean
             default: false
           example: false
+        - name: overview
+          in: query
+          required: false
+          description: |
+            Generate an AI answer above the results, synthesized from the
+            top result excerpts with [n] citations (v1.1 phase 2.6).
+            Explicitly requested by the client; generation failure returns
+            overview: null without failing the search.
+          schema:
+            type: boolean
+            default: false
+          example: false
       responses:
         '200':
           description: Search results
@@ -298,6 +310,56 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /note:
+    delete:
+      tags:
+        - Vault
+      summary: Delete a note (soft-delete)
+      description: |
+        Move a note from the vault inbox to `.khayal-trash/` and purge its
+        search index, chunk vectors, and entity rows (v1.1 phase 3).
+        Never hard-deletes: the file remains recoverable from the trash
+        directory. Aborts if the file was modified externally since last
+        known state (vault safety contract).
+      parameters:
+        - name: path
+          in: query
+          required: true
+          description: |
+            Note path relative to the vault root, as returned by capture
+            and search results (e.g. "khayal/2026-08-24-my-note-abc123.md").
+          schema:
+            type: string
+          example: "khayal/2026-08-24-my-note-abc123.md"
+      responses:
+        '200':
+          description: Note moved to trash and index purged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+                  trash_path:
+                    type: string
+                    description: Location of the moved file inside .khayal-trash/
+                example:
+                  deleted: true
+                  trash_path: ".khayal-trash/2026-08-24-my-note-abc123.md"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: File modified externally — mtime conflict, delete aborted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -521,6 +583,21 @@ components:
           type: integer
         took_ms:
           type: integer
+        overview:
+          description: >
+            AI answer synthesized from top result excerpts (v1.1 phase 2.6).
+            Present only when overview=true was requested and generation
+            succeeded; null on failure or empty results.
+          type: object
+          nullable: true
+          properties:
+            text:
+              type: string
+            citations:
+              type: array
+              description: Zero-based indices into results referenced as [n] in text.
+              items:
+                type: integer
 
     SearchResult:
       type: object

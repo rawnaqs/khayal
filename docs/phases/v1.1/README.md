@@ -1,22 +1,28 @@
 # v1.1 Implementation Guide
 
-> Entity Extraction, Proactive Connections, Vault Commands, Backup/Restore. Updated: 2026-04-11
+> Entity Extraction, Proactive Connections, Capture Intelligence, Search Overview, Vault Commands, Backup/Restore. Updated: 2026-08-25
 
 ## Overview
 
 v1.1 adds:
-1. **Entity Extraction** — Extract people, amounts, dates, places, orgs, URLs
-2. **Proactive Connections** — Auto-discover related notes after capture
-3. **Vault Commands** — health, fix-links, clean-media, show-duplicates
-4. **Backup/Restore** — Backup vault, db, config with optional age encryption
+1. **Entity Extraction** — Extract people, amounts, dates, places, orgs, URLs *(shipped)*
+2. **Chunk-level Indexing** — Passage-granular semantic search *(shipped, see issue #7)*
+3. **Proactive Connections** — Auto-discover related notes after capture
+4. **Capture Intelligence (2.5)** — Resolve relative dates ("tomorrow" → real date) + LLM context memory injected into enrichment prompts
+5. **Search Overview (2.6)** — On-demand AI answer above search results (explicit CTA in PWA and `kl search --answer`; no config option)
+6. **Vault Commands** — health, fix-links, clean-media, show-duplicates + user-facing delete note (soft-delete to `.khayal-trash/`)
+7. **Backup/Restore** — Backup vault, db, config with optional age encryption
 
 ## Phases
 
 | Phase | Name | Description |
 |-------|------|-------------|
-| 1 | Entity Extraction | Extract entities from notes |
+| 0 | Chunk-level indexing | Shipped via #7 |
+| 1 | Entity Extraction | Shipped |
 | 2 | Proactive Connections | Find related notes |
-| 3 | Vault Commands | Maintenance subcommands |
+| 2.5 | Capture Intelligence | Date resolution + LLM memory |
+| 2.6 | Search Overview | On-demand AI answer |
+| 3 | Vault Commands | Maintenance subcommands + delete note |
 | 4 | Backup/Restore | Backup and restore |
 | 5 | Polish | Final integration |
 

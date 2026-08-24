@@ -1505,7 +1505,10 @@ CREATE VIRTUAL TABLE chunks_vec USING vec0(
 ## Phases After v1
 
 ```
-v1.1  → Chunking + Entity extraction + connections (similar, person, amount) + backup
+v1.1  → Chunking + entity extraction + connections (similar, person, amount)
+      + capture intelligence (relative-date resolution + LLM context memory,
+      phase 2.5) + search overview (on-demand AI answer, phase 2.6)
+      + user-facing delete note (soft-delete, in vault commands) + backup
 v1.2  → connections (contradiction, follow_up, revisit) + voice notes + PDF
 v1.3  → Graph connections, backlinks
 v1.4  → YouTube / video ingestion
@@ -1517,6 +1520,30 @@ v2.1  → Windows support
 v2.2  → Mobile app (github.com/rawnaqs/khayal-mobile)
 v2.3  → Nix + NixOS distribution
 ```
+
+### Capture Intelligence (v1.1 phase 2.5)
+
+Two capture-side features that make enrichment and connections smarter
+over time:
+
+- **Relative date resolution** — at capture time, resolve references like
+  "today", "tomorrow", "in 3 days", "next friday" against capture time.
+  Pure Go, deterministic, no extra LLM call. Stored in frontmatter as
+  `- tomorrow → 2026-08-27` and in a nullable `entities.resolved_date`
+  column for follow-up queries (connection Type 5).
+- **LLM context memory** — before enrichment, assemble a compact context
+  block from known entities (glossary) and top-3 semantically similar past
+  note summaries; inject into tags/summary/key-ideas/entities prompts so
+  naming stays consistent across months. Strictly local, fail-open,
+  config-gated via `memory.enabled` (default true).
+
+### Search Overview (v1.1 phase 2.6)
+
+On-demand AI answer above search results, Google-Gemini style. Triggered
+explicitly — PWA "AI Answer" button or `kl search --answer`; never
+automatic, no config option. The answer is synthesized from the top-K
+result excerpts with `[n]` citations into the result list. Search itself
+never fails because of the answer (fail-open to `overview: null`).
 
 **v2.0 Setup Wizard:**
 - First-launch UI (no CLI required)
