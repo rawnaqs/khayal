@@ -537,6 +537,10 @@ chunk and returns its parent note with the best-scoring chunk as the
 excerpt. Writes go through transactional `ReplaceChunks`, so a note's
 chunk set is replaced atomically.
 
+Note: capture-time ingest chunks only the raw submitted content, while
+`khayal reindex` chunks the full note body (including generated Summary /
+Key Ideas sections) — see [ADR-0001](adr/0001-chunk-coverage-asymmetry-capture-vs-reindex.md).
+
 ### stats_cache table
 
 ```sql
