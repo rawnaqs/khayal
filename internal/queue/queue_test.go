@@ -2,8 +2,10 @@ package queue
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -738,4 +740,129 @@ func TestSaveEntities_PreservesTitleAndTagRows(t *testing.T) {
 func TestJobStoreInterface(t *testing.T) {
 	var store JobStore = &Queue{}
 	_ = store
+}
+
+func TestConnectionsHelpers(t *testing.T) {
+	tmpDir := t.TempDir()
+	q, err := NewQueue(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	mkJob := func(id, path string, age time.Duration) {
+		j := &Job{ID: id, Type: "text", Status: "done",
+			NotePath: path, Content: "Alice and Bob met. " + id,
+			CreatedAt: now.Add(-age)}
+		if err := q.CreateJob(ctx, j); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mkJob("old-1", "khayal/old-1.md", 10*24*time.Hour)
+	mkJob("old-2", "khayal/old-2.md", 30*24*time.Hour)
+	mkJob("new-1", "khayal/new-1.md", 1*time.Hour)
+
+	for _, p := range []string{"khayal/old-1.md", "khayal/old-2.md", "khayal/new-1.md"} {
+		if err := q.SaveEntities(ctx, p, NoteEntities{People: []string{"Alice"}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	cutoff := now.Add(-7 * 24 * time.Hour)
+
+	t.Run("GetEntitiesByNote returns values for type", func(t *testing.T) {
+		vals, err := q.GetEntitiesByNote(ctx, "khayal/old-1.md", "person")
+		if err != nil || len(vals) != 1 || vals[0] != "Alice" {
+			t.Fatalf("got %v (err=%v)", vals, err)
+		}
+	})
+
+	t.Run("GetNotesByEntity respects cutoff, most recent first", func(t *testing.T) {
+		notes, err := q.GetNotesByEntity(ctx, "Alice", "person", cutoff)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(notes) != 2 {
+			t.Fatalf("expected only in-window notes, got %d", len(notes))
+		}
+		if notes[0].NotePath != "khayal/old-1.md" {
+			t.Errorf("expected most-recent-first, got %s", notes[0].NotePath)
+		}
+	})
+
+	t.Run("CountNotesByEntity excludes given note", func(t *testing.T) {
+		n, err := q.CountNotesByEntity(ctx, "Alice", "person", cutoff, "khayal/old-1.md")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if n != 1 {
+			t.Errorf("expected 1 other note, got %d", n)
+		}
+	})
+
+	t.Run("GetChunkEmbeddingForNote round-trips", func(t *testing.T) {
+		vec := []float32{0.25, 0.5, 0.75}
+		if err := q.SaveChunk(ctx, "khayal/old-1.md", 0, "some content", vec); err != nil {
+			t.Fatal(err)
+		}
+		got, ok, err := q.GetChunkEmbeddingForNote(ctx, "khayal/old-1.md")
+		if err != nil || !ok || len(got) != 3 || got[2] != 0.75 {
+			t.Fatalf("got %v ok=%v (err=%v)", got, ok, err)
+		}
+		if _, ok, _ := q.GetChunkEmbeddingForNote(ctx, "khayal/none.md"); ok {
+			t.Error("expected no embedding for unknown note")
+		}
+	})
+}
+
+func TestUpdateJobResultAndLink(t *testing.T) {
+	tmpDir := t.TempDir()
+	q, err := NewQueue(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+	ingest := &Job{ID: "ingest-1", Type: "text", Status: "done",
+		NotePath: "khayal/n.md", CreatedAt: time.Now()}
+	if err := q.CreateJob(ctx, ingest); err != nil {
+		t.Fatal(err)
+	}
+	job := &Job{ID: "j1", Type: "connections", Status: "processing",
+		NotePath: "khayal/n.md", CreatedAt: time.Now()}
+	if err := q.CreateJob(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+
+	payload := map[string]any{"connections": []map[string]any{
+		{"type": "person", "note_path": "khayal/old.md"},
+	}}
+	blob, _ := json.Marshal(payload)
+	if err := q.UpdateJobResult(ctx, "j1", blob); err != nil {
+		t.Fatalf("UpdateJobResult: %v", err)
+	}
+
+	if err := q.LinkConnectionsJob(ctx, "ingest-1", "j1"); err != nil {
+		t.Fatalf("LinkConnectionsJob: %v", err)
+	}
+
+	got, err := q.GetJob(ctx, "j1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Result == nil || !strings.Contains(string(got.Result), "khayal/old.md") {
+		t.Errorf("result not persisted: %s", string(got.Result))
+	}
+
+	src, err := q.GetJob(ctx, "ingest-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src.ConnectionsJobID != "j1" {
+		t.Errorf("link not persisted: %q", src.ConnectionsJobID)
+	}
 }

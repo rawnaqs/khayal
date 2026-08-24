@@ -121,7 +121,7 @@ func runStart() error {
 	}
 	cli.PrintAction("llm", cfg.LLM.Provider)
 
-	w := worker.NewWorker(cfg.Worker, cfg.Search.ChunkOptions(), q, v, llmClient, loggerSetup.WorkerLogger)
+	w := worker.NewWorker(cfg.Worker, cfg.Search.ChunkOptions(), cfg.Connections, q, v, llmClient, loggerSetup.WorkerLogger)
 	w.Start()
 	cli.PrintAction("worker", "started")
 

@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/rawnaqs/khayal/internal/chunk"
 	"github.com/rawnaqs/khayal/internal/config"
+	"github.com/rawnaqs/khayal/internal/connections"
 	"github.com/rawnaqs/khayal/internal/constants"
 	"github.com/rawnaqs/khayal/internal/ingest"
 	"github.com/rawnaqs/khayal/internal/llm"
@@ -24,13 +26,14 @@ type Worker struct {
 	llm       llm.LLMExt
 	config    config.WorkerConfig
 	chunkOpts chunk.Options
+	connCfg   config.ConnectionsConfig
 	jobs      chan string
 	wg        sync.WaitGroup
 	running   atomic.Bool
 	logger    *slog.Logger
 }
 
-func NewWorker(cfg config.WorkerConfig, chunkOpts chunk.Options, q *queue.Queue, v *vault.Writer, l llm.LLMExt, logger *slog.Logger) *Worker {
+func NewWorker(cfg config.WorkerConfig, chunkOpts chunk.Options, connCfg config.ConnectionsConfig, q *queue.Queue, v *vault.Writer, l llm.LLMExt, logger *slog.Logger) *Worker {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -40,6 +43,7 @@ func NewWorker(cfg config.WorkerConfig, chunkOpts chunk.Options, q *queue.Queue,
 		llm:       l,
 		config:    cfg,
 		chunkOpts: chunkOpts,
+		connCfg:   connCfg,
 		jobs:      make(chan string, 1000),
 		logger:    logger,
 	}
@@ -151,8 +155,14 @@ func (w *Worker) processJob(jobID string) {
 		notePath, processErr = ingest.IngestImage(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts)
 	case "article":
 		notePath, processErr = ingest.IngestArticle(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts)
+	case "connections":
+		processErr = w.processConnections(ctx, job)
 	default:
 		processErr = fmt.Errorf("unknown job type: %s", job.Type)
+	}
+
+	if processErr == nil && job.Type != "connections" {
+		w.chainConnections(ctx, jobID, notePath)
 	}
 
 	if processErr != nil {
@@ -229,4 +239,47 @@ func (w *Worker) calculateBackoff(retry int) time.Duration {
 	default:
 		return time.Duration(math.Pow(2, float64(retry))) * time.Second
 	}
+}
+
+// chainConnections enqueues a connections job for a successfully ingested
+// note and records its id on the ingest job so polling clients can find
+// the results. Chaining failures are logged, never fatal — connections are
+// enrichment.
+func (w *Worker) chainConnections(ctx context.Context, ingestJobID, notePath string) {
+	if !config.IsOn(w.connCfg.Enabled) || notePath == "" {
+		return
+	}
+	connJob := &queue.Job{
+		Type:     "connections",
+		Status:   "pending",
+		NotePath: notePath,
+	}
+	if err := w.queue.CreateJob(ctx, connJob); err != nil {
+		w.logger.Warn("failed to enqueue connections job",
+			"job_id", ingestJobID, "error", err)
+		return
+	}
+	if err := w.queue.LinkConnectionsJob(ctx, ingestJobID, connJob.ID); err != nil {
+		w.logger.Warn("failed to link connections job",
+			"job_id", ingestJobID, "connections_job_id", connJob.ID, "error", err)
+	}
+	w.logger.Info("connections job queued",
+		"job_id", ingestJobID,
+		"connections_job_id", connJob.ID,
+		"note_path", notePath,
+	)
+}
+
+// processConnections runs the connection engine for one note and stores
+// the ranked result on the job row.
+func (w *Worker) processConnections(ctx context.Context, job *queue.Job) error {
+	conns, err := connections.Find(ctx, w.queue, job.NotePath, w.connCfg)
+	if err != nil {
+		return fmt.Errorf("connection engine failed: %w", err)
+	}
+	payload, err := json.Marshal(map[string]any{"connections": conns})
+	if err != nil {
+		return fmt.Errorf("marshal connections: %w", err)
+	}
+	return w.queue.UpdateJobResult(ctx, job.ID, payload)
 }

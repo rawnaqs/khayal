@@ -27,13 +27,14 @@ func DefaultServerURL() string {
 }
 
 type Config struct {
-	Vault  VaultConfig  `yaml:"vault"`
-	Server ServerConfig `yaml:"server"`
-	LLM    LLMConfig    `yaml:"llm"`
-	Worker WorkerConfig `yaml:"worker"`
-	DB     DBConfig     `yaml:"db"`
-	Search SearchConfig `yaml:"search"`
-	Log    LogConfig    `yaml:"log"`
+	Vault       VaultConfig       `yaml:"vault"`
+	Server      ServerConfig      `yaml:"server"`
+	LLM         LLMConfig         `yaml:"llm"`
+	Worker      WorkerConfig      `yaml:"worker"`
+	DB          DBConfig          `yaml:"db"`
+	Search      SearchConfig      `yaml:"search"`
+	Connections ConnectionsConfig `yaml:"connections"`
+	Log         LogConfig         `yaml:"log"`
 }
 
 type VaultConfig struct {
@@ -139,6 +140,25 @@ func (c SearchConfig) ChunkOptions() chunk.Options {
 		OverlapWords: c.ChunkOverlapWords,
 	}
 }
+
+type ConnectionsConfig struct {
+	// Enabled gates the whole feature; nil means true (default on).
+	Enabled             *bool            `yaml:"enabled"`
+	MinAgeDays          int              `yaml:"min_age_days"`
+	MaxPerCapture       int              `yaml:"max_per_capture"`
+	SimilarityThreshold float64          `yaml:"similarity_threshold"`
+	Types               ConnectionsTypes `yaml:"types"`
+}
+
+// ConnectionsTypes toggles individual connection types; nil means on.
+type ConnectionsTypes struct {
+	Similar *bool `yaml:"similar"`
+	Person  *bool `yaml:"person"`
+	Amount  *bool `yaml:"amount"`
+}
+
+// IsOn resolves a nil-means-true flag.
+func IsOn(f *bool) bool { return f == nil || *f }
 
 type LogConfig struct {
 	Level             string `yaml:"level"`
@@ -269,6 +289,15 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.Search.ChunkOverlapWords <= 0 {
 		c.Search.ChunkOverlapWords = d.OverlapWords
+	}
+	if c.Connections.MinAgeDays <= 0 {
+		c.Connections.MinAgeDays = 7
+	}
+	if c.Connections.MaxPerCapture <= 0 {
+		c.Connections.MaxPerCapture = 3
+	}
+	if c.Connections.SimilarityThreshold <= 0 {
+		c.Connections.SimilarityThreshold = 0.85
 	}
 	if c.LLM.TruncateTextTokens == 0 {
 		c.LLM.TruncateTextTokens = 2000

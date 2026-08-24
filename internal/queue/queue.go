@@ -97,6 +97,11 @@ type Job struct {
 	ProcessedAt *time.Time `json:"processed_at,omitempty"`
 	Error       string     `json:"error,omitempty"`
 	Retries     int        `json:"retries"`
+	// Connections chaining (phase 2): set on ingest jobs after their
+	// connections job is created; the connections job itself stores its
+	// payload in Result.
+	Result           json.RawMessage `json:"result,omitempty"`
+	ConnectionsJobID string          `json:"connections_job_id,omitempty"`
 }
 
 type SearchResult struct {
@@ -131,6 +136,10 @@ func (q *Queue) initSchema() error {
 		// v1.1: drop the legacy per-job embeddings table; chunks is the
 		// canonical vector store.
 		`DROP TABLE IF EXISTS embeddings`,
+		// v1.1 phase 2: connections support. Tolerated-duplicate ALTERs —
+		// "duplicate column name" errors mean an already-migrated DB.
+		`ALTER TABLE jobs ADD COLUMN result TEXT`,
+		`ALTER TABLE jobs ADD COLUMN connections_job_id TEXT`,
 		`CREATE TABLE IF NOT EXISTS entities (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			note_path TEXT NOT NULL,
@@ -241,12 +250,16 @@ func (q *Queue) CreateJob(ctx context.Context, job *Job) error {
 func (q *Queue) GetJob(ctx context.Context, id string) (*Job, error) {
 	var createdAtStr string
 	var processedAtStr sql.NullString
+	var resultStr sql.NullString
+	var connJobID sql.NullString
 	job := &Job{}
 	err := q.db.QueryRowContext(ctx, `
-		SELECT id, type, status, note_path, source_url, source_file, content, user_context, created_at, processed_at, error, retries
+		SELECT id, type, status, note_path, source_url, source_file, content, user_context,
+		       created_at, processed_at, error, retries, result, connections_job_id
 		FROM jobs WHERE id = ?`, id).Scan(
 		&job.ID, &job.Type, &job.Status, &job.NotePath, &job.SourceURL, &job.SourceFile,
-		&job.Content, &job.UserContext, &createdAtStr, &processedAtStr, &job.Error, &job.Retries)
+		&job.Content, &job.UserContext, &createdAtStr, &processedAtStr, &job.Error, &job.Retries,
+		&resultStr, &connJobID)
 	if err != nil {
 		return nil, err
 	}
@@ -264,6 +277,11 @@ func (q *Queue) GetJob(ctx context.Context, id string) (*Job, error) {
 		}
 		job.ProcessedAt = &t
 	}
+
+	if resultStr.Valid && resultStr.String != "" {
+		job.Result = json.RawMessage(resultStr.String)
+	}
+	job.ConnectionsJobID = connJobID.String
 
 	return job, nil
 }
@@ -1794,4 +1812,161 @@ func (q *Queue) RecomputeStats(ctx context.Context) (*StatsResponse, error) {
 	}
 
 	return stats, nil
+}
+
+// EntityMatch is a note that shares an entity with the queried note.
+type EntityMatch struct {
+	NotePath  string
+	CreatedAt time.Time
+	Excerpt   string
+}
+
+// GetEntitiesByNote returns a note's stored values for one entity type.
+func (q *Queue) GetEntitiesByNote(ctx context.Context, notePath, entityType string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT entity_value FROM entities
+		WHERE note_path = ? AND entity_type = ?
+		ORDER BY id`,
+		notePath, entityType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var values []string
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			continue
+		}
+		values = append(values, v)
+	}
+	return values, rows.Err()
+}
+
+// GetNotesByEntity returns notes (created before cutoff) that carry the
+// given entity, most recent first. Only notes whose jobs exist are matched.
+func (q *Queue) GetNotesByEntity(ctx context.Context, entityValue, entityType string, cutoff time.Time) ([]EntityMatch, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT e.note_path, j.created_at
+		FROM entities e
+		JOIN jobs j ON e.note_path = j.note_path
+		WHERE e.entity_value = ? AND e.entity_type = ? AND j.created_at < ?
+		GROUP BY e.note_path
+		ORDER BY j.created_at DESC
+		LIMIT 10`,
+		entityValue, entityType, cutoff.UTC().Format(time.RFC3339))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var matches []EntityMatch
+	for rows.Next() {
+		var path, createdAt string
+		if err := rows.Scan(&path, &createdAt); err != nil {
+			continue
+		}
+		t, _ := time.Parse(time.RFC3339, createdAt)
+		excerpt, _ := q.GetNoteExcerpt(ctx, path)
+		matches = append(matches, EntityMatch{NotePath: path, CreatedAt: t, Excerpt: excerpt})
+	}
+	return matches, rows.Err()
+}
+
+// CountNotesByEntity counts OTHER in-window notes carrying the entity —
+// used for "Alice also appears in N other notes" labels.
+func (q *Queue) CountNotesByEntity(ctx context.Context, entityValue, entityType string, cutoff time.Time, excludePath string) (int, error) {
+	var n int
+	err := q.db.QueryRowContext(ctx, `
+		SELECT COUNT(DISTINCT e.note_path)
+		FROM entities e
+		JOIN jobs j ON e.note_path = j.note_path
+		WHERE e.entity_value = ? AND e.entity_type = ? AND j.created_at < ? AND e.note_path != ?`,
+		entityValue, entityType, cutoff.UTC().Format(time.RFC3339), excludePath).Scan(&n)
+	return n, err
+}
+
+// GetChunkEmbeddingForNote returns the note's first stored chunk embedding.
+// ok=false when the note has no chunks (e.g. captured before v1.1).
+func (q *Queue) GetChunkEmbeddingForNote(ctx context.Context, notePath string) ([]float32, bool, error) {
+	var blob []byte
+	err := q.db.QueryRowContext(ctx,
+		`SELECT embedding FROM chunks WHERE note_path = ? ORDER BY chunk_idx LIMIT 1`,
+		notePath).Scan(&blob)
+	if err == sql.ErrNoRows {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	return decodeEmbedding(blob), true, nil
+}
+
+// GetNoteExcerpt returns the best available short text for a note:
+// its lowest-index chunk content, else the head of the job content.
+func (q *Queue) GetNoteExcerpt(ctx context.Context, notePath string) (string, error) {
+	var content string
+	err := q.db.QueryRowContext(ctx,
+		`SELECT content FROM chunks WHERE note_path = ? ORDER BY chunk_idx LIMIT 1`,
+		notePath).Scan(&content)
+	if err == nil && content != "" {
+		return truncateExcerpt(content), nil
+	}
+	err = q.db.QueryRowContext(ctx,
+		`SELECT content FROM jobs WHERE note_path = ? ORDER BY created_at DESC LIMIT 1`,
+		notePath).Scan(&content)
+	if err != nil {
+		return "", err
+	}
+	return truncateExcerpt(content), nil
+}
+
+func truncateExcerpt(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) > 200 {
+		s = s[:200]
+	}
+	return s
+}
+
+// UpdateJobResult stores a JSON payload on a job row (connections output).
+func (q *Queue) UpdateJobResult(ctx context.Context, jobID string, result json.RawMessage) error {
+	const maxRetries = constants.SQLiteMaxRetries
+	var lastErr error
+	for range maxRetries {
+		_, err := q.db.ExecContext(ctx,
+			`UPDATE jobs SET result = ? WHERE id = ?`, string(result), jobID)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if isLockError(err) {
+			time.Sleep(constants.SQLiteRetrySleep)
+			continue
+		}
+		return err
+	}
+	return lastErr
+}
+
+// LinkConnectionsJob records on the ingest job which connections job
+// carries its results.
+func (q *Queue) LinkConnectionsJob(ctx context.Context, ingestJobID, connJobID string) error {
+	const maxRetries = constants.SQLiteMaxRetries
+	var lastErr error
+	for range maxRetries {
+		_, err := q.db.ExecContext(ctx,
+			`UPDATE jobs SET connections_job_id = ? WHERE id = ?`, connJobID, ingestJobID)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+		if isLockError(err) {
+			time.Sleep(constants.SQLiteRetrySleep)
+			continue
+		}
+		return err
+	}
+	return lastErr
 }

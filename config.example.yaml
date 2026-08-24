@@ -79,6 +79,16 @@ search:
   chunk_min_words: 50        # smaller fragments merge into the previous chunk
   chunk_overlap_words: 35    # words carried between consecutive chunks
 
+connections:
+  enabled: true              # master switch for proactive connections
+  min_age_days: 7            # never surface notes younger than this
+  max_per_capture: 3         # strict quality gate
+  similarity_threshold: 0.85 # semantic-similarity cutoff
+  types:
+    similar: true            # toggle each type independently
+    person: true
+    amount: true
+
 log:
   level: info
   worker_level: info
