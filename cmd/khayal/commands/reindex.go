@@ -146,8 +146,9 @@ func runReindex(force bool, ftsOnly bool) error {
 
 		bar.Update(i, label)
 
-		// Get relative path from inbox
-		relPath, err := filepath.Rel(inboxPath, file)
+		// Vault-root-relative path ("<inbox_dir>/<file>.md") — must match
+		// the note_path format ingest writes, so index rows join to jobs.
+		relPath, err := filepath.Rel(vaultPath, file)
 		if err != nil {
 			errors++
 			continue
@@ -167,8 +168,8 @@ func runReindex(force bool, ftsOnly bool) error {
 		// Get tags from frontmatter
 		tags := extractTags(content)
 
-		// Index the note for FTS
-		if err := q.IndexNote(ctx, relPath, title, content, tags); err != nil {
+		// Replace (not append) the FTS row for this note
+		if err := q.UpdateNoteIndex(ctx, relPath, title, content, tags); err != nil {
 			logger.Error("failed to index note", "file", file, "error", err)
 			errors++
 			continue
