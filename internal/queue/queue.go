@@ -37,6 +37,8 @@ type JobStore interface {
 	SaveChunk(ctx context.Context, notePath string, chunkIdx int, content string, embedding []float32) error
 	DeleteChunksByNote(ctx context.Context, notePath string) error
 	CountChunks(ctx context.Context, notePath string) (int, error)
+	SaveEntities(ctx context.Context, notePath string, ents NoteEntities) error
+	DeleteEntities(ctx context.Context, notePath string) error
 	IndexNote(ctx context.Context, notePath, title, content, tags string) error
 	UpdateNoteIndex(ctx context.Context, notePath, title, content, tags string) error
 	DeleteFromIndex(ctx context.Context, notePath string) error
@@ -705,6 +707,123 @@ func (q *Queue) DeleteChunksByNote(ctx context.Context, notePath string) error {
 	return err
 }
 
+// NoteEntities holds enrichment entities extracted from a note. Mirrored
+// from the ingest package's Entities to avoid an import cycle.
+type NoteEntities struct {
+	People  []string
+	Amounts []string
+	Dates   []string
+	Places  []string
+	Orgs    []string
+	URLs    []string
+}
+
+// enrichmentEntityTypes are the entity types owned by SaveEntities.
+// IndexNote separately manages 'title' and 'tag' rows in the same table;
+// scoping deletes to this list keeps the two writers independent.
+var enrichmentEntityTypes = []string{"person", "amount", "date", "place", "org", "url"}
+
+func (e *NoteEntities) rows() [][2]string {
+	rows := make([][2]string, 0, 16)
+	add := func(typ string, vals []string) {
+		for _, v := range vals {
+			if v = strings.TrimSpace(v); v != "" {
+				rows = append(rows, [2]string{typ, v})
+			}
+		}
+	}
+	add("person", e.People)
+	add("amount", e.Amounts)
+	add("date", e.Dates)
+	add("place", e.Places)
+	add("org", e.Orgs)
+	add("url", e.URLs)
+	return rows
+}
+
+// deleteEnrichmentEntities removes only the enrichment rows for a note,
+// leaving the title and tag rows managed by IndexNote untouched.
+func (q *Queue) deleteEnrichmentEntities(ctx context.Context, notePath string) error {
+	placeholders := strings.TrimSuffix(
+		strings.Repeat("?,", len(enrichmentEntityTypes)), ",")
+	args := make([]any, 0, len(enrichmentEntityTypes)+1)
+	args = append(args, notePath)
+	for _, typ := range enrichmentEntityTypes {
+		args = append(args, typ)
+	}
+	_, err := q.db.ExecContext(ctx,
+		`DELETE FROM entities WHERE note_path = ? AND entity_type IN (`+placeholders+`)`,
+		args...)
+	return err
+}
+
+// deleteIndexedEntities removes only the title and tag rows a note-index
+// rewrite owns, leaving enrichment entities untouched.
+func (q *Queue) deleteIndexedEntities(ctx context.Context, notePath string) error {
+	_, err := q.db.ExecContext(ctx,
+		`DELETE FROM entities WHERE note_path = ? AND entity_type IN ('title', 'tag')`,
+		notePath)
+	return err
+}
+
+// SaveEntities stores a note's enrichment entities, replacing any previous
+// ones for that note. Title and tag rows written by IndexNote are preserved.
+func (q *Queue) SaveEntities(ctx context.Context, notePath string, ents NoteEntities) error {
+	const maxRetries = constants.SQLiteMaxRetries
+	var lastErr error
+
+	rows := ents.rows()
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	for attempt := range maxRetries {
+		if err := q.deleteEnrichmentEntities(ctx, notePath); err != nil {
+			lastErr = err
+			if isLockError(err) {
+				q.logger.Warn("sqlite locked, retrying save entities",
+					"note_path", notePath, "attempt", attempt+1)
+				time.Sleep(constants.SQLiteRetrySleep)
+				continue
+			}
+			return err
+		}
+
+		ok := true
+		for _, r := range rows {
+			if _, err := q.db.ExecContext(ctx, `
+				INSERT INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at)
+				VALUES (?, NULL, ?, ?, ?)`,
+				notePath, r[0], r[1], now); err != nil {
+				if isLockError(err) {
+					lastErr = err
+					ok = false
+					break
+				}
+				return err
+			}
+		}
+		if ok {
+			return nil
+		}
+		time.Sleep(constants.SQLiteRetrySleep)
+	}
+	return lastErr
+}
+
+// DeleteEntities removes all enrichment entities for a note.
+func (q *Queue) DeleteEntities(ctx context.Context, notePath string) error {
+	return q.deleteEnrichmentEntities(ctx, notePath)
+}
+
+// CountEntities returns how many rows exist for a note and entity type.
+// Useful for tests and vault health reporting.
+func (q *Queue) CountEntities(ctx context.Context, notePath, entityType string) (int, error) {
+	var n int
+	err := q.db.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM entities WHERE note_path = ? AND entity_type = ?`,
+		notePath, entityType).Scan(&n)
+	return n, err
+}
+
 // ChunkRow is one chunk of a note: its index, text, and embedding.
 type ChunkRow struct {
 	Idx       int
@@ -755,8 +874,7 @@ func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags st
 	for attempt := range maxRetries {
 		now := time.Now().UTC().Format(time.RFC3339)
 
-		_, err := q.db.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath)
-		if err != nil {
+		if err := q.deleteIndexedEntities(ctx, notePath); err != nil {
 			lastErr = err
 			if isLockError(err) {
 				q.logger.Warn("sqlite locked, retrying index note",
@@ -770,7 +888,7 @@ func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags st
 		}
 
 		if title != "" {
-			_, err = q.db.ExecContext(ctx, `
+			_, err := q.db.ExecContext(ctx, `
 				INSERT OR REPLACE INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
 				VALUES (?, NULL, 'title', ?, ?)`,
 				notePath, title, now)
@@ -786,7 +904,7 @@ func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags st
 
 		if len(tagList) > 0 {
 			for _, tag := range tagList {
-				_, err = q.db.ExecContext(ctx, `
+				_, err := q.db.ExecContext(ctx, `
 					INSERT INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
 					VALUES (?, NULL, 'tag', ?, ?)`,
 					notePath, tag, now)
@@ -804,7 +922,7 @@ func (q *Queue) IndexNote(ctx context.Context, notePath, title, content, tags st
 			}
 		}
 
-		_, err = q.db.ExecContext(ctx, `INSERT INTO notes_fts (note_path, content, title, tags) VALUES (?, ?, ?, ?)`, notePath, content, title, tags)
+		_, err := q.db.ExecContext(ctx, `INSERT INTO notes_fts (note_path, content, title, tags) VALUES (?, ?, ?, ?)`, notePath, content, title, tags)
 		if err != nil && isFTSErr(err) {
 			return nil
 		}
@@ -839,8 +957,7 @@ func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, t
 	for attempt := range maxRetries {
 		now := time.Now().UTC().Format(time.RFC3339)
 
-		_, err := q.db.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath)
-		if err != nil {
+		if err := q.deleteIndexedEntities(ctx, notePath); err != nil {
 			lastErr = err
 			if isLockError(err) {
 				q.logger.Warn("sqlite locked, retrying update note index",
@@ -854,7 +971,7 @@ func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, t
 		}
 
 		if title != "" {
-			_, err = q.db.ExecContext(ctx, `
+			_, err := q.db.ExecContext(ctx, `
 				INSERT OR REPLACE INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
 				VALUES (?, NULL, 'title', ?, ?)`,
 				notePath, title, now)
@@ -870,7 +987,7 @@ func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, t
 
 		if len(tagList) > 0 {
 			for _, tag := range tagList {
-				_, err = q.db.ExecContext(ctx, `
+				_, err := q.db.ExecContext(ctx, `
 					INSERT INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at) 
 					VALUES (?, NULL, 'tag', ?, ?)`,
 					notePath, tag, now)
@@ -896,7 +1013,7 @@ func (q *Queue) UpdateNoteIndex(ctx context.Context, notePath, title, content, t
 			}
 			return err
 		}
-		_, err = q.db.ExecContext(ctx, `INSERT INTO notes_fts (note_path, content, title, tags) VALUES (?, ?, ?, ?)`, notePath, content, title, tags)
+		_, err := q.db.ExecContext(ctx, `INSERT INTO notes_fts (note_path, content, title, tags) VALUES (?, ?, ?, ?)`, notePath, content, title, tags)
 		if err != nil && isFTSErr(err) {
 			return nil
 		}

@@ -64,7 +64,11 @@ func applyPromptConfig(client *OllamaClient, p *config.PromptConfig) {
 	}
 
 	perBucket := map[string]string{}
-	setIf := func(k, v string) { if v != "" { perBucket[k] = v } }
+	setIf := func(k, v string) {
+		if v != "" {
+			perBucket[k] = v
+		}
+	}
 	setIf("extract_tags:text", p.ExtractTagsText)
 	setIf("extract_tags:article", p.ExtractTagsArticle)
 	setIf("extract_tags:image", p.ExtractTagsImage)

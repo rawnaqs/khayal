@@ -1,8 +1,10 @@
 package vault
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -308,4 +310,128 @@ func containsHelper(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestRenderNote_WithEntities(t *testing.T) {
+	w := &Writer{}
+	note := &Note{
+		Metadata: NoteMetadata{
+			Created: time.Date(2026, 3, 16, 14, 23, 0, 0, time.UTC),
+			Type:    "text",
+			Status:  "done",
+			Entities: &EntitiesBlock{
+				People:  []string{"John Doe", "Jane Smith"},
+				Amounts: []string{"2000"},
+			},
+		},
+	}
+
+	out := w.renderNote(note)
+
+	if !strings.Contains(out, "entities:\n") {
+		t.Fatalf("entities block missing:\n%s", out)
+	}
+	if !strings.Contains(out, "  people:\n    - John Doe\n    - Jane Smith\n") {
+		t.Errorf("people rendering wrong:\n%s", out)
+	}
+	if !strings.Contains(out, "  amounts:\n    - 2000\n") {
+		t.Errorf("amounts rendering wrong:\n%s", out)
+	}
+	if !strings.Contains(out, "  dates:  []\n") {
+		t.Errorf("empty dates should render as []:\n%s", out)
+	}
+
+	// Order: entities block must come before history when history exists.
+	entIdx := strings.Index(out, "entities:")
+	histIdx := strings.Index(out, "history:")
+	if entIdx == -1 {
+		t.Fatalf("entities block missing:\n%s", out)
+	}
+	if histIdx != -1 && entIdx > histIdx {
+		t.Errorf("entities block must precede history:\n%s", out)
+	}
+}
+
+func TestRenderNote_EmptyEntitiesStillWritten(t *testing.T) {
+	w := &Writer{}
+	note := &Note{
+		Metadata: NoteMetadata{
+			Created:  time.Date(2026, 3, 16, 14, 23, 0, 0, time.UTC),
+			Type:     "text",
+			Status:   "done",
+			Entities: &EntitiesBlock{},
+		},
+	}
+
+	out := w.renderNote(note)
+
+	for _, field := range []string{"people", "amounts", "dates", "places", "urls", "orgs"} {
+		want := "  " + field + ":  []\n"
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %s:\n%s", want, out)
+		}
+	}
+}
+
+func TestRenderNote_NilEntitiesStillWritten(t *testing.T) {
+	w := &Writer{}
+	note := &Note{
+		Metadata: NoteMetadata{
+			Created: time.Date(2026, 3, 16, 14, 23, 0, 0, time.UTC),
+			Type:    "text",
+			Status:  "done",
+		},
+	}
+
+	out := w.renderNote(note)
+	if !strings.Contains(out, "entities:\n") {
+		t.Errorf("nil Entities must still render an empty block:\n%s", out)
+	}
+}
+
+func TestRenderNote_EntitiesCappedAtTen(t *testing.T) {
+	w := &Writer{}
+	people := make([]string, 15)
+	for i := range people {
+		people[i] = fmt.Sprintf("person-%d", i)
+	}
+	note := &Note{
+		Metadata: NoteMetadata{
+			Created:  time.Date(2026, 3, 16, 14, 23, 0, 0, time.UTC),
+			Type:     "text",
+			Status:   "done",
+			Entities: &EntitiesBlock{People: people},
+		},
+	}
+
+	out := w.renderNote(note)
+	if strings.Contains(out, "person-10") {
+		t.Errorf("more than 10 entities rendered:\n%s", out)
+	}
+	if !strings.Contains(out, "person-9") {
+		t.Error("expected first 10 entities to render")
+	}
+}
+
+func TestRenderNote_EntitiesWithSpecialChars(t *testing.T) {
+	w := &Writer{}
+	note := &Note{
+		Metadata: NoteMetadata{
+			Created: time.Date(2026, 3, 16, 14, 23, 0, 0, time.UTC),
+			Type:    "article",
+			Status:  "done",
+			Entities: &EntitiesBlock{
+				URLs: []string{"https://example.com/a:b"},
+				Orgs: []string{"Acme [Inc]"},
+			},
+		},
+	}
+
+	out := w.renderNote(note)
+	if !strings.Contains(out, `- "https://example.com/a:b"`) {
+		t.Errorf("URL containing colon must be quoted:\n%s", out)
+	}
+	if !strings.Contains(out, `- "Acme [Inc]"`) {
+		t.Errorf("value containing brackets must be quoted:\n%s", out)
+	}
 }

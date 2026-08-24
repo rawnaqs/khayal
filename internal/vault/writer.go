@@ -14,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/rawnaqs/khayal/internal/config"
+	"github.com/rawnaqs/khayal/internal/constants"
 	"gopkg.in/yaml.v3"
 )
 
@@ -337,6 +338,55 @@ func (w *Writer) resolvePath(relative string) string {
 	return filepath.Join(w.inboxPath, relative)
 }
 
+// writeEntitiesBlock renders the frontmatter entities section. The block is
+// always written — even when empty — so every note has the same frontmatter
+// shape regardless of processing vintage. Field order matches SPEC.md:
+// people, amounts, dates, places, urls, orgs. Built by hand (no YAML
+// marshal) per the vault-safety contract; values needing quotes get them.
+func (w *Writer) writeEntitiesBlock(buf *bytes.Buffer, e *EntitiesBlock) {
+	if e == nil {
+		e = &EntitiesBlock{}
+	}
+
+	buf.WriteString("entities:\n")
+	fields := []struct {
+		name   string
+		values []string
+	}{
+		{"people", e.People},
+		{"amounts", e.Amounts},
+		{"dates", e.Dates},
+		{"places", e.Places},
+		{"urls", e.URLs},
+		{"orgs", e.Orgs},
+	}
+	for _, f := range fields {
+		vals := f.values
+		if len(vals) > constants.MaxEntitiesPerType {
+			vals = vals[:constants.MaxEntitiesPerType]
+		}
+		if len(vals) == 0 {
+			fmt.Fprintf(buf, "  %s:  []\n", f.name)
+			continue
+		}
+		fmt.Fprintf(buf, "  %s:\n", f.name)
+		for _, v := range vals {
+			fmt.Fprintf(buf, "    - %s\n", yamlSafeValue(v))
+		}
+	}
+}
+
+// yamlSafeValue quotes a string when it contains characters that would
+// break hand-built YAML frontmatter.
+func yamlSafeValue(v string) string {
+	if strings.ContainsAny(v, ":#[]{}") ||
+		strings.HasPrefix(v, " ") || strings.HasSuffix(v, " ") ||
+		strings.HasPrefix(v, "'") || strings.HasPrefix(v, "\"") {
+		return fmt.Sprintf("%q", v)
+	}
+	return v
+}
+
 func (w *Writer) generateFilename(note *Note, jobID string) string {
 	date := note.Metadata.Created.Format("2006-01-02")
 
@@ -393,6 +443,7 @@ func (w *Writer) renderNote(note *Note) string {
 		}
 	}
 
+	w.writeEntitiesBlock(&buf, note.Metadata.Entities)
 	if len(note.Metadata.History) > 0 {
 		buf.WriteString("history:\n")
 		for _, h := range note.Metadata.History[:min(len(note.Metadata.History), MaxHistory)] {

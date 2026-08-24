@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/rawnaqs/khayal/internal/config"
+	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 )
@@ -62,7 +63,11 @@ func (m *mockLLM) Summarize(content string, bucket string) (string, error) {
 }
 
 func (m *mockLLM) ExtractKeyIdeas(content string, bucket string) ([]string, error) {
-	return []string{"key idea 1", "key idea 2"}, nil
+	return []string{"key idea 1"}, nil
+}
+
+func (m *mockLLM) ExtractEntities(content string, bucket string) (llm.EntityResult, error) {
+	return llm.EntityResult{}, nil
 }
 
 type testServer struct {

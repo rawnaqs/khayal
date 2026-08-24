@@ -3,6 +3,7 @@ package ingest
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/rawnaqs/khayal/internal/chunk"
 	"github.com/rawnaqs/khayal/internal/config"
+	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 )
@@ -89,6 +91,13 @@ func (m *mockLLMForIngest) ExtractKeyIdeas(content string, bucket string) ([]str
 	return []string{"key idea 1", "key idea 2"}, nil
 }
 
+func (m *mockLLMForIngest) ExtractEntities(content string, bucket string) (llm.EntityResult, error) {
+	return llm.EntityResult{
+		People:  []string{"John", "John Doe"},
+		Amounts: []string{"$2,000"},
+	}, nil
+}
+
 type mockLLMWithDelay struct {
 	delay time.Duration
 }
@@ -142,6 +151,11 @@ func (m *mockLLMWithDelay) Summarize(content string, bucket string) (string, err
 func (m *mockLLMWithDelay) ExtractKeyIdeas(content string, bucket string) ([]string, error) {
 	time.Sleep(m.delay)
 	return []string{"key idea 1"}, nil
+}
+
+func (m *mockLLMWithDelay) ExtractEntities(content string, bucket string) (llm.EntityResult, error) {
+	time.Sleep(m.delay)
+	return llm.EntityResult{}, nil
 }
 
 type mockLLMFail struct {
@@ -201,6 +215,10 @@ func (m *mockLLMFail) ExtractKeyIdeas(content string, bucket string) ([]string, 
 		return nil, errors.New("extract key ideas failed")
 	}
 	return []string{"key idea 1"}, nil
+}
+
+func (m *mockLLMFail) ExtractEntities(content string, bucket string) (llm.EntityResult, error) {
+	return llm.EntityResult{}, nil
 }
 
 func setupTestIngest(t *testing.T) (*queue.Queue, *vault.Writer, func()) {
@@ -264,6 +282,46 @@ func TestIngestText_BasicSuccess(t *testing.T) {
 	}
 	if n, err := q.CountChunks(ctx, notePath); err != nil || n != 1 {
 		t.Errorf("expected 1 stored chunk, got %d (err=%v)", n, err)
+	}
+}
+
+func TestIngestText_SavesEntities(t *testing.T) {
+	q, v, cleanup := setupTestIngest(t)
+	defer cleanup()
+
+	llm := newMockLLMForIngest()
+	ctx := context.Background()
+
+	job := &queue.Job{
+		ID:        "test-job-entities",
+		Type:      "text",
+		Content:   "Met John Doe about the $2,000 invoice",
+		CreatedAt: time.Now(),
+	}
+
+	notePath, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions())
+	if err != nil {
+		t.Fatalf("IngestText failed: %v", err)
+	}
+
+	// Normalized enrichment rows in the store.
+	if n, err := q.CountEntities(ctx, notePath, "person"); err != nil || n != 1 {
+		t.Errorf("person rows = %d (err=%v), want 1 (John Doe only)", n, err)
+	}
+	if n, err := q.CountEntities(ctx, notePath, "amount"); err != nil || n != 1 {
+		t.Errorf("amount rows = %d (err=%v), want 1", n, err)
+	}
+
+	// Entities block in the written frontmatter.
+	data, err := os.ReadFile(filepath.Join(v.BasePath(), notePath))
+	if err != nil {
+		t.Fatalf("failed to read note: %v", err)
+	}
+	src := string(data)
+	if !strings.Contains(src, "entities:\n") ||
+		!strings.Contains(src, "- John Doe") ||
+		!strings.Contains(src, "- 2000\n") {
+		t.Errorf("frontmatter missing normalized entities:\n%s", src)
 	}
 }
 
