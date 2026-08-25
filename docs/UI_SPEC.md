@@ -568,6 +568,25 @@ const modes = ['hybrid', 'keyword', 'semantic']
 
 ---
 
+## Queue view — polish pass (v1.1 phase 5)
+
+```tsx
+// First load: shimmer skeleton rows (icon block + two bars) until the
+// first fetch resolves; afterwards every refresh animates in place
+// DoneItem: clickable when note_path exists -> opens NoteView sheet
+//   flare chips (server-hydrated GET /v1/queue flares map):
+//     [link-icon N]  gold chip, N proactive connections; hidden when 0
+//     [sparkles]     muted marker when the job carries a result payload
+// Done history: "show all N" button pages through full history via
+//   status=done&offset pagination (50/page); "show less" collapses back
+//   to the first 5; fresh polls reset expansion
+// Status groups (pending/failed/done) animate with layout transitions
+// Header logout: trash-style two-step confirm ("lock out?") ->
+//   clears stored token and locks (vault-lock modes) or reloads clean
+```
+
+---
+
 ## Note view — two-step delete (v1.1 phase 3)
 
 ```tsx

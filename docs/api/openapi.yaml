@@ -634,6 +634,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Job'
+        flares:
+          description: >
+            Per-job UI hints keyed by job id (v1.1 polish). Present only
+            when at least one listed job has a hydrated connections count.
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              connections:
+                type: integer
+                description: Number of proactive connections for the note.
 
     Job:
       type: object

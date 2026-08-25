@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -10,10 +11,17 @@ import (
 )
 
 type QueueListResponse struct {
-	Total  int         `json:"total"`
-	Limit  int         `json:"limit"`
-	Offset int         `json:"offset"`
-	Jobs   []queue.Job `json:"jobs"`
+	Total  int              `json:"total"`
+	Limit  int              `json:"limit"`
+	Offset int              `json:"offset"`
+	Jobs   []queue.Job      `json:"jobs"`
+	Flares map[string]Flare `json:"flares,omitempty"`
+}
+
+// Flare carries per-job UI hints: how many proactive connections were
+// found for a captured note.
+type Flare struct {
+	Connections int `json:"connections"`
 }
 
 type QueueJobResponse struct {
@@ -63,12 +71,41 @@ func (s *Server) queueListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	flares := s.hydrateFlares(ctx, jobs)
+
 	WriteJSON(w, http.StatusOK, QueueListResponse{
 		Total:  total,
 		Limit:  limit,
 		Offset: offset,
 		Jobs:   jobs,
+		Flares: flares,
 	})
+}
+
+// hydrateFlares resolves the connection counts for done ingest jobs by
+// reading their chained connections job's result payload.
+func (s *Server) hydrateFlares(ctx context.Context, jobs []queue.Job) map[string]Flare {
+	var flares map[string]Flare
+	for _, j := range jobs {
+		if j.Status != "done" || j.ConnectionsJobID == "" {
+			continue
+		}
+		connJob, err := s.queue.GetJob(ctx, j.ConnectionsJobID)
+		if err != nil || len(connJob.Result) == 0 {
+			continue
+		}
+		var payload struct {
+			Connections []json.RawMessage `json:"connections"`
+		}
+		if err := json.Unmarshal(connJob.Result, &payload); err != nil {
+			continue
+		}
+		if flares == nil {
+			flares = make(map[string]Flare)
+		}
+		flares[j.ID] = Flare{Connections: len(payload.Connections)}
+	}
+	return flares
 }
 
 func (s *Server) queueGetHandler(w http.ResponseWriter, r *http.Request) {
