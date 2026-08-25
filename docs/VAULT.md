@@ -214,7 +214,9 @@ periodically consolidates recent captures into headed sections (# Memory /
 its contents are injected back into enrichment prompts. It is excluded from
 indexing, connections, and reindex scans. You may edit it by hand — manual
 changes survive until the next merge-style consolidation. Filename is
-configurable via `memory.file`.
+configurable via `memory.file`. Consolidation is not a cron — it runs on
+the background worker after captures, throttled by
+`memory.consolidation_interval_hours` / `memory.new_persons_threshold`.
 
 ## Reading Notes (Reader)
 

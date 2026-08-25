@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/rawnaqs/khayal/internal/chunk"
 )
@@ -158,5 +159,25 @@ func TestMakeAbsolute(t *testing.T) {
 		if result != tt.expected {
 			t.Errorf("MakeAbsolute(%q, %q) = %q, want %q", tt.path, tt.configPath, result, tt.expected)
 		}
+	}
+}
+
+func TestMemoryThrottleDefaults(t *testing.T) {
+	var m MemoryConfig
+	if got := m.ConsolidationInterval(); got != 24*time.Hour {
+		t.Errorf("default interval = %v, want 24h", got)
+	}
+	if got := m.PersonsThreshold(); got != 5 {
+		t.Errorf("default threshold = %d, want 5", got)
+	}
+
+	zero := 0
+	m.ConsolidationIntervalHours = &zero
+	m.NewPersonsThreshold = &zero
+	if m.ConsolidationInterval() != 0 {
+		t.Error("explicit zero interval must be honored")
+	}
+	if m.PersonsThreshold() != 0 {
+		t.Error("explicit zero threshold must be honored")
 	}
 }

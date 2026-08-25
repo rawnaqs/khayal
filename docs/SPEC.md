@@ -1542,6 +1542,15 @@ over time:
   note summaries; inject into tags/summary/key-ideas/entities prompts so
   naming stays consistent across months. Strictly local, fail-open,
   config-gated via `memory.enabled` (default true).
+- **Static user memory (config)** — `memory.user_context`,
+  `memory.people`, and `memory.orgs` let the user describe themselves and
+  their contacts; matching entries are injected alongside derived content.
+- **LLM-maintained memory file** — `<inbox>/memory.md` (configurable via
+  `memory.file`) is consolidated by the LLM in a merge-style rewrite and
+  injected back into enrichment. Not a cron: consolidation is chained onto
+  the background job queue after captures, gated by
+  `consolidation_interval_hours` (default 24) and `new_persons_threshold`
+  (default 5); explicit 0 means every capture.
 
 ### Search Overview (v1.1 phase 2.6)
 

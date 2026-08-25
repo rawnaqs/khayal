@@ -107,3 +107,10 @@ memory:
     john doe: "client, prefers email"
   orgs:
     acme corp: "my employer"
+
+  # Memory file consolidation throttle (runs in the background worker,
+  # never a cron): after any capture, consolidation fires only when BOTH
+  # gates say so - at least this many hours since the last run, OR this
+  # many new distinct people appeared since. Explicit 0 = every capture.
+  consolidation_interval_hours: 24
+  new_persons_threshold: 5

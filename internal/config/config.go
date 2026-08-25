@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/rawnaqs/khayal/internal/chunk"
 	"gopkg.in/yaml.v3"
@@ -170,6 +171,26 @@ type MemoryConfig struct {
 	UserContext string            `yaml:"user_context"`
 	People      map[string]string `yaml:"people"`
 	Orgs        map[string]string `yaml:"orgs"`
+	// ConsolidationIntervalHours: nil -> 24h; 0 means every capture.
+	ConsolidationIntervalHours *int `yaml:"consolidation_interval_hours"`
+	// NewPersonsThreshold: nil -> 5; 0 means any new person triggers.
+	NewPersonsThreshold *int `yaml:"new_persons_threshold"`
+}
+
+// ConsolidationInterval resolves the hours setting: nil/negative -> 24h.
+func (m MemoryConfig) ConsolidationInterval() time.Duration {
+	if m.ConsolidationIntervalHours == nil || *m.ConsolidationIntervalHours < 0 {
+		return 24 * time.Hour
+	}
+	return time.Duration(*m.ConsolidationIntervalHours) * time.Hour
+}
+
+// PersonsThreshold resolves the new-persons trigger: nil/negative -> 5.
+func (m MemoryConfig) PersonsThreshold() int {
+	if m.NewPersonsThreshold == nil || *m.NewPersonsThreshold < 0 {
+		return 5
+	}
+	return *m.NewPersonsThreshold
 }
 
 // ConnectionsTypes toggles individual connection types; nil means on.

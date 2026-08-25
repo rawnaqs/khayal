@@ -56,3 +56,15 @@ connections:
     similar: true
     person: true
     amount: true
+
+memory:
+  enabled: true             # nil=on; false disables retrieval AND injection
+  file: memory.md           # LLM-maintained memory file (inside inbox_dir)
+  user_context: |           # freeform author profile injected into enrichment
+    Software engineer in Mangalore building local-first tools.
+    Notes are raw thoughts; prices are usually INR.
+  people:                   # name -> blurb; injected when the name appears
+    alice: "colleague at Acme, leads payments"
+    john doe: "client, prefers email"
+  orgs:
+    acme corp: "my employer"

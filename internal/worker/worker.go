@@ -298,8 +298,8 @@ func (w *Worker) chainMemoryConsolidation(ingestJobID string) {
 	}
 
 	due := lastRun.IsZero() ||
-		time.Since(lastRun) >= constants.MemoryConsolidationInterval ||
-		personsSince >= constants.MemoryNewPersonsThreshold
+		time.Since(lastRun) >= w.memCfg.ConsolidationInterval() ||
+		personsSince >= w.memCfg.PersonsThreshold()
 	if !due {
 		return
 	}
@@ -385,7 +385,7 @@ func (w *Worker) processMemory(ctx context.Context, job *queue.Job) error {
 	}
 
 	recent, _ := w.recentNoteDigests(ctx, 10)
-	personDelta, _ := w.queue.CountPersonsSince(ctx, time.Now().Add(-constants.MemoryConsolidationInterval))
+	personDelta, _ := w.queue.CountPersonsSince(ctx, time.Now().Add(-w.memCfg.ConsolidationInterval()))
 
 	prompt := fmt.Sprintf("CURRENT MEMORY FILE:\n%s\n\nRECENT CAPTURED FACTS:\n%s\n\nNEW PEOPLE SINCE LAST RUN: %d",
 		current, strings.Join(recent, "\n"), personDelta)

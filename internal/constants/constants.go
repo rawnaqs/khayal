@@ -48,12 +48,6 @@ const (
 	MaxEntitiesPerType = 10
 )
 
-// Memory file maintenance (phase 2.5)
-const (
-	MemoryConsolidationInterval = 24 * time.Hour
-	MemoryNewPersonsThreshold   = 5
-)
-
 // System prompts define the model's persona and output expectations.
 type SystemPrompts struct {
 	ExtractTags       string `yaml:"extract_tags"`
