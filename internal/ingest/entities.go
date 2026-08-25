@@ -3,9 +3,11 @@ package ingest
 import (
 	"context"
 	"math"
+	"time"
 	"strconv"
 	"strings"
 
+	"github.com/rawnaqs/khayal/internal/dates"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
@@ -14,24 +16,26 @@ import (
 // toQueue converts normalized entities into the store's mirror type.
 func (e Entities) toQueue() queue.NoteEntities {
 	return queue.NoteEntities{
-		People:  e.People,
-		Amounts: e.Amounts,
-		Dates:   e.Dates,
-		Places:  e.Places,
-		Orgs:    e.Orgs,
-		URLs:    e.URLs,
+		People:        e.People,
+		Amounts:       e.Amounts,
+		Dates:         e.Dates,
+		ResolvedDates: e.ResolvedDates,
+		Places:        e.Places,
+		Orgs:          e.Orgs,
+		URLs:          e.URLs,
 	}
 }
 
 // toVaultBlock converts normalized entities into the frontmatter block type.
 func (e Entities) toVaultBlock() *vault.EntitiesBlock {
 	return &vault.EntitiesBlock{
-		People:  e.People,
-		Amounts: e.Amounts,
-		Dates:   e.Dates,
-		Places:  e.Places,
-		Orgs:    e.Orgs,
-		URLs:    e.URLs,
+		People:          e.People,
+		Amounts:         e.Amounts,
+		Dates:           e.Dates,
+		DateResolutions: e.ResolvedDates,
+		Places:          e.Places,
+		Orgs:            e.Orgs,
+		URLs:            e.URLs,
 	}
 }
 
@@ -62,9 +66,23 @@ type Entities struct {
 	People  []string `json:"people"`
 	Amounts []string `json:"amounts"`
 	Dates   []string `json:"dates"`
-	Places  []string `json:"places"`
-	Orgs    []string `json:"orgs"`
-	URLs    []string `json:"urls"`
+	// ResolvedDates is index-aligned with Dates: absolute dates for
+	// relative references, empty string when a date did not resolve.
+	ResolvedDates []string `json:"resolved_dates,omitempty"`
+	Places        []string `json:"places"`
+	Orgs          []string `json:"orgs"`
+	URLs          []string `json:"urls"`
+}
+
+// ResolveRelativeDates fills ResolvedDates for any relative date
+// references ("tomorrow", "in 3 days") against the given capture time.
+func (e *Entities) ResolveRelativeDates(now time.Time) {
+	e.ResolvedDates = make([]string, len(e.Dates))
+	for i, d := range e.Dates {
+		if t, ok := dates.ResolveRelative(d, now); ok {
+			e.ResolvedDates[i] = t.Format("2006-01-02")
+		}
+	}
 }
 
 // personStoplist are pronouns/author references LLMs occasionally emit as

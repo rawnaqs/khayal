@@ -52,6 +52,7 @@ func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.
 	entities := NormalizeEntities(rawEntities)
 
 	now := time.Now().UTC()
+	entities.ResolveRelativeDates(now)
 	note := &vault.Note{
 		Metadata: vault.NoteMetadata{
 			Created:     job.CreatedAt,

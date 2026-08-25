@@ -52,6 +52,7 @@ func IngestText(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Q
 
 	title := extractTitle(job.Content)
 	now := time.Now().UTC()
+	entities.ResolveRelativeDates(now)
 
 	note := &vault.Note{
 		Metadata: vault.NoteMetadata{

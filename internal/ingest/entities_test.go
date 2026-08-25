@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"testing"
+	"time"
 
 	"github.com/rawnaqs/khayal/internal/llm"
 )
@@ -130,5 +131,29 @@ func TestNormalizeEntities_PeopleJunkFiltered(t *testing.T) {
 		if got.People[i] != want[i] {
 			t.Errorf("People[%d] = %q, want %q", i, got.People[i], want[i])
 		}
+	}
+}
+
+func TestResolveRelativeDates(t *testing.T) {
+	e := Entities{Dates: []string{"tomorrow", "March 2024", "in 3 days"}}
+	e.ResolveRelativeDates(time.Date(2026, 8, 25, 9, 0, 0, 0, time.UTC))
+
+	if e.ResolvedDates[0] != "2026-08-26" {
+		t.Errorf("tomorrow = %q, want 2026-08-26", e.ResolvedDates[0])
+	}
+	if e.ResolvedDates[1] != "" {
+		t.Errorf("absolute date should not resolve, got %q", e.ResolvedDates[1])
+	}
+	if e.ResolvedDates[2] != "2026-08-28" {
+		t.Errorf("in 3 days = %q, want 2026-08-28", e.ResolvedDates[2])
+	}
+
+	q := e.toQueue()
+	if len(q.ResolvedDates) != len(q.Dates) || q.ResolvedDates[0] != "2026-08-26" {
+		t.Errorf("toQueue lost resolutions: %+v", q)
+	}
+	b := e.toVaultBlock()
+	if b.DateResolutions[0] != "2026-08-26" {
+		t.Errorf("toVaultBlock lost resolutions: %+v", b)
 	}
 }

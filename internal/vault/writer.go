@@ -59,6 +59,9 @@ type EntitiesBlock struct {
 	People  []string `yaml:"people,omitempty"`
 	Amounts []string `yaml:"amounts,omitempty"`
 	Dates   []string `yaml:"dates,omitempty"`
+	// DateResolutions is index-aligned with Dates (not serialized):
+	// absolute dates for relative references.
+	DateResolutions []string `yaml:"-"`
 	Places  []string `yaml:"places,omitempty"`
 	Orgs    []string `yaml:"orgs,omitempty"`
 	URLs    []string `yaml:"urls,omitempty"`
@@ -360,7 +363,8 @@ func (w *Writer) writeEntitiesBlock(buf *bytes.Buffer, e *EntitiesBlock) {
 		{"urls", e.URLs},
 		{"orgs", e.Orgs},
 	}
-	for _, f := range fields {
+	const dateFieldIdx = 2
+	for fi, f := range fields {
 		vals := f.values
 		if len(vals) > constants.MaxEntitiesPerType {
 			vals = vals[:constants.MaxEntitiesPerType]
@@ -370,7 +374,12 @@ func (w *Writer) writeEntitiesBlock(buf *bytes.Buffer, e *EntitiesBlock) {
 			continue
 		}
 		fmt.Fprintf(buf, "  %s:\n", f.name)
-		for _, v := range vals {
+		for vi, v := range vals {
+			if f.name == "dates" && fi == dateFieldIdx && vi < len(e.DateResolutions) &&
+				e.DateResolutions[vi] != "" {
+				fmt.Fprintf(buf, "    - %s \u2192 %s\n", yamlSafeValue(v), e.DateResolutions[vi])
+				continue
+			}
 			fmt.Fprintf(buf, "    - %s\n", yamlSafeValue(v))
 		}
 	}
