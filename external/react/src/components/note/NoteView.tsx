@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNote } from "@/hooks/useNote";
+import { useVaultLock } from "@/hooks/useVaultLock";
+import { useToast } from "@/hooks/use-toast";
+import { createClient } from "@/lib/api";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Trash2, X } from "lucide-react";
 import { ExcerptView } from "./ExcerptView";
 import { FullNoteView } from "./FullNoteView";
 
@@ -9,6 +13,7 @@ interface NoteViewProps {
   notePath: string | null;
   query?: string;
   onClose: () => void;
+  onDeleted?: (notePath: string) => void;
 }
 
 function getTypeBadgeClass(type: string) {
@@ -33,13 +38,39 @@ function formatDate(dateStr: string) {
   }
 }
 
-export function NoteView({ notePath, query, onClose }: NoteViewProps) {
+export function NoteView({ notePath, query, onClose, onDeleted }: NoteViewProps) {
   const { note, loading, error } = useNote(notePath, query);
   const [view, setView] = useState<"excerpt" | "full">("excerpt");
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { token } = useVaultLock();
+  const { toast } = useToast();
 
   useEffect(() => {
     setView("excerpt");
+    setConfirming(false);
+    setDeleting(false);
   }, [notePath]);
+
+  const handleDelete = async () => {
+    if (!notePath || deleting) return;
+    setDeleting(true);
+    try {
+      const client = createClient(token);
+      await client.deleteNote(notePath);
+      toast({ title: 'Note deleted', description: 'Moved to trash — recoverable from .khayal-trash/' });
+      onDeleted?.(notePath);
+      onClose();
+    } catch (err) {
+      toast({
+        title: 'Delete failed',
+        description: err instanceof Error ? err.message : 'Unknown error',
+        variant: 'destructive',
+      });
+      setDeleting(false);
+      setConfirming(false);
+    }
+  };
 
   return (
     <Sheet
@@ -76,6 +107,42 @@ export function NoteView({ notePath, query, onClose }: NoteViewProps) {
               note?.title || "Note"
             )}
           </h2>
+          {!loading && note && (
+            confirming ? (
+              <div className="flex items-center gap-1.5 shrink-0" data-testid="note-delete-confirm">
+                <span className="text-[10px] font-mono whitespace-nowrap" style={{ color: "rgba(245,169,169,0.8)" }}>
+                  move to trash?
+                </span>
+                <button
+                  className="px-2 py-1 rounded-md text-[10px] font-mono font-bold uppercase tracking-wide"
+                  style={{ color: "#f5a9a9", background: "rgba(255,99,99,0.08)", border: "1px solid rgba(255,99,99,0.25)" }}
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  data-testid="note-delete-go"
+                >
+                  {deleting ? "..." : "delete"}
+                </button>
+                <button
+                  className="p-1.5 rounded-md"
+                  style={{ color: "rgba(245,245,245,0.3)" }}
+                  onClick={() => setConfirming(false)}
+                  data-testid="note-delete-cancel"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                className="p-2 rounded-lg shrink-0 transition-colors"
+                style={{ color: "rgba(245,245,245,0.25)" }}
+                onClick={() => setConfirming(true)}
+                title="delete note"
+                data-testid="note-delete-trigger"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )
+          )}
         </div>
 
         {/* Content */}

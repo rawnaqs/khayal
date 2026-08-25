@@ -750,6 +750,58 @@ func (q *Queue) DeleteChunksByNote(ctx context.Context, notePath string) error {
 	return err
 }
 
+// RemoveNote purges every index trace of a note — FTS row, chunk
+// embeddings, and entity rows — in one transaction. Idempotent: removing
+// a note that was never indexed is a no-op.
+func (q *Queue) RemoveNote(ctx context.Context, notePath string) error {
+	const maxRetries = constants.SQLiteMaxRetries
+	var lastErr error
+
+	for range maxRetries {
+		tx, err := q.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM notes_fts WHERE note_path = ?`, notePath); err != nil && !isFTSErr(err) {
+			_ = tx.Rollback()
+			lastErr = err
+			if isLockError(err) {
+				time.Sleep(constants.SQLiteRetrySleep)
+				continue
+			}
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM chunks WHERE note_path = ?`, notePath); err != nil {
+			_ = tx.Rollback()
+			lastErr = err
+			if isLockError(err) {
+				time.Sleep(constants.SQLiteRetrySleep)
+				continue
+			}
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath); err != nil {
+			_ = tx.Rollback()
+			lastErr = err
+			if isLockError(err) {
+				time.Sleep(constants.SQLiteRetrySleep)
+				continue
+			}
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			lastErr = err
+			if isLockError(err) {
+				time.Sleep(constants.SQLiteRetrySleep)
+				continue
+			}
+			return err
+		}
+		return nil
+	}
+	return lastErr
+}
+
 // NoteEntities holds enrichment entities extracted from a note. Mirrored
 // from the ingest package's Entities to avoid an import cycle.
 type NoteEntities struct {
@@ -2138,4 +2190,25 @@ func (q *Queue) CountPersonsSince(ctx context.Context, t time.Time) (int, error)
 		 WHERE entity_type = 'person' AND created_at > ?`,
 		t.UTC().Format(time.RFC3339)).Scan(&n)
 	return n, err
+}
+
+// GetReferencedMedia returns the distinct media file paths referenced by
+// captured notes (jobs.source_file).
+func (q *Queue) GetReferencedMedia(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT DISTINCT source_file FROM jobs
+		WHERE source_file IS NOT NULL AND source_file <> ''`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			continue
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
 }

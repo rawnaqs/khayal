@@ -183,6 +183,37 @@ curl -X POST http://localhost:1133/v1/queue/abc123/discard \
 
 ---
 
+### DELETE /v1/note
+
+Soft-delete a note: moves it from the vault inbox to `.khayal-trash/`
+(timestamped filename) and purges its search index, chunk vectors, and
+entity rows. Never hard-deletes — the file stays recoverable in trash.
+Deleted notes disappear from search immediately.
+
+**Query Parameters:**
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| path | Yes | Vault-relative note path as returned by capture/search |
+
+**Example:**
+```bash
+curl -X DELETE "http://localhost:1133/v1/note?path=khayal%2F2026-04-29-note.md" \
+  -H "X-Khayal-Token: your-token"
+```
+
+**Response `200`:**
+```json
+{
+  "deleted": true,
+  "trash_path": ".khayal-trash/2026-04-29-note.md.1787682523"
+}
+```
+
+**Errors:** `400` path outside inbox · `404` note not found
+
+---
+
 ### GET /notes/{path}
 
 Read a note from the vault by its relative path. Returns parsed frontmatter and markdown sections. The path must be URL-encoded (e.g., `khayal%2F2026-04-29-note.md` for `khayal/2026-04-29-note.md`).

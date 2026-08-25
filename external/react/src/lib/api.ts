@@ -223,6 +223,10 @@ export class KhayalClient {
     return this.request<StatsResponse>('GET', '/v1/stats')
   }
 
+  async deleteNote(notePath: string): Promise<{ deleted: boolean; trash_path: string }> {
+    return this.request('DELETE', `/v1/note?path=${encodeURIComponent(notePath)}`)
+  }
+
   async getNote(notePath: string, query?: string): Promise<NoteResponse> {
     const params = new URLSearchParams()
     if (query) {

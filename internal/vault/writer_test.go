@@ -181,16 +181,20 @@ func TestDeleteNote(t *testing.T) {
 
 	fullPath := writer.ResolvePath(notePath)
 
-	if err := writer.DeleteNote(fullPath); err != nil {
+	trashPath, err := writer.DeleteNote(fullPath)
+	if err != nil {
 		t.Fatalf("DeleteNote() error = %v", err)
+	}
+	if trashPath == "" {
+		t.Error("expected non-empty trash path")
 	}
 
 	if writer.NoteExists(notePath) {
 		t.Error("expected note to not exist after deletion")
 	}
 
-	trashPath := filepath.Join(writer.InboxPath(), ".khayal-trash")
-	if _, err := os.Stat(trashPath); os.IsNotExist(err) {
+	trashDir := filepath.Join(writer.InboxPath(), ".khayal-trash")
+	if _, err := os.Stat(trashDir); os.IsNotExist(err) {
 		t.Error("expected trash directory to exist")
 	}
 }

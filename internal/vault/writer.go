@@ -223,26 +223,32 @@ func (w *Writer) UpdateNote(notePath string, note *Note) error {
 	return nil
 }
 
-func (w *Writer) DeleteNote(notePath string) error {
+// DeleteNote soft-deletes a note: moves it to <inbox>/.khayal-trash/ with
+// a timestamped filename and returns the trash-relative destination path.
+func (w *Writer) DeleteNote(notePath string) (string, error) {
 	absolutePath := w.resolvePath(notePath)
 
 	if err := w.ensurePathInInbox(absolutePath); err != nil {
-		return err
+		return "", err
 	}
 
-	trashPath := filepath.Join(w.inboxPath, ".khayal-trash")
-	if err := os.MkdirAll(trashPath, 0755); err != nil {
-		return fmt.Errorf("failed to create trash directory: %w", err)
+	trashDir := filepath.Join(w.inboxPath, ".khayal-trash")
+	if err := os.MkdirAll(trashDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create trash directory: %w", err)
 	}
 
 	filename := filepath.Base(absolutePath)
-	destPath := filepath.Join(trashPath, fmt.Sprintf("%s.%d", filename, time.Now().Unix()))
+	destPath := filepath.Join(trashDir, fmt.Sprintf("%s.%d", filename, time.Now().Unix()))
 
 	if err := os.Rename(absolutePath, destPath); err != nil {
-		return fmt.Errorf("failed to move note to trash: %w", err)
+		return "", fmt.Errorf("failed to move note to trash: %w", err)
 	}
 
-	return nil
+	rel, err := filepath.Rel(w.inboxPath, destPath)
+	if err != nil {
+		rel = destPath
+	}
+	return rel, nil
 }
 
 func (w *Writer) CopyMediaFile(srcPath string) (string, error) {

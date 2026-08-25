@@ -100,6 +100,7 @@ kl "thought"              # capture text (default command)
 kl --url https://...      # capture URL
 kl --image ~/file.png     # capture image
 kl search "query"         # search vault
+kl delete <path-or-id>    # soft-delete a note (moved to .khayal-trash/)
 kl recent                 # recent captures
 kl recent --days 7        # last 7 days
 kl recent --type image    # recent images only

@@ -51,9 +51,10 @@ function removeRecentSearch(query: string) {
 interface SearchViewProps {
   onCaptureQuery?: (query: string) => void;
   onNoteSelect?: (notePath: string, query?: string) => void;
+  deletedPaths?: string[];
 }
 
-export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {}) {
+export function SearchView({ onCaptureQuery, onNoteSelect, deletedPaths }: SearchViewProps = {}) {
   const [query, setQuery] = useState('')
   const [searchedQuery, setSearchedQuery] = useState("")
   const [mode, setMode] = useState<SearchMode>('hybrid')
@@ -129,9 +130,13 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
 
   const filteredResults = useMemo(() => {
     if (!results?.results) return null
-    if (typeFilter === 'all') return results.results
-    return results.results.filter(r => r.type === typeFilter)
-  }, [results, typeFilter])
+    let list = results.results
+    if (deletedPaths && deletedPaths.length > 0) {
+      list = list.filter(r => !deletedPaths.includes(r.note_path))
+    }
+    if (typeFilter === 'all') return list
+    return list.filter(r => r.type === typeFilter)
+  }, [results, typeFilter, deletedPaths])
 
   const hasSearched = searchedQuery.length > 0
   const hasTyped = query.trim().length > 0

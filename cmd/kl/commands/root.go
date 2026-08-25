@@ -25,6 +25,7 @@ func NewRootCmd() *cobra.Command {
 		newCaptureImageCmd(),
 		newSearchCmd(),
 		newRecentCmd(),
+		newDeleteCmd(),
 		newStatsCmd(),
 		newStatusCmd(),
 		newInitCmd(),
