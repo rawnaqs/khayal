@@ -5,7 +5,7 @@ import { ResultHero } from './ResultHero'
 import { ResultCompact } from './ResultCompact'
 import { useSearch } from '@/hooks/useSearch'
 import { useAIAnswer } from '@/hooks/useAIAnswer'
-import { AIAnswer, AIAnswerCTA } from './AIAnswer'
+import { AIAnswerRow } from './AIAnswer'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { STORAGE_KEYS, SEARCH_SUGGESTIONS, LIMITS, TYPE_FILTERS, SEARCH_MODES } from '@/lib/constants'
@@ -61,6 +61,7 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
   const [recentSearches, setRecentSearches] = useState<string[]>(getRecentSearches)
   const { loading, results, error, search } = useSearch()
   const ai = useAIAnswer()
+  const [aiExpanded, setAiExpanded] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -75,6 +76,7 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
     setQuery(q)
     setSearchedQuery(q)
     ai.reset()
+    setAiExpanded(false)
     setMode(searchMode || mode)
     search(q, { mode: searchMode || mode })
     saveRecentSearch(q)
@@ -86,6 +88,7 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
     setSearchedQuery("")
     setTypeFilter('all')
     ai.reset()
+    setAiExpanded(false)
     search('')
   }, [search, ai])
 
@@ -112,7 +115,13 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
   const handleAskAI = useCallback(() => {
     if (!hasResults || !searchedQuery.trim()) return
     ai.ask(searchedQuery, mode)
+    setAiExpanded(true)
   }, [ai, mode, searchedQuery])
+
+  const handleCloseAI = useCallback(() => {
+    ai.reset()
+    setAiExpanded(false)
+  }, [ai])
 
   const handleCitationClick = useCallback((index: number) => {
     document.getElementById(`result-${index}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -236,30 +245,24 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
                 <span className="rh-count">{filteredResults.length} results</span>
                 <span className="rh-ms">{results.took_ms}ms</span>
               </div>
-              <div className="hdr-right">
-                <AIAnswerCTA
-                  visible={!ai.state || ai.state === 'idle' || ai.state === 'error'}
-                  disabled={ai.state === 'loading'}
-                  onClick={handleAskAI}
-                />
-                <div className="filter-chips">
-                  <span className={cn('fc', typeFilter === 'all' && 'on')} onClick={() => setTypeFilter('all')}>all</span>
-                  <span className={cn('fc', typeFilter === 'text' && 'on')} onClick={() => setTypeFilter('text')}>text</span>
-                  <span className={cn('fc', typeFilter === 'article' && 'on')} onClick={() => setTypeFilter('article')}>article</span>
-                  <span className={cn('fc', typeFilter === 'image' && 'on')} onClick={() => setTypeFilter('image')}>image</span>
-                </div>
+              <div className="filter-chips">
+                <span className={cn('fc', typeFilter === 'all' && 'on')} onClick={() => setTypeFilter('all')}>all</span>
+                <span className={cn('fc', typeFilter === 'text' && 'on')} onClick={() => setTypeFilter('text')}>text</span>
+                <span className={cn('fc', typeFilter === 'article' && 'on')} onClick={() => setTypeFilter('article')}>article</span>
+                <span className={cn('fc', typeFilter === 'image' && 'on')} onClick={() => setTypeFilter('image')}>image</span>
               </div>
             </div>
-            <AnimatePresence>
-              <AIAnswer
-                state={ai.state}
-                overview={ai.overview}
-                onCitationClick={handleCitationClick}
-                onRetry={handleAskAI}
-                onClose={ai.reset}
-              />
-            </AnimatePresence>
             <div className="results">
+              <AIAnswerRow
+                state={ai.state}
+                expanded={aiExpanded}
+                overview={ai.overview}
+                onAsk={handleAskAI}
+                onToggle={() => setAiExpanded(v => !v)}
+                onRetry={handleAskAI}
+                onClose={handleCloseAI}
+                onCitationClick={handleCitationClick}
+              />
               {filteredResults.map((result, index) => (
                 <div key={result.id} id={`result-${index}`}>
                   {index === 0 && result.score > 0.9 ? (

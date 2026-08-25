@@ -1,85 +1,91 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { AIAnswer, AIAnswerCTA } from '../AIAnswer'
-import { useAIAnswer } from '@/hooks/useAIAnswer'
+import { AIAnswerRow } from '../AIAnswer'
 
 vi.mock('framer-motion', () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    button: ({ children, ...props }: any) => (
-      <button {...props} onClick={props.onClick}>
-        {children}
-      </button>
-    ),
   },
   AnimatePresence: ({ children }: any) => <>{children}</>,
 }))
 
-vi.mock('@/hooks/useVaultLock', () => ({
-  useVaultLock: () => ({ token: 'test-token' }),
-}))
+const base = {
+  onAsk: vi.fn(),
+  onToggle: vi.fn(),
+  onRetry: vi.fn(),
+  onClose: vi.fn(),
+  onCitationClick: vi.fn(),
+}
 
-describe('AIAnswerCTA', () => {
-  it('renders nothing when not visible', () => {
-    const { container } = render(<AIAnswerCTA visible={false} onClick={() => {}} />)
-    expect(container.querySelector('[data-testid="ai-answer-cta"]')).toBeNull()
+describe('AIAnswerRow', () => {
+  it('idle + collapsed: header click asks — never automatic', () => {
+    const onAsk = vi.fn()
+    render(<AIAnswerRow {...base} state="idle" expanded={false} overview={null} onAsk={onAsk} />)
+    fireEvent.click(screen.getByTestId('ai-answer-trigger'))
+    expect(onAsk).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('ai-answer-skeleton')).toBeNull()
   })
 
-  it('fires onClick exactly once per click — never automatic', () => {
-    const onClick = vi.fn()
-    render(<AIAnswerCTA visible={true} onClick={onClick} />)
-    fireEvent.click(screen.getByTestId('ai-answer-cta'))
-    expect(onClick).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('AIAnswer states', () => {
-  it('shows skeleton with shimmer lines while loading', () => {
-    render(<AIAnswer state="loading" overview={null} onCitationClick={() => {}} onRetry={() => {}} onClose={() => {}} />)
+  it('loading + expanded: skeleton shimmer lines show', () => {
+    render(<AIAnswerRow {...base} state="loading" expanded={true} overview={null} />)
     expect(screen.getByTestId('ai-answer-skeleton')).toBeTruthy()
     expect(document.querySelectorAll('.ai-skel').length).toBeGreaterThanOrEqual(3)
   })
 
-  it('renders answer text with clickable citations', () => {
+  it('collapsed while ready: no body, toggle re-expands without refetch', () => {
+    const onToggle = vi.fn()
     render(
-      <AIAnswer
+      <AIAnswerRow
+        {...base}
         state="ready"
-        overview={{ text: 'Bob owes money [1] and Alice agrees [2].', citations: [0, 1] }}
-        onCitationClick={(n) => citations.push(n)}
-        onRetry={() => {}}
-        onClose={() => {}}
+        expanded={false}
+        overview={{ text: 'answer [1]', citations: [0] }}
+        onToggle={onToggle}
+      />,
+    )
+    expect(screen.queryByTestId('ai-answer')).toBeNull()
+    fireEvent.click(screen.getByTestId('ai-answer-trigger'))
+    // ready state toggles, does not ask again
+    expect(base.onAsk).not.toHaveBeenCalled()
+    expect(onToggle).toHaveBeenCalledTimes(1)
+  })
+
+  it('ready + expanded: citations clickable with zero-based index', () => {
+    const onCitationClick = vi.fn()
+    render(
+      <AIAnswerRow
+        {...base}
+        state="ready"
+        expanded={true}
+        overview={{ text: 'one [1] two [2]', citations: [0, 1] }}
+        onCitationClick={onCitationClick}
       />,
     )
     expect(screen.getByTestId('ai-answer')).toBeTruthy()
-    const cites = screen.getAllByText(/^\[\d+\]$/)
-    expect(cites.length).toBe(2)
+    fireEvent.click(screen.getByText('[2]'))
+    expect(onCitationClick).toHaveBeenCalledWith(1)
   })
 
-  it('error state offers retry without touching results', () => {
+  it('error + expanded: retry offered, results untouched', () => {
     const onRetry = vi.fn()
-    render(<AIAnswer state="error" overview={null} onCitationClick={() => {}} onRetry={onRetry} onClose={() => {}} />)
+    render(<AIAnswerRow {...base} state="error" expanded={true} overview={null} onRetry={onRetry} />)
     expect(screen.getByTestId('ai-answer-error')).toBeTruthy()
     fireEvent.click(screen.getByTitle('try again'))
     expect(onRetry).toHaveBeenCalledTimes(1)
   })
 
-  it('citation click passes zero-based index', () => {
-    const clicked: number[] = []
+  it('dismiss resets fully', () => {
+    const onClose = vi.fn()
     render(
-      <AIAnswer
+      <AIAnswerRow
+        {...base}
         state="ready"
-        overview={{ text: 'one [1]', citations: [0] }}
-        onCitationClick={(n) => clicked.push(n)}
-        onRetry={() => {}}
-        onClose={() => {}}
+        expanded={true}
+        overview={{ text: 'x', citations: [] }}
+        onClose={onClose}
       />,
     )
-    fireEvent.click(screen.getByText('[1]'))
-    expect(clicked).toEqual([0])
+    fireEvent.click(screen.getByTitle('dismiss'))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })
-
-// keep import used
-void useAIAnswer
-
-const citations: number[] = []

@@ -118,6 +118,7 @@
 ════════════════════════════ */
 
 @layer components {
+
   /* Header */
   .hdr {
     padding: calc(13px + env(safe-area-inset-top)) 18px 11px;
@@ -367,11 +368,9 @@
 
   /* Streak tile */
   .bt-streak {
-    background: linear-gradient(
-      145deg,
-      rgba(201, 147, 58, 0.1) 0%,
-      rgba(201, 147, 58, 0.02) 100%
-    );
+    background: linear-gradient(145deg,
+        rgba(201, 147, 58, 0.1) 0%,
+        rgba(201, 147, 58, 0.02) 100%);
     border-color: rgba(201, 147, 58, 0.18);
   }
 
@@ -758,11 +757,9 @@
 
   .url-thumb {
     height: 60px;
-    background: linear-gradient(
-      135deg,
-      rgba(201, 147, 58, 0.07),
-      rgba(0, 0, 0, 0.3)
-    );
+    background: linear-gradient(135deg,
+        rgba(201, 147, 58, 0.07),
+        rgba(0, 0, 0, 0.3));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1235,6 +1232,7 @@
 ════════════════════════════ */
 
 @layer components {
+
   /* Search area */
   .srch-area {
     padding: 12px 14px 0;
@@ -1464,19 +1462,6 @@
     font-family: "IBM Plex Mono", monospace;
     font-size: 9px;
     color: #3ddc84;
-  }
-
-  /* Results header right cluster: CTA + chips */
-  .hdr-right {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-    margin-top: 8px;
-  }
-
-  .hdr-right .filter-chips {
-    margin-top: 0;
   }
 
   /* Filter chips */
@@ -1870,6 +1855,7 @@
   }
 
   @keyframes pulse {
+
     0%,
     100% {
       opacity: 1;
@@ -2539,73 +2525,64 @@
 
   /* ── AI Answer ─────────────────────────────────────────────── */
 
-  .ai-cta {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 11px;
-    border-radius: 100px;
-    font-family: "IBM Plex Mono", monospace;
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    color: var(--gl);
-    background: var(--glow);
-    border: 1px solid var(--gd);
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.18s ease;
-  }
-
-  .ai-cta:hover:not(:disabled) {
-    background: var(--glow2);
-    box-shadow: 0 0 16px rgba(201, 147, 58, 0.15);
-    color: #f0c987;
-  }
-
-  .ai-cta:disabled {
-    opacity: 0.4;
-    cursor: wait;
-  }
-
-  .ai-answer {
-    margin: 10px 16px 4px;
-    padding: 12px 14px;
-    border-radius: 14px;
+  /* Inline expanding AI answer row (first item in results list) */
+  .ai-row {
+    border-radius: 12px;
+    border: 1px solid rgba(201, 147, 58, 0.16);
     background:
       linear-gradient(var(--bg-card, #111111), var(--bg-card, #111111)) padding-box,
-      linear-gradient(135deg, rgba(201, 147, 58, 0.45), rgba(201, 147, 58, 0.08) 55%, rgba(201, 147, 58, 0.3)) border-box;
+      linear-gradient(135deg, rgba(201, 147, 58, 0.35), rgba(201, 147, 58, 0.05) 55%, rgba(201, 147, 58, 0.22)) border-box;
     border: 1px solid transparent;
-    box-shadow: 0 4px 24px rgba(201, 147, 58, 0.06);
+    overflow: hidden;
+    transition: box-shadow 0.25s ease;
   }
 
-  .ai-head {
+  .ai-row.open {
+    box-shadow: 0 4px 24px rgba(201, 147, 58, 0.07);
+  }
+
+  .ai-row-head {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    margin-bottom: 8px;
+    gap: 7px;
+    width: 100%;
+    padding: 9px 13px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
   }
 
-  .ai-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 3px 9px;
-    border-radius: 100px;
+  .ai-spark {
+    color: var(--gold);
+    flex-shrink: 0;
+  }
+
+  .ai-spark.spin {
+    animation: ai-pulse 1.4s ease-in-out infinite;
+  }
+
+  .ai-row-label {
     font-family: "IBM Plex Mono", monospace;
-    font-size: 8.5px;
+    font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.6px;
     text-transform: uppercase;
     color: var(--gl);
-    background: var(--glow);
-    border: 1px solid rgba(201, 147, 58, 0.25);
+    flex: 1;
   }
 
-  .ai-badge.loading svg,
-  .ai-badge.loading {
-    animation: ai-pulse 1.6s ease-in-out infinite;
+  .ai-chevron {
+    color: rgba(245, 245, 245, 0.25);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .ai-chevron.up {
+    transform: rotate(180deg);
+  }
+
+  .ai-row-body {
+    padding: 2px 13px 11px;
   }
 
   @keyframes ai-pulse {
@@ -2620,10 +2597,11 @@
     }
   }
 
-  .ai-badge.error {
-    color: rgba(245, 169, 169, 0.75);
-    background: rgba(255, 99, 99, 0.06);
-    border-color: rgba(255, 99, 99, 0.2);
+  .ai-error-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
   }
 
   .ai-actions {
@@ -2647,6 +2625,11 @@
   .ai-action:hover {
     color: var(--gl);
     background: rgba(255, 255, 255, 0.04);
+  }
+
+  .ai-foot {
+    justify-content: flex-end;
+    margin-top: 8px;
   }
 
   .ai-text {
