@@ -133,6 +133,8 @@ Rules:
 - Merge: add new entries, enrich existing lines — never remove unrelated content
 - One concise line per person/topic; skip one-off trivia
 - Preserve any manual edits the user made
+- Never repeat the input section labels (CURRENT MEMORY FILE:, RECENT CAPTURED FACTS:, NEW PEOPLE SINCE LAST RUN:)
+- Output MUST start with "# Memory" and contain all five section headings
 - Output ONLY the full rewritten markdown file, no commentary`,
 }
 

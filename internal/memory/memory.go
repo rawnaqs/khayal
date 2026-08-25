@@ -102,3 +102,43 @@ func truncate(s string, n int) string {
 	}
 	return s[:n] + "…"
 }
+
+// inputLabelMarkers are the user-prompt section labels the consolidation
+// model sometimes echoes into its output; everything from the first marker
+// onward is input leakage, not memory content.
+var inputLabelMarkers = []string{
+	"RECENT CAPTURED FACTS:",
+	"CURRENT MEMORY FILE:",
+	"NEW PEOPLE SINCE LAST RUN:",
+}
+
+// requiredHeadings must all be present for output to be accepted.
+var requiredHeadings = []string{
+	"# Memory", "## About the author", "## People",
+	"## Ongoing threads", "## Preferences",
+}
+
+// SanitizeConsolidatedOutput validates and cleans a consolidation rewrite:
+// truncates any echoed input-section labels, requires the canonical start
+// and all five headings, and normalizes the trailing newline. Broken output
+// returns an error so the job retries instead of persisting garbage.
+func SanitizeConsolidatedOutput(out string) (string, error) {
+	cut := len(out)
+	for _, marker := range inputLabelMarkers {
+		if i := strings.Index(out, marker); i >= 0 && i < cut {
+			cut = i
+		}
+	}
+	out = strings.TrimRight(out[:cut], " \n-")
+
+	trimmed := strings.TrimSpace(out)
+	if !strings.HasPrefix(trimmed, "# Memory") {
+		return "", fmt.Errorf("consolidation output does not start with '# Memory'")
+	}
+	for _, h := range requiredHeadings {
+		if !strings.Contains(trimmed, h) {
+			return "", fmt.Errorf("consolidation output missing heading %q", h)
+		}
+	}
+	return trimmed + "\n", nil
+}

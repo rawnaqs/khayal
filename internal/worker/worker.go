@@ -18,6 +18,7 @@ import (
 	"github.com/rawnaqs/khayal/internal/constants"
 	"github.com/rawnaqs/khayal/internal/ingest"
 	"github.com/rawnaqs/khayal/internal/llm"
+	"github.com/rawnaqs/khayal/internal/memory"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 )
@@ -395,9 +396,11 @@ func (w *Worker) processMemory(ctx context.Context, job *queue.Job) error {
 	if err != nil {
 		return fmt.Errorf("memory consolidation failed: %w", err)
 	}
-	if strings.TrimSpace(merged) == "" {
-		return fmt.Errorf("memory consolidation produced empty output")
+	sanitized, err := memory.SanitizeConsolidatedOutput(merged)
+	if err != nil {
+		return fmt.Errorf("invalid memory consolidation output: %w", err)
 	}
+	merged = sanitized
 
 	filename := filenameOrDefault(w.memCfg.File)
 	if err := w.vault.WriteManagedFile(filename, merged); err != nil {

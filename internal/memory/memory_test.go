@@ -61,3 +61,66 @@ func TestBuildContextBlock(t *testing.T) {
 		}
 	})
 }
+
+func TestSanitizeConsolidatedOutput(t *testing.T) {
+	valid := "# Memory\n\n## About the author\n\n## People\n- Alice: x\n\n## Ongoing threads\n- y\n\n## Preferences\n- z"
+
+	t.Run("clean output passes through", func(t *testing.T) {
+		got, err := SanitizeConsolidatedOutput(valid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != valid+"\n" {
+			t.Errorf("got:\n%q", got)
+		}
+	})
+
+	t.Run("input-label leak truncated at first marker", func(t *testing.T) {
+		leaked := valid + "\n\nRECENT CAPTURED FACTS:\n- stale fact one\nNEW PEOPLE SINCE LAST RUN: 3"
+		got, err := SanitizeConsolidatedOutput(leaked)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(got, "RECENT CAPTURED FACTS") ||
+			strings.Contains(got, "stale fact") ||
+			strings.Contains(got, "NEW PEOPLE") {
+			t.Errorf("prompt fragments survived:\n%s", got)
+		}
+		if !strings.HasSuffix(got, "- z\n") {
+			t.Errorf("valid content damaged:\n%s", got)
+		}
+	})
+
+	t.Run("dangling bullet dash after truncation is cleaned", func(t *testing.T) {
+		leaked := valid + "\n-"
+		got, err := SanitizeConsolidatedOutput(leaked)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.HasSuffix(got, "-") || strings.Contains(got, "--\n") && false {
+			t.Errorf("dangling dash survived: %q", got)
+		}
+		if !strings.HasSuffix(got, "- z\n") {
+			t.Errorf("content damaged: %q", got)
+		}
+	})
+
+	t.Run("missing required heading rejected", func(t *testing.T) {
+		broken := "# Memory\n\n## People\n- a"
+		if _, err := SanitizeConsolidatedOutput(broken); err == nil {
+			t.Error("expected rejection for missing headings")
+		}
+	})
+
+	t.Run("wrong start rejected", func(t *testing.T) {
+		if _, err := SanitizeConsolidatedOutput("Sure! Here is the file:\n# Memory\n## People"); err == nil {
+			t.Error("expected rejection for preamble before # Memory")
+		}
+	})
+
+	t.Run("empty output rejected", func(t *testing.T) {
+		if _, err := SanitizeConsolidatedOutput(""); err == nil {
+			t.Error("expected rejection for empty output")
+		}
+	})
+}
