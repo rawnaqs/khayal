@@ -9,6 +9,7 @@ var (
 	searchFrom        string
 	searchTo          string
 	searchConnections bool
+	searchAnswer      bool
 )
 
 func newSearchCmd() *cobra.Command {
@@ -27,6 +28,7 @@ func newSearchCmd() *cobra.Command {
 	cmd.Flags().StringVar(&searchFrom, "from", "", "filter: notes created after this date (ISO: 2024-01-01)")
 	cmd.Flags().StringVar(&searchTo, "to", "", "filter: notes created before this date (ISO: 2024-12-31)")
 	cmd.Flags().BoolVar(&searchConnections, "connections", false, "include related connections")
+	cmd.Flags().BoolVar(&searchAnswer, "answer", false, "generate an AI answer above the results")
 
 	return cmd
 }

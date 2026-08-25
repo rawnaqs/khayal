@@ -174,6 +174,7 @@ func (q *Queue) initSchema() error {
 	for _, alter := range []string{
 		`ALTER TABLE jobs ADD COLUMN result TEXT`,
 		`ALTER TABLE jobs ADD COLUMN connections_job_id TEXT`,
+		`ALTER TABLE entities ADD COLUMN resolved_date DATETIME`,
 	} {
 		if _, err := q.db.Exec(alter); err != nil &&
 			!strings.Contains(err.Error(), "duplicate column name") {
@@ -755,9 +756,13 @@ type NoteEntities struct {
 	People  []string
 	Amounts []string
 	Dates   []string
-	Places  []string
-	Orgs    []string
-	URLs    []string
+	// ResolvedDates is index-aligned with Dates: the absolute date for
+	// relative references ("tomorrow" -> 2026-08-27), empty when a date
+	// could not be resolved.
+	ResolvedDates []string
+	Places        []string
+	Orgs          []string
+	URLs          []string
 }
 
 // enrichmentEntityTypes are the entity types owned by SaveEntities.
@@ -765,22 +770,32 @@ type NoteEntities struct {
 // scoping deletes to this list keeps the two writers independent.
 var enrichmentEntityTypes = []string{"person", "amount", "date", "place", "org", "url"}
 
-func (e *NoteEntities) rows() [][2]string {
-	rows := make([][2]string, 0, 16)
-	add := func(typ string, vals []string) {
-		for _, v := range vals {
+func (e *NoteEntities) rows() []entityRow {
+	rows := make([]entityRow, 0, 16)
+	add := func(typ string, vals, resolved []string) {
+		for i, v := range vals {
 			if v = strings.TrimSpace(v); v != "" {
-				rows = append(rows, [2]string{typ, v})
+				var res string
+				if typ == "date" && i < len(resolved) {
+					res = strings.TrimSpace(resolved[i])
+				}
+				rows = append(rows, entityRow{typ: typ, value: v, resolved: res})
 			}
 		}
 	}
-	add("person", e.People)
-	add("amount", e.Amounts)
-	add("date", e.Dates)
-	add("place", e.Places)
-	add("org", e.Orgs)
-	add("url", e.URLs)
+	add("person", e.People, nil)
+	add("amount", e.Amounts, nil)
+	add("date", e.Dates, e.ResolvedDates)
+	add("place", e.Places, nil)
+	add("org", e.Orgs, nil)
+	add("url", e.URLs, nil)
 	return rows
+}
+
+type entityRow struct {
+	typ      string
+	value    string
+	resolved string
 }
 
 // deleteEnrichmentEntities removes only the enrichment rows for a note,
@@ -832,9 +847,9 @@ func (q *Queue) SaveEntities(ctx context.Context, notePath string, ents NoteEnti
 		ok := true
 		for _, r := range rows {
 			if _, err := q.db.ExecContext(ctx, `
-				INSERT INTO entities (note_path, chunk_idx, entity_type, entity_value, created_at)
-				VALUES (?, NULL, ?, ?, ?)`,
-				notePath, r[0], r[1], now); err != nil {
+				INSERT INTO entities (note_path, chunk_idx, entity_type, entity_value, resolved_date, created_at)
+				VALUES (?, NULL, ?, ?, ?, ?)`,
+				notePath, r.typ, r.value, nullableString(r.resolved), now); err != nil {
 				if isLockError(err) {
 					lastErr = err
 					ok = false
@@ -1124,6 +1139,13 @@ func contains(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func nullableString(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 func nullableTime(t *time.Time) any {
@@ -2063,4 +2085,57 @@ func (q *Queue) TopSimilarChunks(ctx context.Context, embedding []float32, limit
 		out = out[:limit]
 	}
 	return out, nil
+}
+
+// GetEntityGlossary returns distinct person/org values across the vault,
+// most frequent first, capped — the "who does the user know" list.
+func (q *Queue) GetEntityGlossary(ctx context.Context, limit int) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT entity_value, COUNT(*) AS n FROM entities
+		WHERE entity_type IN ('person','org')
+		GROUP BY LOWER(entity_value)
+		ORDER BY n DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var v string
+		var n int
+		if err := rows.Scan(&v, &n); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// GetStat reads a stats_cache marker; ok=false when absent.
+func (q *Queue) GetStat(ctx context.Context, key string) (string, bool, error) {
+	var v string
+	err := q.db.QueryRowContext(ctx,
+		`SELECT value FROM stats_cache WHERE key = ?`, key).Scan(&v)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	return v, err == nil, err
+}
+
+// SetStat writes a stats_cache marker.
+func (q *Queue) SetStat(ctx context.Context, key, value string) error {
+	_, err := q.db.ExecContext(ctx,
+		`INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)`,
+		key, value, time.Now().UTC().Format(time.RFC3339))
+	return err
+}
+
+// CountPersonsSince counts distinct person entities created after t.
+func (q *Queue) CountPersonsSince(ctx context.Context, t time.Time) (int, error) {
+	var n int
+	err := q.db.QueryRowContext(ctx,
+		`SELECT COUNT(DISTINCT entity_value) FROM entities
+		 WHERE entity_type = 'person' AND created_at > ?`,
+		t.UTC().Format(time.RFC3339)).Scan(&n)
+	return n, err
 }

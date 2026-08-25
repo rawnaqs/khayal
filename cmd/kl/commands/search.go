@@ -128,6 +128,31 @@ func tookMsStyle(ms int) lipgloss.Style {
 	}
 }
 
+func printOverview(ov *klapi.Overview, results []klapi.SearchResult, width int) {
+	if ov == nil {
+		fmt.Println(theme.Muted.Render("  AI answer unavailable"))
+		fmt.Println()
+		return
+	}
+
+	body := theme.SearchExcerpt.Width(width - 4).Render(ov.Text)
+	fmt.Println(theme.PanelAccent.Width(width).Render(
+		theme.Bold.Render("✦ AI answer") + "\n\n" + body))
+	fmt.Println()
+
+	for _, idx := range ov.Citations {
+		if idx < 0 || idx >= len(results) {
+			continue
+		}
+		title := results[idx].Title
+		if title == "" {
+			title = results[idx].NotePath
+		}
+		fmt.Println(theme.Dim.Render(fmt.Sprintf("   [%d] %s", idx+1, truncateTitle(title, width-8))))
+	}
+	fmt.Println()
+}
+
 func runSearch(query string) error {
 	cfg, err := internal.LoadConfig()
 	if err != nil {
@@ -136,10 +161,21 @@ func runSearch(query string) error {
 	}
 
 	client := klapi.NewClient(cfg.Host, cfg.Token)
-	result, err := client.Search(query, searchMode, searchLimit, searchExcerptLen, searchFrom, searchTo, searchConnections)
-	if err != nil {
-		internal.ServerUnreachable(cfg.Host)
-		return err
+
+	var result *klapi.SearchResponse
+	if searchAnswer {
+		fmt.Println(theme.ProcessingStyle.Render("⏳ generating AI answer..."))
+		result, err = client.SearchWithOverview(query, searchMode, searchLimit, searchExcerptLen, searchFrom, searchTo)
+		if err != nil {
+			internal.ServerUnreachable(cfg.Host)
+			return err
+		}
+	} else {
+		result, err = client.Search(query, searchMode, searchLimit, searchExcerptLen, searchFrom, searchTo, searchConnections)
+		if err != nil {
+			internal.ServerUnreachable(cfg.Host)
+			return err
+		}
 	}
 
 	total := len(result.Results)
@@ -164,6 +200,10 @@ func runSearch(query string) error {
 			theme.Dim.Render(" · "+mode+" · ") +
 			tookMsStyle(tookMs).Render(fmt.Sprintf("%dms", tookMs)))
 	fmt.Println()
+
+	if searchAnswer {
+		printOverview(result.Overview, result.Results, width)
+	}
 
 	for _, r := range result.Results {
 		printResult(r, width)

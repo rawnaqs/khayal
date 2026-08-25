@@ -34,6 +34,7 @@ type OllamaClient struct {
 	systemPrompts         constants.SystemPrompts
 	prompts               constants.PromptTemplates
 	perBucketSystem       map[string]string
+	callContext           string
 }
 
 func NewOllamaClient(baseURL, embedModel, textModel, visionModel string) *OllamaClient {
@@ -156,6 +157,18 @@ func (c *OllamaClient) getTemperature(op string) float64 {
 		}
 	}
 	return c.temperature
+}
+
+// SetCallContext stores a per-job memory context block appended to the
+// system prompt of the four enrichment calls. Cleared by ClearCallContext.
+func (c *OllamaClient) SetCallContext(block string) { c.callContext = block }
+func (c *OllamaClient) ClearCallContext()           { c.callContext = "" }
+
+func (c *OllamaClient) withCallContext(system string) string {
+	if c.callContext == "" {
+		return system
+	}
+	return system + "\n\n" + c.callContext
 }
 
 func (c *OllamaClient) SetPerBucketSystem(perBucket map[string]string) {
@@ -294,7 +307,7 @@ func (c *OllamaClient) GenerateWithSystemTemp(system, user string, temperature f
 func (c *OllamaClient) generateWithModel(model, system, prompt string, tempOverride float64) (string, error) {
 	start := time.Now()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), constants.OllamaGenerateTimeout)
 	defer cancel()
 
 	if err := c.acquire(ctx); err != nil {
@@ -354,7 +367,7 @@ func (c *OllamaClient) DescribeImage(imagePath string) (string, error) {
 		return "", fmt.Errorf("failed to read image: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), constants.OllamaGenerateTimeout)
 	defer cancel()
 
 	if err := c.acquire(ctx); err != nil {
@@ -414,7 +427,7 @@ func (c *OllamaClient) ExtractTags(content string, bucket string) ([]string, err
 	}
 	userPrompt := fmt.Sprintf(tmpl, truncated)
 
-	systemPrompt := c.getSystemPrompt("extract_tags", bucket)
+	systemPrompt := c.withCallContext(c.getSystemPrompt("extract_tags", bucket))
 	result, err := c.GenerateWithSystemTemp(systemPrompt, userPrompt, c.getTemperature("extract_tags"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract tags: %w", err)
@@ -446,7 +459,7 @@ func (c *OllamaClient) ExtractEntities(content string, bucket string) (EntityRes
 	}
 	userPrompt := fmt.Sprintf(tmpl, truncated)
 
-	systemPrompt := c.getSystemPrompt("extract_entities", bucket)
+	systemPrompt := c.withCallContext(c.getSystemPrompt("extract_entities", bucket))
 	result, err := c.GenerateWithSystemTemp(systemPrompt, userPrompt, c.getTemperature("extract_entities"))
 	if err != nil {
 		return EntityResult{}, fmt.Errorf("failed to extract entities: %w", err)
@@ -473,7 +486,7 @@ func (c *OllamaClient) Summarize(content string, bucket string) (string, error) 
 	}
 	userPrompt := fmt.Sprintf(tmpl, truncated)
 
-	systemPrompt := c.getSystemPrompt("summarize", bucket)
+	systemPrompt := c.withCallContext(c.getSystemPrompt("summarize", bucket))
 	result, err := c.GenerateWithSystemTemp(systemPrompt, userPrompt, c.getTemperature("summarize"))
 	if err != nil {
 		return "", fmt.Errorf("failed to summarize: %w", err)
@@ -491,7 +504,7 @@ func (c *OllamaClient) ExtractKeyIdeas(content string, bucket string) ([]string,
 	}
 	userPrompt := fmt.Sprintf(tmpl, truncated)
 
-	systemPrompt := c.getSystemPrompt("extract_key_ideas", bucket)
+	systemPrompt := c.withCallContext(c.getSystemPrompt("extract_key_ideas", bucket))
 	result, err := c.GenerateWithSystemTemp(systemPrompt, userPrompt, c.getTemperature("extract_key_ideas"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract key ideas: %w", err)

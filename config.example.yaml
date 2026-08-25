@@ -22,6 +22,9 @@ llm:
   ollama_host: http://localhost:11434
   embed_model: nomic-embed-text
   text_model: llama3.2:3b
+  # Optional dedicated model for memory consolidation (defaults to text_model)
+  consolidation_model: ""
+
   vision_model: moondream
   fallback_provider: ""
   fallback_api_key: ""
@@ -95,3 +98,22 @@ log:
   file: logs/khayal.log
   rotation_max_size_mb: 10
   rotation_max_files: 5
+
+memory:
+  enabled: true             # nil=on; false disables retrieval AND injection
+  file: memory.md           # LLM-maintained memory file (inside inbox_dir)
+  user_context: |           # freeform author profile injected into enrichment
+    Software engineer in Mangalore building local-first tools.
+    Notes are raw thoughts; prices are usually INR.
+  people:                   # name -> blurb; injected when the name appears
+    alice: "colleague at Acme, leads payments"
+    john doe: "client, prefers email"
+  orgs:
+    acme corp: "my employer"
+
+  # Memory file consolidation throttle (runs in the background worker,
+  # never a cron): after any capture, consolidation fires only when BOTH
+  # gates say so - at least this many hours since the last run, OR this
+  # many new distinct people appeared since. Explicit 0 = every capture.
+  consolidation_interval_hours: 24
+  new_persons_threshold: 5

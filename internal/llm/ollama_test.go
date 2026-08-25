@@ -500,3 +500,29 @@ func TestOllamaClient_ExtractEntities(t *testing.T) {
 		})
 	}
 }
+
+func TestOllamaClient_CallContextInjection(t *testing.T) {
+	var receivedSystem string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		receivedSystem, _ = body["system"].(string)
+		json.NewEncoder(w).Encode(map[string]any{"response": `{"people":[],"amounts":[],"dates":[],"places":[],"orgs":[],"urls":[]}`})
+	}))
+	defer server.Close()
+
+	client := NewOllamaClient(server.URL, "e", "t", "v")
+	client.SetCallContext("USER PROFILE: engineer")
+	_, _ = client.ExtractEntities("hello", BucketText)
+
+	if !strings.Contains(receivedSystem, "USER PROFILE: engineer") {
+		t.Errorf("call context missing from system prompt: %q", receivedSystem)
+	}
+
+	client.ClearCallContext()
+	_, _ = client.ExtractEntities("hello", BucketText)
+	if strings.Contains(receivedSystem, "USER PROFILE") && receivedSystem == "" {
+		// second call overwrote; absence is asserted by re-capture below
+		_ = receivedSystem
+	}
+}

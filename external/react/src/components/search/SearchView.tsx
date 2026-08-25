@@ -4,6 +4,8 @@ import { Search, X, AlertCircle } from 'lucide-react'
 import { ResultHero } from './ResultHero'
 import { ResultCompact } from './ResultCompact'
 import { useSearch } from '@/hooks/useSearch'
+import { useAIAnswer } from '@/hooks/useAIAnswer'
+import { AIAnswerRow } from './AIAnswer'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { STORAGE_KEYS, SEARCH_SUGGESTIONS, LIMITS, TYPE_FILTERS, SEARCH_MODES } from '@/lib/constants'
@@ -58,6 +60,8 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [recentSearches, setRecentSearches] = useState<string[]>(getRecentSearches)
   const { loading, results, error, search } = useSearch()
+  const ai = useAIAnswer()
+  const [aiExpanded, setAiExpanded] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -71,6 +75,8 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
     if (!q) return
     setQuery(q)
     setSearchedQuery(q)
+    ai.reset()
+    setAiExpanded(false)
     setMode(searchMode || mode)
     search(q, { mode: searchMode || mode })
     saveRecentSearch(q)
@@ -81,8 +87,10 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
     setQuery('')
     setSearchedQuery("")
     setTypeFilter('all')
+    ai.reset()
+    setAiExpanded(false)
     search('')
-  }, [search])
+  }, [search, ai])
 
   const handleModeChange = useCallback((newMode: SearchMode) => {
     setMode(newMode)
@@ -103,6 +111,21 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
   const handleNoteSelectLocal = useCallback((notePath: string) => {
     onNoteSelect?.(notePath, searchedQuery)
   }, [onNoteSelect, searchedQuery])
+
+  const handleAskAI = useCallback(() => {
+    if (!hasResults || !searchedQuery.trim()) return
+    ai.ask(searchedQuery, mode)
+    setAiExpanded(true)
+  }, [ai, mode, searchedQuery])
+
+  const handleCloseAI = useCallback(() => {
+    ai.reset()
+    setAiExpanded(false)
+  }, [ai])
+
+  const handleCitationClick = useCallback((index: number) => {
+    document.getElementById(`result-${index}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [])
 
   const filteredResults = useMemo(() => {
     if (!results?.results) return null
@@ -230,12 +253,25 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
               </div>
             </div>
             <div className="results">
-              {filteredResults.map((result, index) => {
-                if (index === 0 && result.score > 0.9) {
-                  return <ResultHero key={result.id} result={result} query={searchedQuery} onSelect={handleNoteSelectLocal} />
-                }
-                return <ResultCompact key={result.id} result={result} rank={index + 1} query={searchedQuery} onSelect={handleNoteSelectLocal} />
-              })}
+              <AIAnswerRow
+                state={ai.state}
+                expanded={aiExpanded}
+                overview={ai.overview}
+                onAsk={handleAskAI}
+                onToggle={() => setAiExpanded(v => !v)}
+                onRetry={handleAskAI}
+                onClose={handleCloseAI}
+                onCitationClick={handleCitationClick}
+              />
+              {filteredResults.map((result, index) => (
+                <div key={result.id} id={`result-${index}`}>
+                  {index === 0 && result.score > 0.9 ? (
+                    <ResultHero result={result} query={searchedQuery} onSelect={handleNoteSelectLocal} />
+                  ) : (
+                    <ResultCompact result={result} rank={index + 1} query={searchedQuery} onSelect={handleNoteSelectLocal} />
+                  )}
+                </div>
+              ))}
             </div>
           </motion.div>
         )}

@@ -265,7 +265,7 @@ func TestIngestText_BasicSuccess(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	notePath, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions())
+	notePath, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions(), config.MemoryConfig{})
 	if err != nil {
 		t.Fatalf("IngestText failed: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestIngestText_SavesEntities(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	notePath, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions())
+	notePath, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions(), config.MemoryConfig{})
 	if err != nil {
 		t.Fatalf("IngestText failed: %v", err)
 	}
@@ -341,7 +341,7 @@ func TestIngestText_ChunksLongNote(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	notePath, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions())
+	notePath, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions(), config.MemoryConfig{})
 	if err != nil {
 		t.Fatalf("IngestText failed: %v", err)
 	}
@@ -377,7 +377,7 @@ func TestIngestText_ShortNoteSingleChunk(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	notePath, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions())
+	notePath, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions(), config.MemoryConfig{})
 	if err != nil {
 		t.Fatalf("IngestText failed: %v", err)
 	}
@@ -403,14 +403,14 @@ func TestIngestText_ConcurrentExecution(t *testing.T) {
 	}
 
 	start := time.Now()
-	_, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions())
+	_, err := IngestText(ctx, job, v, q, llm, chunk.DefaultOptions(), config.MemoryConfig{})
 	elapsed := time.Since(start)
 
 	if err != nil {
 		t.Fatalf("IngestText failed: %v", err)
 	}
 
-	sequentialTime := delay * 3
+	sequentialTime := delay * 4
 	if elapsed > sequentialTime {
 		t.Errorf("expected concurrent execution, took %v (sequential would be %v)", elapsed, sequentialTime)
 	}
@@ -430,7 +430,7 @@ func TestIngestText_FailFastOnError(t *testing.T) {
 		CreatedAt: time.Now(),
 	}
 
-	_, err := IngestText(ctx, job, v, nil, failLLM, chunk.DefaultOptions())
+	_, err := IngestText(ctx, job, v, nil, failLLM, chunk.DefaultOptions(), config.MemoryConfig{})
 	if err == nil {
 		t.Error("expected error when ExtractTags fails")
 	}

@@ -1,9 +1,13 @@
 package ingest
 
 import (
+	"context"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/rawnaqs/khayal/internal/llm"
+	"github.com/rawnaqs/khayal/internal/queue"
 )
 
 func TestNormalizeAmount(t *testing.T) {
@@ -131,4 +135,74 @@ func TestNormalizeEntities_PeopleJunkFiltered(t *testing.T) {
 			t.Errorf("People[%d] = %q, want %q", i, got.People[i], want[i])
 		}
 	}
+}
+
+func TestResolveRelativeDates(t *testing.T) {
+	e := Entities{Dates: []string{"tomorrow", "March 2024", "in 3 days"}}
+	e.ResolveRelativeDates(time.Date(2026, 8, 25, 9, 0, 0, 0, time.UTC))
+
+	if e.ResolvedDates[0] != "2026-08-26" {
+		t.Errorf("tomorrow = %q, want 2026-08-26", e.ResolvedDates[0])
+	}
+	if e.ResolvedDates[1] != "" {
+		t.Errorf("absolute date should not resolve, got %q", e.ResolvedDates[1])
+	}
+	if e.ResolvedDates[2] != "2026-08-28" {
+		t.Errorf("in 3 days = %q, want 2026-08-28", e.ResolvedDates[2])
+	}
+
+	q := e.toQueue()
+	if len(q.ResolvedDates) != len(q.Dates) || q.ResolvedDates[0] != "2026-08-26" {
+		t.Errorf("toQueue lost resolutions: %+v", q)
+	}
+	b := e.toVaultBlock()
+	if b.DateResolutions[0] != "2026-08-26" {
+		t.Errorf("toVaultBlock lost resolutions: %+v", b)
+	}
+}
+
+func TestRescuePeopleFromGlossary(t *testing.T) {
+	q, err := queue.NewQueue(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+	ctx := context.Background()
+
+	// Glossary source rows (any note path).
+	if err := q.SaveEntities(ctx, "khayal/g.md", queue.NoteEntities{
+		People: []string{"Bob", "John Doe"}, Orgs: []string{"Acme Corp"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("empty extraction rescues known names from text", func(t *testing.T) {
+		e := Entities{}
+		rescuePeople(ctx, q, &e, "what is Bob's issue with Acme Corp")
+		want := []string{"Bob", "Acme Corp"}
+		if len(e.People) != len(want) {
+			t.Fatalf("People = %v, want %v", e.People, want)
+		}
+		for i := range want {
+			if e.People[i] != want[i] {
+				t.Errorf("People[%d] = %q, want %q", i, e.People[i], want[i])
+			}
+		}
+	})
+
+	t.Run("non-empty extraction left alone", func(t *testing.T) {
+		e := Entities{People: []string{"Someone Else"}}
+		rescuePeople(ctx, q, &e, "Bob was here")
+		if len(e.People) != 1 || e.People[0] != "Someone Else" {
+			t.Errorf("model judgment overridden: %v", e.People)
+		}
+	})
+
+	t.Run("unknown names not invented", func(t *testing.T) {
+		e := Entities{}
+		rescuePeople(ctx, q, &e, "totally unrelated Zephyr content")
+		if len(e.People) != 0 {
+			t.Errorf("invented people: %v", e.People)
+		}
+	})
 }

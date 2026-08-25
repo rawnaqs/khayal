@@ -12,18 +12,21 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/rawnaqs/khayal/internal/chunk"
+	"github.com/rawnaqs/khayal/internal/config"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 )
 
-func IngestArticle(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt, chunkOpts chunk.Options) (string, error) {
+func IngestArticle(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt, chunkOpts chunk.Options, memCfg config.MemoryConfig) (string, error) {
 	title, content, err := scrapeArticle(job.SourceURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to scrape article: %w", err)
 	}
 
 	combinedContent := title + "\n\n" + content
+
+	defer setCallContext(llmClient, assembleMemoryContext(ctx, q, v, llmClient, memCfg, combinedContent))()
 
 	g, _ := errgroup.WithContext(ctx)
 
@@ -65,6 +68,8 @@ func IngestArticle(ctx context.Context, job *queue.Job, v *vault.Writer, q *queu
 	entities := NormalizeEntities(rawEntities)
 
 	now := time.Now().UTC()
+	entities.ResolveRelativeDates(now)
+	rescuePeople(ctx, q, &entities, combinedContent)
 	note := &vault.Note{
 		Metadata: vault.NoteMetadata{
 			Created:   job.CreatedAt,

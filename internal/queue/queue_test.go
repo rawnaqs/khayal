@@ -2,6 +2,7 @@ package queue
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -1017,5 +1018,46 @@ func TestGetNotesByEntityCaseInsensitive(t *testing.T) {
 		if len(matches) != 2 {
 			t.Errorf("query %q matched %d notes, want 2", query, len(matches))
 		}
+	}
+}
+
+func TestSaveEntitiesResolvedDates(t *testing.T) {
+	tmpDir := t.TempDir()
+	q, err := NewQueue(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+	if err := q.SaveEntities(ctx, "khayal/n.md", NoteEntities{
+		Dates:         []string{"tomorrow", "March 2024"},
+		ResolvedDates: []string{"2026-08-26", ""},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	var resolved sql.NullString
+	rows, err := q.db.Query(`SELECT resolved_date FROM entities WHERE note_path='khayal/n.md' ORDER BY id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		if err := rows.Scan(&resolved); err != nil {
+			t.Fatal(err)
+		}
+	}
+	first := struct{ R sql.NullString }{}
+	_ = first
+	// Re-query individually for deterministic assertions.
+	var a, b sql.NullString
+	_ = q.db.QueryRow(`SELECT resolved_date FROM entities WHERE note_path='khayal/n.md' AND entity_value='tomorrow'`).Scan(&a)
+	_ = q.db.QueryRow(`SELECT resolved_date FROM entities WHERE note_path='khayal/n.md' AND entity_value='March 2024'`).Scan(&b)
+	if !a.Valid || !strings.HasPrefix(a.String, "2026-08-26") {
+		t.Errorf("tomorrow resolved_date = %v, want starting 2026-08-26", a)
+	}
+	if b.Valid {
+		t.Errorf("March 2024 should have NULL resolution, got %q", b.String)
 	}
 }

@@ -552,6 +552,22 @@ const modes = ['hybrid', 'keyword', 'semantic']
 
 ---
 
+## AI answer row — inline, expanding (v1.1 phase 2.6)
+
+```tsx
+// AIAnswerRow.tsx — first item in the results list
+// Collapsed: gold sparkles + "AI Answer" + chevron, styled like a result row
+// Click (idle) -> fetch with overview=true + expand in place
+// Expansion: height animation (~320ms), shimmer skeleton bars while loading
+// Ready: grounded answer text; [n] tokens are gold superscript chips that
+//   smooth-scroll to the anchored result card
+// Collapse keeps the answer cached (re-expand is instant); dismiss resets
+// Error: quiet inline retry hint — results are never affected
+// Never auto-triggered: the click is the only trigger
+```
+
+---
+
 ## Capture result tiles — 4 states
 
 ```tsx

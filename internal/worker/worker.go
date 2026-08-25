@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"github.com/rawnaqs/khayal/internal/constants"
 	"github.com/rawnaqs/khayal/internal/ingest"
 	"github.com/rawnaqs/khayal/internal/llm"
+	"github.com/rawnaqs/khayal/internal/memory"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 )
@@ -24,16 +27,24 @@ type Worker struct {
 	queue     *queue.Queue
 	vault     *vault.Writer
 	llm       llm.LLMExt
+	memLLM    llm.LLMExt
 	config    config.WorkerConfig
 	chunkOpts chunk.Options
 	connCfg   config.ConnectionsConfig
+	memCfg    config.MemoryConfig
 	jobs      chan string
 	wg        sync.WaitGroup
 	running   atomic.Bool
 	logger    *slog.Logger
 }
 
-func NewWorker(cfg config.WorkerConfig, chunkOpts chunk.Options, connCfg config.ConnectionsConfig, q *queue.Queue, v *vault.Writer, l llm.LLMExt, logger *slog.Logger) *Worker {
+// SetMemoryLLM installs a dedicated client for memory consolidation jobs.
+// When unset, consolidation reuses the primary LLM client.
+func (w *Worker) SetMemoryLLM(l llm.LLMExt) {
+	w.memLLM = l
+}
+
+func NewWorker(cfg config.WorkerConfig, chunkOpts chunk.Options, connCfg config.ConnectionsConfig, memCfg config.MemoryConfig, q *queue.Queue, v *vault.Writer, l llm.LLMExt, logger *slog.Logger) *Worker {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -44,6 +55,7 @@ func NewWorker(cfg config.WorkerConfig, chunkOpts chunk.Options, connCfg config.
 		config:    cfg,
 		chunkOpts: chunkOpts,
 		connCfg:   connCfg,
+		memCfg:    memCfg,
 		jobs:      make(chan string, 1000),
 		logger:    logger,
 	}
@@ -150,19 +162,22 @@ func (w *Worker) processJob(jobID string) {
 
 	switch job.Type {
 	case "text":
-		notePath, processErr = ingest.IngestText(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts)
+		notePath, processErr = ingest.IngestText(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts, w.memCfg)
 	case "image":
-		notePath, processErr = ingest.IngestImage(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts)
+		notePath, processErr = ingest.IngestImage(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts, w.memCfg)
 	case "article":
-		notePath, processErr = ingest.IngestArticle(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts)
+		notePath, processErr = ingest.IngestArticle(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts, w.memCfg)
 	case "connections":
 		processErr = w.processConnections(ctx, job)
+	case "memory":
+		processErr = w.processMemory(ctx, job)
 	default:
 		processErr = fmt.Errorf("unknown job type: %s", job.Type)
 	}
 
-	if processErr == nil && job.Type != "connections" {
+	if processErr == nil && job.Type != "connections" && job.Type != "memory" {
 		w.chainConnections(ctx, jobID, notePath)
+		w.chainMemoryConsolidation(jobID)
 	}
 
 	if processErr != nil {
@@ -270,6 +285,44 @@ func (w *Worker) chainConnections(ctx context.Context, ingestJobID, notePath str
 	)
 }
 
+// chainMemoryConsolidation enqueues a memory job only when the throttle
+// window has elapsed or enough new persons accumulated since last run.
+func (w *Worker) chainMemoryConsolidation(ingestJobID string) {
+	if !config.IsOn(w.memCfg.Enabled) {
+		return
+	}
+	ctx := context.Background()
+	lastRunStr, ok, _ := w.queue.GetStat(ctx, "memory_last_consolidation")
+	var lastRun time.Time
+	if ok {
+		if t, err := time.Parse(time.RFC3339, lastRunStr); err == nil {
+			lastRun = t
+		}
+	}
+	personsSince := 0
+	if !lastRun.IsZero() {
+		personsSince, _ = w.queue.CountPersonsSince(ctx, lastRun)
+	}
+
+	due := lastRun.IsZero() ||
+		time.Since(lastRun) >= w.memCfg.ConsolidationInterval() ||
+		personsSince >= w.memCfg.PersonsThreshold()
+	if !due {
+		return
+	}
+
+	memJob := &queue.Job{Type: "memory", Status: "pending"}
+	if err := w.queue.CreateJob(ctx, memJob); err != nil {
+		w.logger.Warn("failed to enqueue memory job", "error", err)
+		return
+	}
+	// Deliberately NO LinkConnectionsJob here: that field names the
+	// connections job for polling clients; overwriting it with the memory
+	// job id would hide connection results.
+	w.logger.Info("memory consolidation queued",
+		"job_id", memJob.ID, "persons_since_last", personsSince)
+}
+
 // processConnections runs the connection engine for one note, writes the
 // ranked results onto the job row, and mirrors verified connections into
 // the note's frontmatter as Obsidian wikilinks. Only targets that exist on
@@ -289,6 +342,10 @@ func (w *Worker) processConnections(ctx context.Context, job *queue.Job) error {
 
 	links := make([]string, 0, len(conns))
 	for _, c := range conns {
+		base := filepath.Base(c.NotePath)
+		if strings.EqualFold(base, strings.TrimSpace(w.memCfg.File)) {
+			continue // never link the managed memory file
+		}
 		if w.vault.NoteExists(c.NotePath) {
 			links = append(links, c.NotePath)
 		} else {
@@ -300,4 +357,99 @@ func (w *Worker) processConnections(ctx context.Context, job *queue.Job) error {
 		return nil // nothing found; also clears any stale block
 	}
 	return w.vault.SetConnections(job.NotePath, links)
+}
+
+// memorySkeleton is the seeded structure of the LLM-maintained memory file.
+// MemorySkeleton is exported for startup seeding.
+const MemorySkeleton = `# Memory
+
+## About the author
+
+## People
+
+## Ongoing threads
+
+## Preferences
+`
+
+// filenameOrDefault resolves the managed memory filename.
+func filenameOrDefault(f string) string {
+	if f == "" {
+		return "memory.md"
+	}
+	return f
+}
+
+// processMemory consolidates the LLM-maintained memory file: current file +
+// recent facts go to the LLM for a merge-style rewrite. Failures fail the
+// job (standard retry); the previous memory file survives untouched until a
+// rewrite succeeds.
+func (w *Worker) processMemory(ctx context.Context, job *queue.Job) error {
+	current := w.vault.ReadManagedFile(w.memCfg.File)
+	if strings.TrimSpace(current) == "" {
+		_ = w.vault.WriteManagedFile(filenameOrDefault(w.memCfg.File), MemorySkeleton)
+		current = w.vault.ReadManagedFile(w.memCfg.File)
+	}
+
+	recent, _ := w.recentNoteDigests(ctx, 10)
+	personDelta, _ := w.queue.CountPersonsSince(ctx, time.Now().Add(-w.memCfg.ConsolidationInterval()))
+
+	prompt := fmt.Sprintf("CURRENT MEMORY FILE:\n%s\n\nRECENT CAPTURED FACTS:\n%s\n\nNEW PEOPLE SINCE LAST RUN: %d",
+		current, strings.Join(recent, "\n"), personDelta)
+
+	systemPrompt := constants.DefaultSystemPrompts.ConsolidateMemory
+	generator := w.llm
+	if w.memLLM != nil {
+		generator = w.memLLM
+	}
+	// Consolidation is a deterministic merge, not a creative task: use a low
+	// temperature when the client supports per-call temperature to reduce
+	// drift and duplicated-section artifacts.
+	var merged string
+	var err error
+	if tg, ok := generator.(interface {
+		GenerateWithSystemTemp(system, user string, temperature float64) (string, error)
+	}); ok {
+		merged, err = tg.GenerateWithSystemTemp(systemPrompt, prompt, 0.2)
+	} else {
+		merged, err = generator.GenerateWithSystem(systemPrompt, prompt)
+	}
+	if err != nil {
+		return fmt.Errorf("memory consolidation failed: %w", err)
+	}
+	sanitized, err := memory.SanitizeConsolidatedOutput(merged)
+	if err != nil {
+		return fmt.Errorf("invalid memory consolidation output: %w", err)
+	}
+	merged = sanitized
+
+	filename := filenameOrDefault(w.memCfg.File)
+	if err := w.vault.WriteManagedFile(filename, merged); err != nil {
+		return fmt.Errorf("write memory file: %w", err)
+	}
+
+	if err := w.queue.SetStat(ctx, "memory_last_consolidation", time.Now().UTC().Format(time.RFC3339)); err != nil {
+		w.logger.Warn("failed to record consolidation marker", "error", err)
+	}
+	return nil
+}
+
+// recentNoteDigests returns short digests of the newest notes' content.
+func (w *Worker) recentNoteDigests(ctx context.Context, limit int) ([]string, error) {
+	jobs, _, err := w.queue.ListJobs(ctx, "done", limit, 0)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, j := range jobs {
+		if j.NotePath == "" || j.Content == "" {
+			continue
+		}
+		digest := j.Content
+		if len(digest) > 200 {
+			digest = digest[:200]
+		}
+		out = append(out, fmt.Sprintf("- %s", digest))
+	}
+	return out, nil
 }

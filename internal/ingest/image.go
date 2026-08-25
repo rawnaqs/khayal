@@ -9,12 +9,13 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/rawnaqs/khayal/internal/chunk"
+	"github.com/rawnaqs/khayal/internal/config"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 )
 
-func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt, chunkOpts chunk.Options) (string, error) {
+func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt, chunkOpts chunk.Options, memCfg config.MemoryConfig) (string, error) {
 	imagePath := v.ResolveMediaPath(job.SourceFile)
 	description, err := llmClient.DescribeImage(imagePath)
 	if err != nil {
@@ -25,6 +26,8 @@ func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.
 	if job.UserContext != "" {
 		contextText = job.UserContext + "\n\n" + description
 	}
+
+	defer setCallContext(llmClient, assembleMemoryContext(ctx, q, v, llmClient, memCfg, contextText))()
 
 	g, _ := errgroup.WithContext(ctx)
 
@@ -52,6 +55,8 @@ func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.
 	entities := NormalizeEntities(rawEntities)
 
 	now := time.Now().UTC()
+	entities.ResolveRelativeDates(now)
+	rescuePeople(ctx, q, &entities, contextText)
 	note := &vault.Note{
 		Metadata: vault.NoteMetadata{
 			Created:     job.CreatedAt,

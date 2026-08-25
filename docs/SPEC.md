@@ -1542,14 +1542,41 @@ over time:
   note summaries; inject into tags/summary/key-ideas/entities prompts so
   naming stays consistent across months. Strictly local, fail-open,
   config-gated via `memory.enabled` (default true).
+- **Static user memory (config)** — `memory.user_context`,
+  `memory.people`, and `memory.orgs` let the user describe themselves and
+  their contacts; matching entries are injected alongside derived content.
+- **LLM-maintained memory file** — `<inbox>/memory.md` (configurable via
+  `memory.file`) is consolidated by the LLM in a merge-style rewrite and
+  injected back into enrichment. Not a cron: consolidation is chained onto
+  the background job queue after captures, gated by
+  `consolidation_interval_hours` (default 24) and `new_persons_threshold`
+  (default 5); explicit 0 means every capture. Reliability hardening:
+  - `llm.consolidation_model` routes consolidation to a dedicated (typically
+    larger) model; unset or equal to `text_model` reuses the primary client.
+    Consolidation generates at temperature 0.2 — it is a deterministic merge,
+    not a creative task.
+  - Consolidation output passes a structural sanitizer: echoed prompt labels
+    are truncated, canonical headings are validated, repeated canonical
+    headings collapse to their first occurrence along with everything under
+    them; invalid output errors the job for retry, leaving the previous
+    file untouched.
+- **Entity glossary rescue** — when entity extraction returns zero people,
+  known glossary names appearing in the capture text are promoted to person
+  entities deterministically (no extra LLM call). Non-empty extractions are
+  never overridden. This covers small-model flakiness where names are used
+  as topic words ("bob's issue") but not extracted.
 
 ### Search Overview (v1.1 phase 2.6)
 
 On-demand AI answer above search results, Google-Gemini style. Triggered
-explicitly — PWA "AI Answer" button or `kl search --answer`; never
-automatic, no config option. The answer is synthesized from the top-K
-result excerpts with `[n]` citations into the result list. Search itself
-never fails because of the answer (fail-open to `overview: null`).
+explicitly — PWA inline "AI Answer" row or `kl search --answer`; never
+automatic, no config option. The answer is synthesized from the top
+min(5, len) result excerpts with `[n]` citations into the result list,
+generated in one LLM call at temperature 0.3. Out-of-range `[n]` refs are
+dropped; duplicates deduped. In the PWA the answer is an expanding row at
+the top of the results list — collapse keeps it cached, dismiss resets.
+Search itself never fails because of the answer (fail-open to
+`overview: null`; zero results or missing param = zero LLM calls).
 
 **v2.0 Setup Wizard:**
 - First-launch UI (no CLI required)
@@ -1840,6 +1867,7 @@ llm:
   embed_model: nomic-embed-text
   text_model: llama3.2:3b
   vision_model: moondream
+  consolidation_model: ""              # dedicated model for memory consolidation; "" or same as text_model = reuse text model
   fallback_provider: ""                # groq | openai | "" (none)
   fallback_api_key: ""
   truncate_text_tokens: 2000           # max tokens for text content

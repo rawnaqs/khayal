@@ -19,6 +19,7 @@ llm:
   ollama_host: http://0.0.0.0:11434
   embed_model: nomic-embed-text
   text_model: qwen2.5:3b
+  consolidation_model: qwen2.5:7b
   vision_model: moondream
   fallback_provider: ""
   fallback_api_key: ""
@@ -56,3 +57,17 @@ connections:
     similar: true
     person: true
     amount: true
+
+memory:
+  enabled: true             # nil=on; false disables retrieval AND injection
+  file: memory.md           # LLM-maintained memory file (inside inbox_dir)
+  user_context: |           # freeform author profile injected into enrichment
+    Software engineer in Mangalore building local-first tools.
+    Notes are raw thoughts; prices are usually INR.
+  people:                   # name -> blurb; injected when the name appears
+    alice: "colleague at Acme, leads payments"
+    john doe: "client, prefers email"
+  orgs:
+    acme corp: "my employer"
+  consolidation_interval_hours: 0
+  new_persons_threshold: 0

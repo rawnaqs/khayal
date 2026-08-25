@@ -30,8 +30,8 @@ const (
 	OllamaClientTimeout   = 120 * time.Second
 	OllamaPingTimeout     = 5 * time.Second
 	OllamaEmbedTimeout    = 60 * time.Second
-	OllamaGenerateTimeout = 120 * time.Second
-	OllamaVisionTimeout   = 120 * time.Second
+	OllamaGenerateTimeout = 300 * time.Second
+	OllamaVisionTimeout   = 300 * time.Second
 )
 
 // LLM defaults
@@ -50,11 +50,13 @@ const (
 
 // System prompts define the model's persona and output expectations.
 type SystemPrompts struct {
-	ExtractTags     string `yaml:"extract_tags"`
-	Summarize       string `yaml:"summarize"`
-	ExtractKeyIdeas string `yaml:"extract_key_ideas"`
-	DescribeImage   string `yaml:"describe_image"`
-	ExtractEntities string `yaml:"extract_entities"`
+	ExtractTags       string `yaml:"extract_tags"`
+	Summarize         string `yaml:"summarize"`
+	ExtractKeyIdeas   string `yaml:"extract_key_ideas"`
+	DescribeImage     string `yaml:"describe_image"`
+	ExtractEntities   string `yaml:"extract_entities"`
+	ConsolidateMemory string `yaml:"consolidate_memory"`
+	SearchOverview    string `yaml:"search_overview"`
 }
 
 var DefaultSystemPrompts = SystemPrompts{
@@ -107,16 +109,18 @@ Include:
 
 Output format: Plain descriptive text. Do NOT use bullet points or numbered lists. Write in flowing prose.`,
 
-	ExtractEntities: `You are a structured entity extractor for a personal knowledge base. Your task is to extract entities from the given content.
+	SearchOverview: `You are a precise answer engine over a personal knowledge base. Given a question and numbered note excerpts, write a short standalone answer (3-6 sentences) grounded ONLY in those excerpts. Cite sources inline as [n] matching the excerpt numbers. If the excerpts do not contain enough information, say so plainly — never speculate. Plain prose, no markdown headers, no bullet lists unless comparing items.`,
+
+	ExtractEntities: `You are a structured entity extractor for a personal knowledge base. Extract entities from the given content.
 
 Rules:
-- people: full names of real people mentioned (not fictional, not the author)
-- Never extract the author, first-person pronouns (I, me, we), or single letters as people
-- amounts: monetary or numerical amounts (e.g. "$2,000", "2k", "500 users")
-- dates: specific dates or date ranges mentioned (e.g. "March 2024", "2019-03-03")
+- people: full names of REAL people mentioned. Extract a name EVEN IF it is also used as a topic or subject ("bob's issue" -> people:["Bob"]). Never extract the author, first-person pronouns (I, me, we), or single letters.
+- amounts: monetary or numerical amounts (e.g. "$2,000", "2k", "500 users"). Do NOT extract years or dates here.
+- dates: specific dates or relative references ("March 2024", "tomorrow", "next friday")
 - places: cities, countries, regions, specific locations
 - orgs: company names, organization names, institutions
 - urls: any URLs mentioned in the content
+- Use consistent casing per entity across the whole output (pick one form of each name)
 - Return empty arrays if nothing is found for a type
 - Maximum 10 items per type
 - Prefer full forms over abbreviations
@@ -124,6 +128,21 @@ Rules:
 Output format: Respond with ONLY a valid JSON object with these exact keys. No markdown wrapping, no commentary, no text outside the object.
 Correct: {"people":["John Doe"],"amounts":["2000"],"dates":[],"places":[],"orgs":[],"urls":[]}
 Wrong: Here are the entities: {...}`,
+
+	ConsolidateMemory: `You maintain the long-term memory file for a personal knowledge base. You will receive the CURRENT memory file plus recently captured facts. Rewrite the file merging in anything new and durable.
+
+Rules:
+- Keep the exact same section headings (# Memory, ## About the author, ## People, ## Ongoing threads, ## Preferences)
+- Each heading appears EXACTLY ONCE. If a section has nothing to say, leave it empty after its heading - never write "None" or "Nothing specified"
+- Merge: add new entries and enrich existing ones — never remove unrelated content
+- COLLAPSE repetition: multiple meetings/events with the same person become ONE summary line, optionally with a count ("met Bob 5 times about X")
+- One line per person; that line contains facts about THAT person only — never copy another person's fact into their entry
+- Drop noise: rhetorical questions, hallucinated asides, one-off trivia, duplicated sentences
+- Opinions and preferences belong under ## Preferences only
+- Preserve any manual edits the user made
+- Never repeat the input section labels (CURRENT MEMORY FILE:, RECENT CAPTURED FACTS:, NEW PEOPLE SINCE LAST RUN:)
+- Output MUST start with "# Memory" and contain all five section headings
+- Output ONLY the full rewritten markdown file, no commentary`,
 }
 
 // Prompt templates define per-bucket user prompts.

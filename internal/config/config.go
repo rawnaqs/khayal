@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/rawnaqs/khayal/internal/chunk"
 	"gopkg.in/yaml.v3"
@@ -34,6 +35,7 @@ type Config struct {
 	DB          DBConfig          `yaml:"db"`
 	Search      SearchConfig      `yaml:"search"`
 	Connections ConnectionsConfig `yaml:"connections"`
+	Memory      MemoryConfig      `yaml:"memory"`
 	Log         LogConfig         `yaml:"log"`
 }
 
@@ -70,6 +72,7 @@ type LLMConfig struct {
 	EmbedModel            string        `yaml:"embed_model"`
 	TextModel             string        `yaml:"text_model"`
 	VisionModel           string        `yaml:"vision_model"`
+	ConsolidationModel    string        `yaml:"consolidation_model"`
 	FallbackProvider      string        `yaml:"fallback_provider"`
 	FallbackAPIKey        string        `yaml:"fallback_api_key"`
 	TruncateTextTokens    int           `yaml:"truncate_text_tokens"`
@@ -158,6 +161,37 @@ func (c ConnectionsConfig) AgeDays() int {
 		return 7
 	}
 	return *c.MinAgeDays
+}
+
+type MemoryConfig struct {
+	// Enabled gates retrieval + prompt injection; nil means true.
+	Enabled *bool `yaml:"enabled"`
+	// File is the vault-inbox filename of the LLM-maintained memory file.
+	File string `yaml:"file"`
+	// UserContext is freeform author profile text injected verbatim.
+	UserContext string            `yaml:"user_context"`
+	People      map[string]string `yaml:"people"`
+	Orgs        map[string]string `yaml:"orgs"`
+	// ConsolidationIntervalHours: nil -> 24h; 0 means every capture.
+	ConsolidationIntervalHours *int `yaml:"consolidation_interval_hours"`
+	// NewPersonsThreshold: nil -> 5; 0 means any new person triggers.
+	NewPersonsThreshold *int `yaml:"new_persons_threshold"`
+}
+
+// ConsolidationInterval resolves the hours setting: nil/negative -> 24h.
+func (m MemoryConfig) ConsolidationInterval() time.Duration {
+	if m.ConsolidationIntervalHours == nil || *m.ConsolidationIntervalHours < 0 {
+		return 24 * time.Hour
+	}
+	return time.Duration(*m.ConsolidationIntervalHours) * time.Hour
+}
+
+// PersonsThreshold resolves the new-persons trigger: nil/negative -> 5.
+func (m MemoryConfig) PersonsThreshold() int {
+	if m.NewPersonsThreshold == nil || *m.NewPersonsThreshold < 0 {
+		return 5
+	}
+	return *m.NewPersonsThreshold
 }
 
 // ConnectionsTypes toggles individual connection types; nil means on.
@@ -305,6 +339,9 @@ func (c *Config) ApplyDefaults() {
 	}
 	// 0.72 sits inside the measured gap between unrelated notes (~0.49)
 	// and topically related ones (~0.79) for nomic-embed-text raw cosines.
+	if c.Memory.File == "" {
+		c.Memory.File = "memory.md"
+	}
 	if c.Connections.SimilarityThreshold <= 0 {
 		c.Connections.SimilarityThreshold = 0.72
 	}

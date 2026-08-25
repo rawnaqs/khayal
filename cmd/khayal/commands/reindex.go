@@ -194,6 +194,11 @@ func runReindex(force bool, ftsOnly bool) error {
 	return nil
 }
 
+// isManagedFilename reports files khayal owns and must never index or link.
+func isManagedFilename(name string) bool {
+	return strings.EqualFold(name, "memory.md")
+}
+
 func scanForMarkdown(dir string) ([]string, error) {
 	var files []string
 
@@ -207,6 +212,9 @@ func scanForMarkdown(dir string) ([]string, error) {
 
 	for _, entry := range entries {
 		if entry.IsDir() {
+			continue
+		}
+		if isManagedFilename(entry.Name()) {
 			continue
 		}
 		if strings.HasSuffix(entry.Name(), ".md") {

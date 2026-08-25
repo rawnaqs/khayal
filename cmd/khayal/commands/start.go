@@ -8,6 +8,8 @@ import (
 
 	cli "github.com/rawnaqs/khayal/cmd/khayal/internal"
 	"github.com/rawnaqs/khayal/internal/api"
+	"path/filepath"
+
 	"github.com/rawnaqs/khayal/internal/config"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/log"
@@ -114,6 +116,19 @@ func runStart() error {
 	}
 	cli.PrintAction("vault", config.MakeAbsolute(cfg.Vault.Path, configPath))
 
+	// Seed the LLM-maintained memory file if absent (phase 2.5).
+	memFile := cfg.Memory.File
+	if memFile == "" {
+		memFile = "memory.md"
+	}
+	if !v.ManagedFileExists(memFile) {
+		if err := v.WriteManagedFile(memFile, worker.MemorySkeleton); err != nil {
+			cli.PrintAction("memory", "seed failed: "+err.Error())
+		} else {
+			cli.PrintAction("memory", filepath.Join(cfg.Vault.InboxDir, memFile))
+		}
+	}
+
 	llmClient, err := llm.NewLLM(cfg.LLM)
 	if err != nil {
 		cli.Fatal(cli.ExitServer, "failed to initialize LLM: %v", err)
@@ -121,7 +136,16 @@ func runStart() error {
 	}
 	cli.PrintAction("llm", cfg.LLM.Provider)
 
-	w := worker.NewWorker(cfg.Worker, cfg.Search.ChunkOptions(), cfg.Connections, q, v, llmClient, loggerSetup.WorkerLogger)
+	w := worker.NewWorker(cfg.Worker, cfg.Search.ChunkOptions(), cfg.Connections, cfg.Memory, q, v, llmClient, loggerSetup.WorkerLogger)
+	memLLM, err := llm.NewConsolidationLLM(cfg.LLM)
+	if err != nil {
+		cli.Fatal(cli.ExitServer, "failed to initialize consolidation LLM: %v", err)
+		return err
+	}
+	if memLLM != nil {
+		w.SetMemoryLLM(memLLM)
+		cli.PrintAction("llm", "consolidation: "+cfg.LLM.ConsolidationModel)
+	}
 	w.Start()
 	cli.PrintAction("worker", "started")
 

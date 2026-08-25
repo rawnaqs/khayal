@@ -546,3 +546,27 @@ func readNoteFile(t *testing.T, w *Writer, p string) string {
 	}
 	return string(b)
 }
+
+func TestRenderNote_DateResolutionsArrow(t *testing.T) {
+	w := &Writer{}
+	note := &Note{
+		Metadata: NoteMetadata{
+			Created: time.Date(2026, 8, 25, 9, 0, 0, 0, time.UTC),
+			Type:    "text", Status: "done",
+			Entities: &EntitiesBlock{
+				Dates:           []string{"tomorrow", "March 2024"},
+				DateResolutions: []string{"2026-08-26", ""},
+			},
+		},
+	}
+	out := w.renderNote(note)
+	if !strings.Contains(out, "    - tomorrow \u2192 2026-08-26\n") {
+		t.Errorf("arrow rendering missing:\n%s", out)
+	}
+	if !strings.Contains(out, "    - March 2024\n") {
+		t.Errorf("unresolved date must render plain:\n%s", out)
+	}
+	if strings.Contains(out, "\u2192\n") || strings.Count(out, "\u2192") != 1 {
+		t.Errorf("unexpected arrow count:\n%s", out)
+	}
+}

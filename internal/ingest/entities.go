@@ -5,7 +5,10 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/rawnaqs/khayal/internal/constants"
+	"github.com/rawnaqs/khayal/internal/dates"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
@@ -14,24 +17,26 @@ import (
 // toQueue converts normalized entities into the store's mirror type.
 func (e Entities) toQueue() queue.NoteEntities {
 	return queue.NoteEntities{
-		People:  e.People,
-		Amounts: e.Amounts,
-		Dates:   e.Dates,
-		Places:  e.Places,
-		Orgs:    e.Orgs,
-		URLs:    e.URLs,
+		People:        e.People,
+		Amounts:       e.Amounts,
+		Dates:         e.Dates,
+		ResolvedDates: e.ResolvedDates,
+		Places:        e.Places,
+		Orgs:          e.Orgs,
+		URLs:          e.URLs,
 	}
 }
 
 // toVaultBlock converts normalized entities into the frontmatter block type.
 func (e Entities) toVaultBlock() *vault.EntitiesBlock {
 	return &vault.EntitiesBlock{
-		People:  e.People,
-		Amounts: e.Amounts,
-		Dates:   e.Dates,
-		Places:  e.Places,
-		Orgs:    e.Orgs,
-		URLs:    e.URLs,
+		People:          e.People,
+		Amounts:         e.Amounts,
+		Dates:           e.Dates,
+		DateResolutions: e.ResolvedDates,
+		Places:          e.Places,
+		Orgs:            e.Orgs,
+		URLs:            e.URLs,
 	}
 }
 
@@ -62,9 +67,23 @@ type Entities struct {
 	People  []string `json:"people"`
 	Amounts []string `json:"amounts"`
 	Dates   []string `json:"dates"`
-	Places  []string `json:"places"`
-	Orgs    []string `json:"orgs"`
-	URLs    []string `json:"urls"`
+	// ResolvedDates is index-aligned with Dates: absolute dates for
+	// relative references, empty string when a date did not resolve.
+	ResolvedDates []string `json:"resolved_dates,omitempty"`
+	Places        []string `json:"places"`
+	Orgs          []string `json:"orgs"`
+	URLs          []string `json:"urls"`
+}
+
+// ResolveRelativeDates fills ResolvedDates for any relative date
+// references ("tomorrow", "in 3 days") against the given capture time.
+func (e *Entities) ResolveRelativeDates(now time.Time) {
+	e.ResolvedDates = make([]string, len(e.Dates))
+	for i, d := range e.Dates {
+		if t, ok := dates.ResolveRelative(d, now); ok {
+			e.ResolvedDates[i] = t.Format("2006-01-02")
+		}
+	}
 }
 
 // personStoplist are pronouns/author references LLMs occasionally emit as
@@ -203,4 +222,34 @@ func containsAllWords(haystack, needles []string) bool {
 		}
 	}
 	return true
+}
+
+// rescuePeople promotes known glossary names found in the capture text when
+// entity extraction returned NO people at all (a common small-model miss).
+// When the extractor returned anyone, its judgment stands untouched.
+func rescuePeople(ctx context.Context, q *queue.Queue, e *Entities, text string) {
+	if len(e.People) > 0 || q == nil {
+		return
+	}
+	glossary, err := q.GetEntityGlossary(ctx, 50)
+	if err != nil {
+		return
+	}
+	lower := strings.ToLower(text)
+	var found []string
+	seen := make(map[string]bool, len(glossary))
+	for _, name := range glossary {
+		norm := strings.ToLower(strings.TrimSpace(name))
+		if len(norm) < 3 || seen[norm] {
+			continue // skip tiny/ambiguous tokens and duplicates
+		}
+		if strings.Contains(lower, norm) {
+			seen[norm] = true
+			found = append(found, name)
+			if len(found) >= constants.MaxEntitiesPerType {
+				break
+			}
+		}
+	}
+	e.People = found
 }
