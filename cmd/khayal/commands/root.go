@@ -46,6 +46,8 @@ Configuration:
 		newReindexCmd(),
 		newVersionCmd(),
 		newConfigCmd(),
+		newBackupCmd(),
+		newRestoreCmd(),
 		newVaultCmd(),
 	)
 

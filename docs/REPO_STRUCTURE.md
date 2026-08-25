@@ -30,6 +30,8 @@ khayal/
 │   │       ├── status.go          # Server status + update check
 │   │       ├── reindex.go         # Progress bar reindex
 │   │       ├── vault*.go         # Vault maintenance: health, fix-links, clean-media, show-duplicates
+│   │       ├── backup.go         # Backup vault/db/config (--dest --encrypt --init-key)
+│   │       └── restore.go        # Restore from backup (--from --date --overwrite)
 │   │       ├── version.go         # Version info
 │   │       └── config.go          # View config
 │   │
@@ -311,6 +313,7 @@ Private application code. Not importable by external packages.
 | `vault/` | Markdown file writing |
 | `queue/` | SQLite database operations |
 | `queue/` | Job queue, FTS5 + semantic search, entity/chunk stores |
+| `backup/` | Encrypted backup (age) and additive-merge restore |
 | `connections/` | Proactive connections |
 | `config/` | Configuration management |
 | `version/` | Version info |

@@ -542,22 +542,28 @@ Restore from backup.
 ```bash
 khayal restore --from /Volumes/BackupDrive/khayal
 khayal restore --from /Volumes/BackupDrive/khayal --date 2024-03-10
+khayal restore --from /Volumes/BackupDrive/khayal --overwrite
 ```
+
+**Safety contract (v1.1 implementation):**
+- `backup` warns and proceeds while the server is running (vault copy is
+  always safe; the db snapshot may catch a mid-write state)
+- `restore` hard-refuses while the server is running — stop first
+- vault restore is an additive merge: newer notes not in the backup are
+  never deleted; existing files are skipped without `--overwrite`
+- config restore is best-effort: an existing live config is kept with a
+  warning unless `--overwrite` is passed
+- `--encrypt` uses age (filippo.io/age, embedded): armored X25519,
+  identity file at `~/.config/khayal/backup.key`, generated via
+  `khayal backup --init-key` (refuses to overwrite an existing key)
 
 **Behavior:**
 
 ```
 khayal restore --from /Volumes/BackupDrive/khayal
 
-  available backups
-    2024-03-16  vault: 2,847 notes · db: 24MB  ← latest
-    2024-03-09  vault: 2,801 notes · db: 23MB
-    2024-03-02  vault: 2,756 notes · db: 21MB
-
-  restoring latest backup...
-
-  ! khayal must be stopped before restore
-    → run: khayal stop
+  ✗ khayal must be stopped before restore
+    → khayal stop
     → then: khayal restore --from /Volumes/BackupDrive/khayal
 ```
 
@@ -583,8 +589,10 @@ If khayal is stopped:
 
 **Rules:**
 - Refuses to run if khayal server is running
-- `--date` selects specific backup (default: latest)
-- Decrypts automatically if backup.key exists
+- `--date` selects specific backup (default: latest); no interactive menu —
+  inspect the destination directory to see available dates
+- Decrypts automatically when the encrypted variant is present and
+  `~/.config/khayal/backup.key` is readable
 - Vault restore: additive by default — never overwrites newer files
 - `--overwrite` forces full vault overwrite — explicit user intent
 - DB + config: always fully replaced
