@@ -68,3 +68,5 @@ memory:
     john doe: "client, prefers email"
   orgs:
     acme corp: "my employer"
+  consolidation_interval_hours: 0
+  new_persons_threshold: 0

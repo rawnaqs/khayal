@@ -2102,9 +2102,11 @@ func (q *Queue) GetEntityGlossary(ctx context.Context, limit int) ([]string, err
 	var out []string
 	for rows.Next() {
 		var v string
-		if err := rows.Scan(&v); err == nil {
-			out = append(out, v)
+		var n int
+		if err := rows.Scan(&v, &n); err != nil {
+			return nil, err
 		}
+		out = append(out, v)
 	}
 	return out, rows.Err()
 }

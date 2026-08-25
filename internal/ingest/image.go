@@ -56,6 +56,7 @@ func IngestImage(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.
 
 	now := time.Now().UTC()
 	entities.ResolveRelativeDates(now)
+	rescuePeople(ctx, q, &entities, contextText)
 	note := &vault.Note{
 		Metadata: vault.NoteMetadata{
 			Created:     job.CreatedAt,

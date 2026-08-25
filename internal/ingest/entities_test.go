@@ -1,10 +1,13 @@
 package ingest
 
 import (
+	"context"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/rawnaqs/khayal/internal/llm"
+	"github.com/rawnaqs/khayal/internal/queue"
 )
 
 func TestNormalizeAmount(t *testing.T) {
@@ -156,4 +159,50 @@ func TestResolveRelativeDates(t *testing.T) {
 	if b.DateResolutions[0] != "2026-08-26" {
 		t.Errorf("toVaultBlock lost resolutions: %+v", b)
 	}
+}
+
+func TestRescuePeopleFromGlossary(t *testing.T) {
+	q, err := queue.NewQueue(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+	ctx := context.Background()
+
+	// Glossary source rows (any note path).
+	if err := q.SaveEntities(ctx, "khayal/g.md", queue.NoteEntities{
+		People: []string{"Bob", "John Doe"}, Orgs: []string{"Acme Corp"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("empty extraction rescues known names from text", func(t *testing.T) {
+		e := Entities{}
+		rescuePeople(ctx, q, &e, "what is Bob's issue with Acme Corp")
+		want := []string{"Bob", "Acme Corp"}
+		if len(e.People) != len(want) {
+			t.Fatalf("People = %v, want %v", e.People, want)
+		}
+		for i := range want {
+			if e.People[i] != want[i] {
+				t.Errorf("People[%d] = %q, want %q", i, e.People[i], want[i])
+			}
+		}
+	})
+
+	t.Run("non-empty extraction left alone", func(t *testing.T) {
+		e := Entities{People: []string{"Someone Else"}}
+		rescuePeople(ctx, q, &e, "Bob was here")
+		if len(e.People) != 1 || e.People[0] != "Someone Else" {
+			t.Errorf("model judgment overridden: %v", e.People)
+		}
+	})
+
+	t.Run("unknown names not invented", func(t *testing.T) {
+		e := Entities{}
+		rescuePeople(ctx, q, &e, "totally unrelated Zephyr content")
+		if len(e.People) != 0 {
+			t.Errorf("invented people: %v", e.People)
+		}
+	})
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rawnaqs/khayal/internal/constants"
 	"github.com/rawnaqs/khayal/internal/dates"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
@@ -221,4 +222,34 @@ func containsAllWords(haystack, needles []string) bool {
 		}
 	}
 	return true
+}
+
+// rescuePeople promotes known glossary names found in the capture text when
+// entity extraction returned NO people at all (a common small-model miss).
+// When the extractor returned anyone, its judgment stands untouched.
+func rescuePeople(ctx context.Context, q *queue.Queue, e *Entities, text string) {
+	if len(e.People) > 0 || q == nil {
+		return
+	}
+	glossary, err := q.GetEntityGlossary(ctx, 50)
+	if err != nil {
+		return
+	}
+	lower := strings.ToLower(text)
+	var found []string
+	seen := make(map[string]bool, len(glossary))
+	for _, name := range glossary {
+		norm := strings.ToLower(strings.TrimSpace(name))
+		if len(norm) < 3 || seen[norm] {
+			continue // skip tiny/ambiguous tokens and duplicates
+		}
+		if strings.Contains(lower, norm) {
+			seen[norm] = true
+			found = append(found, name)
+			if len(found) >= constants.MaxEntitiesPerType {
+				break
+			}
+		}
+	}
+	e.People = found
 }

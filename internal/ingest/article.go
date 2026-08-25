@@ -69,6 +69,7 @@ func IngestArticle(ctx context.Context, job *queue.Job, v *vault.Writer, q *queu
 
 	now := time.Now().UTC()
 	entities.ResolveRelativeDates(now)
+	rescuePeople(ctx, q, &entities, combinedContent)
 	note := &vault.Note{
 		Metadata: vault.NoteMetadata{
 			Created:   job.CreatedAt,
