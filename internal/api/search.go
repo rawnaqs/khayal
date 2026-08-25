@@ -11,11 +11,12 @@ import (
 )
 
 type SearchResponse struct {
-	Query   string               `json:"query"`
-	Mode    string               `json:"mode"`
-	Results []queue.SearchResult `json:"results"`
-	Total   int                  `json:"total"`
-	TookMs  int64                `json:"took_ms"`
+	Query    string               `json:"query"`
+	Mode     string               `json:"mode"`
+	Results  []queue.SearchResult `json:"results"`
+	Total    int                  `json:"total"`
+	TookMs   int64                `json:"took_ms"`
+	Overview *Overview            `json:"overview,omitempty"`
 }
 
 func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
@@ -89,6 +90,20 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 		results = []queue.SearchResult{}
 	}
 
+	// On-demand AI answer: only when explicitly requested, only when there
+	// is something to ground it in. Failure never fails the search.
+	var overview *Overview
+	wantOverview := r.URL.Query().Get("overview") == "true"
+	if wantOverview && len(results) > 0 {
+		overview = generateOverview(ctx, s.llm, query, results)
+		if overview == nil {
+			s.logger.Warn("overview generation failed",
+				"code", "OVERVIEW_FAILED",
+				"query", queryForLog,
+			)
+		}
+	}
+
 	took := time.Since(start).Milliseconds()
 
 	s.logger.Info("search",
@@ -99,11 +114,12 @@ func (s *Server) searchHandler(w http.ResponseWriter, r *http.Request) {
 	)
 
 	WriteJSON(w, http.StatusOK, SearchResponse{
-		Query:   query,
-		Mode:    mode,
-		Results: results,
-		Total:   len(results),
-		TookMs:  took,
+		Query:    query,
+		Mode:     mode,
+		Results:  results,
+		Total:    len(results),
+		TookMs:   took,
+		Overview: overview,
 	})
 }
 

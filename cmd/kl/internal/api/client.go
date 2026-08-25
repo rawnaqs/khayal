@@ -64,11 +64,18 @@ type SearchResult struct {
 }
 
 type SearchResponse struct {
-	Results []SearchResult `json:"results"`
-	Query   string         `json:"query"`
-	Mode    string         `json:"mode"`
-	Total   int            `json:"total"`
-	TookMs  int64          `json:"took_ms"`
+	Results  []SearchResult `json:"results"`
+	Query    string         `json:"query"`
+	Mode     string         `json:"mode"`
+	Total    int            `json:"total"`
+	TookMs   int64          `json:"took_ms"`
+	Overview *Overview      `json:"overview,omitempty"`
+}
+
+// Overview is the on-demand AI answer above search results.
+type Overview struct {
+	Text      string `json:"text"`
+	Citations []int  `json:"citations"`
 }
 
 func NewClient(host, token string) *Client {
@@ -246,6 +253,48 @@ func (c *Client) Search(query, mode string, limit, excerptLength int, from, to s
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
+	return &result, nil
+}
+
+// SearchWithOverview fetches results plus the on-demand AI answer. Uses a
+// longer timeout than plain search: answer generation is an LLM call.
+func (c *Client) SearchWithOverview(query, mode string, limit, excerptLength int, from, to string) (*SearchResponse, error) {
+	params := url.Values{}
+	params.Set("q", query)
+	params.Set("mode", mode)
+	params.Set("limit", strconv.Itoa(limit))
+	params.Set("excerpt_length", strconv.Itoa(excerptLength))
+	params.Set("overview", "true")
+	if from != "" {
+		params.Set("from", from)
+	}
+	if to != "" {
+		params.Set("to", to)
+	}
+
+	longClient := *c.client
+	longClient.Timeout = 180 * time.Second
+	c2 := &longClient
+
+	searchURL := "/v1/search?" + params.Encode()
+	req, err := http.NewRequest("GET", c.Host+searchURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("X-Khayal-Token", c.Token)
+	resp, err := c2.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("search failed with status %d", resp.StatusCode)
+	}
+	var result SearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
 	return &result, nil
 }
 

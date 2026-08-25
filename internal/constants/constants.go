@@ -56,6 +56,7 @@ type SystemPrompts struct {
 	DescribeImage     string `yaml:"describe_image"`
 	ExtractEntities   string `yaml:"extract_entities"`
 	ConsolidateMemory string `yaml:"consolidate_memory"`
+	SearchOverview    string `yaml:"search_overview"`
 }
 
 var DefaultSystemPrompts = SystemPrompts{
@@ -107,6 +108,8 @@ Include:
 - Colors, layout, and spatial relationships if relevant
 
 Output format: Plain descriptive text. Do NOT use bullet points or numbered lists. Write in flowing prose.`,
+
+	SearchOverview: `You are a precise answer engine over a personal knowledge base. Given a question and numbered note excerpts, write a short standalone answer (3-6 sentences) grounded ONLY in those excerpts. Cite sources inline as [n] matching the excerpt numbers. If the excerpts do not contain enough information, say so plainly — never speculate. Plain prose, no markdown headers, no bullet lists unless comparing items.`,
 
 	ExtractEntities: `You are a structured entity extractor for a personal knowledge base. Extract entities from the given content.
 

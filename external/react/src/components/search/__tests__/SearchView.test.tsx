@@ -28,6 +28,15 @@ vi.mock('@/hooks/useSearch', () => ({
   }),
 }))
 
+vi.mock('@/hooks/useAIAnswer', () => ({
+  useAIAnswer: () => ({
+    state: 'idle',
+    overview: null,
+    ask: vi.fn(),
+    reset: vi.fn(),
+  }),
+}))
+
 vi.mock('@/hooks/use-toast', () => ({
   useToast: () => ({
     toast: vi.fn(),

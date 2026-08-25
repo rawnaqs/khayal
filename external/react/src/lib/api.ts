@@ -21,6 +21,12 @@ export interface SearchOptions {
   from?: string
   to?: string
   connections?: boolean
+  overview?: boolean
+}
+
+export interface SearchOverview {
+  text: string
+  citations: number[]
 }
 
 export interface SearchResult {
@@ -40,6 +46,7 @@ export interface SearchResponse {
   results: SearchResult[] | null
   total: number
   took_ms: number
+  overview?: SearchOverview | null
 }
 
 export interface HealthResponse {
@@ -186,6 +193,7 @@ export class KhayalClient {
     if (opts.from) params.set('from', opts.from)
     if (opts.to) params.set('to', opts.to)
     if (opts.connections) params.set('connections', 'true')
+    if (opts.overview) params.set('overview', 'true')
 
     return this.request<SearchResponse>('GET', `/v1/search?${params.toString()}`)
   }

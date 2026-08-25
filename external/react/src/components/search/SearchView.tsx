@@ -4,6 +4,8 @@ import { Search, X, AlertCircle } from 'lucide-react'
 import { ResultHero } from './ResultHero'
 import { ResultCompact } from './ResultCompact'
 import { useSearch } from '@/hooks/useSearch'
+import { useAIAnswer } from '@/hooks/useAIAnswer'
+import { AIAnswer, AIAnswerCTA } from './AIAnswer'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import { STORAGE_KEYS, SEARCH_SUGGESTIONS, LIMITS, TYPE_FILTERS, SEARCH_MODES } from '@/lib/constants'
@@ -58,6 +60,7 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
   const [recentSearches, setRecentSearches] = useState<string[]>(getRecentSearches)
   const { loading, results, error, search } = useSearch()
+  const ai = useAIAnswer()
   const { toast } = useToast()
 
   useEffect(() => {
@@ -71,6 +74,7 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
     if (!q) return
     setQuery(q)
     setSearchedQuery(q)
+    ai.reset()
     setMode(searchMode || mode)
     search(q, { mode: searchMode || mode })
     saveRecentSearch(q)
@@ -81,8 +85,9 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
     setQuery('')
     setSearchedQuery("")
     setTypeFilter('all')
+    ai.reset()
     search('')
-  }, [search])
+  }, [search, ai])
 
   const handleModeChange = useCallback((newMode: SearchMode) => {
     setMode(newMode)
@@ -103,6 +108,15 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
   const handleNoteSelectLocal = useCallback((notePath: string) => {
     onNoteSelect?.(notePath, searchedQuery)
   }, [onNoteSelect, searchedQuery])
+
+  const handleAskAI = useCallback(() => {
+    if (!hasResults || !searchedQuery.trim()) return
+    ai.ask(searchedQuery, mode)
+  }, [ai, mode, searchedQuery])
+
+  const handleCitationClick = useCallback((index: number) => {
+    document.getElementById(`result-${index}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [])
 
   const filteredResults = useMemo(() => {
     if (!results?.results) return null
@@ -222,20 +236,39 @@ export function SearchView({ onCaptureQuery, onNoteSelect }: SearchViewProps = {
                 <span className="rh-count">{filteredResults.length} results</span>
                 <span className="rh-ms">{results.took_ms}ms</span>
               </div>
-              <div className="filter-chips">
-                <span className={cn('fc', typeFilter === 'all' && 'on')} onClick={() => setTypeFilter('all')}>all</span>
-                <span className={cn('fc', typeFilter === 'text' && 'on')} onClick={() => setTypeFilter('text')}>text</span>
-                <span className={cn('fc', typeFilter === 'article' && 'on')} onClick={() => setTypeFilter('article')}>article</span>
-                <span className={cn('fc', typeFilter === 'image' && 'on')} onClick={() => setTypeFilter('image')}>image</span>
+              <div className="hdr-right">
+                <AIAnswerCTA
+                  visible={!ai.state || ai.state === 'idle' || ai.state === 'error'}
+                  disabled={ai.state === 'loading'}
+                  onClick={handleAskAI}
+                />
+                <div className="filter-chips">
+                  <span className={cn('fc', typeFilter === 'all' && 'on')} onClick={() => setTypeFilter('all')}>all</span>
+                  <span className={cn('fc', typeFilter === 'text' && 'on')} onClick={() => setTypeFilter('text')}>text</span>
+                  <span className={cn('fc', typeFilter === 'article' && 'on')} onClick={() => setTypeFilter('article')}>article</span>
+                  <span className={cn('fc', typeFilter === 'image' && 'on')} onClick={() => setTypeFilter('image')}>image</span>
+                </div>
               </div>
             </div>
+            <AnimatePresence>
+              <AIAnswer
+                state={ai.state}
+                overview={ai.overview}
+                onCitationClick={handleCitationClick}
+                onRetry={handleAskAI}
+                onClose={ai.reset}
+              />
+            </AnimatePresence>
             <div className="results">
-              {filteredResults.map((result, index) => {
-                if (index === 0 && result.score > 0.9) {
-                  return <ResultHero key={result.id} result={result} query={searchedQuery} onSelect={handleNoteSelectLocal} />
-                }
-                return <ResultCompact key={result.id} result={result} rank={index + 1} query={searchedQuery} onSelect={handleNoteSelectLocal} />
-              })}
+              {filteredResults.map((result, index) => (
+                <div key={result.id} id={`result-${index}`}>
+                  {index === 0 && result.score > 0.9 ? (
+                    <ResultHero result={result} query={searchedQuery} onSelect={handleNoteSelectLocal} />
+                  ) : (
+                    <ResultCompact result={result} rank={index + 1} query={searchedQuery} onSelect={handleNoteSelectLocal} />
+                  )}
+                </div>
+              ))}
             </div>
           </motion.div>
         )}
