@@ -170,6 +170,7 @@ func (w *Worker) processJob(jobID string) {
 
 	if processErr == nil && job.Type != "connections" && job.Type != "memory" {
 		w.chainConnections(ctx, jobID, notePath)
+		w.chainMemoryConsolidation(jobID)
 	}
 
 	if processErr != nil {
@@ -275,8 +276,6 @@ func (w *Worker) chainConnections(ctx context.Context, ingestJobID, notePath str
 		"connections_job_id", connJob.ID,
 		"note_path", notePath,
 	)
-
-	w.chainMemoryConsolidation(ingestJobID)
 }
 
 // chainMemoryConsolidation enqueues a memory job only when the throttle
@@ -310,9 +309,9 @@ func (w *Worker) chainMemoryConsolidation(ingestJobID string) {
 		w.logger.Warn("failed to enqueue memory job", "error", err)
 		return
 	}
-	if err := w.queue.LinkConnectionsJob(ctx, ingestJobID, memJob.ID); err == nil {
-		_ = w.queue.LinkConnectionsJob(ctx, memJob.ID, ingestJobID)
-	}
+	// Deliberately NO LinkConnectionsJob here: that field names the
+	// connections job for polling clients; overwriting it with the memory
+	// job id would hide connection results.
 	w.logger.Info("memory consolidation queued",
 		"job_id", memJob.ID, "persons_since_last", personsSince)
 }
