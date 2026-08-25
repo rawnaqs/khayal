@@ -27,13 +27,14 @@ type Worker struct {
 	config    config.WorkerConfig
 	chunkOpts chunk.Options
 	connCfg   config.ConnectionsConfig
+	memCfg    config.MemoryConfig
 	jobs      chan string
 	wg        sync.WaitGroup
 	running   atomic.Bool
 	logger    *slog.Logger
 }
 
-func NewWorker(cfg config.WorkerConfig, chunkOpts chunk.Options, connCfg config.ConnectionsConfig, q *queue.Queue, v *vault.Writer, l llm.LLMExt, logger *slog.Logger) *Worker {
+func NewWorker(cfg config.WorkerConfig, chunkOpts chunk.Options, connCfg config.ConnectionsConfig, memCfg config.MemoryConfig, q *queue.Queue, v *vault.Writer, l llm.LLMExt, logger *slog.Logger) *Worker {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -44,6 +45,7 @@ func NewWorker(cfg config.WorkerConfig, chunkOpts chunk.Options, connCfg config.
 		config:    cfg,
 		chunkOpts: chunkOpts,
 		connCfg:   connCfg,
+		memCfg:    memCfg,
 		jobs:      make(chan string, 1000),
 		logger:    logger,
 	}
@@ -150,11 +152,11 @@ func (w *Worker) processJob(jobID string) {
 
 	switch job.Type {
 	case "text":
-		notePath, processErr = ingest.IngestText(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts)
+		notePath, processErr = ingest.IngestText(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts, w.memCfg)
 	case "image":
-		notePath, processErr = ingest.IngestImage(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts)
+		notePath, processErr = ingest.IngestImage(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts, w.memCfg)
 	case "article":
-		notePath, processErr = ingest.IngestArticle(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts)
+		notePath, processErr = ingest.IngestArticle(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts, w.memCfg)
 	case "connections":
 		processErr = w.processConnections(ctx, job)
 	default:

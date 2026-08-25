@@ -9,15 +9,18 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/rawnaqs/khayal/internal/chunk"
+	"github.com/rawnaqs/khayal/internal/config"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
 )
 
-func IngestText(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt, chunkOpts chunk.Options) (string, error) {
+func IngestText(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt, chunkOpts chunk.Options, memCfg config.MemoryConfig) (string, error) {
 	var tags []string
 	var summary string
 	var keyIdeas []string
+
+	defer setCallContext(llmClient, assembleMemoryContext(ctx, q, v, llmClient, memCfg, job.Content))()
 
 	g, _ := errgroup.WithContext(ctx)
 

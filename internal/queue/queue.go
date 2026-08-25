@@ -2086,3 +2086,26 @@ func (q *Queue) TopSimilarChunks(ctx context.Context, embedding []float32, limit
 	}
 	return out, nil
 }
+
+// GetEntityGlossary returns distinct person/org values across the vault,
+// most frequent first, capped — the "who does the user know" list.
+func (q *Queue) GetEntityGlossary(ctx context.Context, limit int) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT entity_value, COUNT(*) AS n FROM entities
+		WHERE entity_type IN ('person','org')
+		GROUP BY LOWER(entity_value)
+		ORDER BY n DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err == nil {
+			out = append(out, v)
+		}
+	}
+	return out, rows.Err()
+}
+

@@ -3,9 +3,9 @@ package ingest
 import (
 	"context"
 	"math"
-	"time"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/rawnaqs/khayal/internal/dates"
 	"github.com/rawnaqs/khayal/internal/llm"

@@ -34,6 +34,7 @@ type Config struct {
 	DB          DBConfig          `yaml:"db"`
 	Search      SearchConfig      `yaml:"search"`
 	Connections ConnectionsConfig `yaml:"connections"`
+	Memory      MemoryConfig      `yaml:"memory"`
 	Log         LogConfig         `yaml:"log"`
 }
 
@@ -158,6 +159,17 @@ func (c ConnectionsConfig) AgeDays() int {
 		return 7
 	}
 	return *c.MinAgeDays
+}
+
+type MemoryConfig struct {
+	// Enabled gates retrieval + prompt injection; nil means true.
+	Enabled *bool `yaml:"enabled"`
+	// File is the vault-inbox filename of the LLM-maintained memory file.
+	File string `yaml:"file"`
+	// UserContext is freeform author profile text injected verbatim.
+	UserContext string            `yaml:"user_context"`
+	People      map[string]string `yaml:"people"`
+	Orgs        map[string]string `yaml:"orgs"`
 }
 
 // ConnectionsTypes toggles individual connection types; nil means on.
@@ -305,6 +317,9 @@ func (c *Config) ApplyDefaults() {
 	}
 	// 0.72 sits inside the measured gap between unrelated notes (~0.49)
 	// and topically related ones (~0.79) for nomic-embed-text raw cosines.
+	if c.Memory.File == "" {
+		c.Memory.File = "memory.md"
+	}
 	if c.Connections.SimilarityThreshold <= 0 {
 		c.Connections.SimilarityThreshold = 0.72
 	}
