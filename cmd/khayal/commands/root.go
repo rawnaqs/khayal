@@ -46,6 +46,7 @@ Configuration:
 		newReindexCmd(),
 		newVersionCmd(),
 		newConfigCmd(),
+		newVaultCmd(),
 	)
 
 	return rootCmd

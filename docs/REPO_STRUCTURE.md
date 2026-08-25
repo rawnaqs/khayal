@@ -29,6 +29,7 @@ khayal/
 │   │       ├── restart.go          # Stop + start
 │   │       ├── status.go          # Server status + update check
 │   │       ├── reindex.go         # Progress bar reindex
+│   │       ├── vault*.go         # Vault maintenance: health, fix-links, clean-media, show-duplicates
 │   │       ├── version.go         # Version info
 │   │       └── config.go          # View config
 │   │
@@ -45,6 +46,7 @@ khayal/
 │           ├── capture_url.go      # URL capture
 │           ├── capture_image.go    # Image capture
 │           ├── search.go           # Search vault
+│           ├── delete.go           # Soft-delete a note (kl delete)
 │           ├── recent.go           # Recent captures
 │           ├── stats.go            # Vault statistics
 │           ├── status.go           # Lightweight check
@@ -57,6 +59,8 @@ khayal/
 │   │   ├── server.go                # HTTP server, router, middleware
 │   │   ├── capture.go               # POST /v1/capture
 │   │   ├── search.go               # GET /v1/search
+│   │   ├── overview.go             # AI answer: RAG synthesis + citation extraction
+│   │   ├── notes.go                # GET /v1/notes/{path}, DELETE /v1/note
 │   │   ├── overview.go             # AI answer: RAG synthesis + citation extraction
 │   │   ├── health.go               # GET /v1/health
 │   │   ├── queue.go                # GET /v1/queue, queue operations

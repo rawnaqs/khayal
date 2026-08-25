@@ -83,8 +83,15 @@ khayal **never** writes or reads files outside the vault structure:
 Notes are **never** hard-deleted:
 
 ```
-DeleteNote() → moves to <inbox_dir>/.khayal-trash/
+DELETE /v1/note?path=...    → moves to <inbox_dir>/.khayal-trash/<name>.<unix-ts>
+                              and purges FTS/chunks/entities rows
+kl delete <path-or-id>      → same, with confirmation prompt (--yes skips)
+PWA note view → trash icon  → two-step confirm
 ```
+
+Deleting a note removes it from search immediately; the file remains in
+trash until manually cleaned. Path-safety violations (outside inbox) are
+rejected with 400; missing files return 404.
 
 Files remain in trash until manually cleaned.
 

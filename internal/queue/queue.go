@@ -2191,3 +2191,24 @@ func (q *Queue) CountPersonsSince(ctx context.Context, t time.Time) (int, error)
 		t.UTC().Format(time.RFC3339)).Scan(&n)
 	return n, err
 }
+
+// GetReferencedMedia returns the distinct media file paths referenced by
+// captured notes (jobs.source_file).
+func (q *Queue) GetReferencedMedia(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT DISTINCT source_file FROM jobs
+		WHERE source_file IS NOT NULL AND source_file <> ''`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			continue
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}

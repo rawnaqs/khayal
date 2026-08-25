@@ -195,5 +195,5 @@ func (s *Server) noteDeleteHandler(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("note deleted", "path", notePath, "trash_path", trashPath)
 
-	WriteJSON(w, http.StatusOK, DeleteNoteResponse{Deleted: true, TrashPath: ".khayal-trash/" + filepath.ToSlash(trashPath)})
+	WriteJSON(w, http.StatusOK, DeleteNoteResponse{Deleted: true, TrashPath: filepath.ToSlash(trashPath)})
 }
