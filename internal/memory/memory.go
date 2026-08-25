@@ -135,10 +135,45 @@ func SanitizeConsolidatedOutput(out string) (string, error) {
 	if !strings.HasPrefix(trimmed, "# Memory") {
 		return "", fmt.Errorf("consolidation output does not start with '# Memory'")
 	}
+	trimmed = collapseDuplicateHeadings(trimmed)
 	for _, h := range requiredHeadings {
 		if !strings.Contains(trimmed, h) {
 			return "", fmt.Errorf("consolidation output missing heading %q", h)
 		}
 	}
 	return trimmed + "\n", nil
+}
+
+// collapseDuplicateHeadings removes a canonical heading that reappears later
+// in the file along with everything under it: consolidation models sometimes
+// emit the final section twice, and the repeat is always the weaker copy.
+func collapseDuplicateHeadings(out string) string {
+	lines := strings.Split(out, "\n")
+	var kept []string
+	seen := make(map[string]bool, len(requiredHeadings))
+	skipping := false
+	for _, line := range lines {
+		t := strings.TrimSpace(line)
+		if isCanonicalHeading(t) {
+			if seen[t] {
+				skipping = true
+				continue
+			}
+			seen[t] = true
+			skipping = false
+		} else if skipping {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.Join(kept, "\n")
+}
+
+func isCanonicalHeading(line string) bool {
+	for _, h := range requiredHeadings {
+		if line == h {
+			return true
+		}
+	}
+	return false
 }

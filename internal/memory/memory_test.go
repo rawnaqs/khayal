@@ -118,6 +118,20 @@ func TestSanitizeConsolidatedOutput(t *testing.T) {
 		}
 	})
 
+	t.Run("repeated canonical headings collapse to first occurrence", func(t *testing.T) {
+		dup := "# Memory\n\n## About the author\n\n## People\n- Alice: x\n\n## Ongoing threads\n- y\n\n## Preferences\n\n## Preferences\n- dup line under repeat\n\n## People\n- dup people"
+		got, err := SanitizeConsolidatedOutput(dup)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Count(got, "## Preferences") != 1 || strings.Count(got, "## People") != 1 {
+			t.Errorf("duplicate headings survived:\n%s", got)
+		}
+		if strings.Contains(got, "dup") {
+			t.Errorf("content under duplicate headings survived:\n%s", got)
+		}
+	})
+
 	t.Run("empty output rejected", func(t *testing.T) {
 		if _, err := SanitizeConsolidatedOutput(""); err == nil {
 			t.Error("expected rejection for empty output")

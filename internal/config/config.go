@@ -72,6 +72,7 @@ type LLMConfig struct {
 	EmbedModel            string        `yaml:"embed_model"`
 	TextModel             string        `yaml:"text_model"`
 	VisionModel           string        `yaml:"vision_model"`
+	ConsolidationModel    string        `yaml:"consolidation_model"`
 	FallbackProvider      string        `yaml:"fallback_provider"`
 	FallbackAPIKey        string        `yaml:"fallback_api_key"`
 	TruncateTextTokens    int           `yaml:"truncate_text_tokens"`

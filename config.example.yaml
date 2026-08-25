@@ -22,6 +22,9 @@ llm:
   ollama_host: http://localhost:11434
   embed_model: nomic-embed-text
   text_model: llama3.2:3b
+  # Optional dedicated model for memory consolidation (defaults to text_model)
+  consolidation_model: ""
+
   vision_model: moondream
   fallback_provider: ""
   fallback_api_key: ""

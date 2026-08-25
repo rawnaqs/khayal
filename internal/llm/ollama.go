@@ -307,7 +307,7 @@ func (c *OllamaClient) GenerateWithSystemTemp(system, user string, temperature f
 func (c *OllamaClient) generateWithModel(model, system, prompt string, tempOverride float64) (string, error) {
 	start := time.Now()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), constants.OllamaGenerateTimeout)
 	defer cancel()
 
 	if err := c.acquire(ctx); err != nil {
@@ -367,7 +367,7 @@ func (c *OllamaClient) DescribeImage(imagePath string) (string, error) {
 		return "", fmt.Errorf("failed to read image: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), constants.OllamaGenerateTimeout)
 	defer cancel()
 
 	if err := c.acquire(ctx); err != nil {

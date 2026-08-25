@@ -137,6 +137,15 @@ func runStart() error {
 	cli.PrintAction("llm", cfg.LLM.Provider)
 
 	w := worker.NewWorker(cfg.Worker, cfg.Search.ChunkOptions(), cfg.Connections, cfg.Memory, q, v, llmClient, loggerSetup.WorkerLogger)
+	memLLM, err := llm.NewConsolidationLLM(cfg.LLM)
+	if err != nil {
+		cli.Fatal(cli.ExitServer, "failed to initialize consolidation LLM: %v", err)
+		return err
+	}
+	if memLLM != nil {
+		w.SetMemoryLLM(memLLM)
+		cli.PrintAction("llm", "consolidation: "+cfg.LLM.ConsolidationModel)
+	}
 	w.Start()
 	cli.PrintAction("worker", "started")
 

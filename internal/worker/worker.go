@@ -27,6 +27,7 @@ type Worker struct {
 	queue     *queue.Queue
 	vault     *vault.Writer
 	llm       llm.LLMExt
+	memLLM    llm.LLMExt
 	config    config.WorkerConfig
 	chunkOpts chunk.Options
 	connCfg   config.ConnectionsConfig
@@ -35,6 +36,12 @@ type Worker struct {
 	wg        sync.WaitGroup
 	running   atomic.Bool
 	logger    *slog.Logger
+}
+
+// SetMemoryLLM installs a dedicated client for memory consolidation jobs.
+// When unset, consolidation reuses the primary LLM client.
+func (w *Worker) SetMemoryLLM(l llm.LLMExt) {
+	w.memLLM = l
 }
 
 func NewWorker(cfg config.WorkerConfig, chunkOpts chunk.Options, connCfg config.ConnectionsConfig, memCfg config.MemoryConfig, q *queue.Queue, v *vault.Writer, l llm.LLMExt, logger *slog.Logger) *Worker {
@@ -391,7 +398,22 @@ func (w *Worker) processMemory(ctx context.Context, job *queue.Job) error {
 		current, strings.Join(recent, "\n"), personDelta)
 
 	systemPrompt := constants.DefaultSystemPrompts.ConsolidateMemory
-	merged, err := w.llm.GenerateWithSystem(systemPrompt, prompt)
+	generator := w.llm
+	if w.memLLM != nil {
+		generator = w.memLLM
+	}
+	// Consolidation is a deterministic merge, not a creative task: use a low
+	// temperature when the client supports per-call temperature to reduce
+	// drift and duplicated-section artifacts.
+	var merged string
+	var err error
+	if tg, ok := generator.(interface {
+		GenerateWithSystemTemp(system, user string, temperature float64) (string, error)
+	}); ok {
+		merged, err = tg.GenerateWithSystemTemp(systemPrompt, prompt, 0.2)
+	} else {
+		merged, err = generator.GenerateWithSystem(systemPrompt, prompt)
+	}
 	if err != nil {
 		return fmt.Errorf("memory consolidation failed: %w", err)
 	}

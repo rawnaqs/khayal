@@ -30,8 +30,8 @@ const (
 	OllamaClientTimeout   = 120 * time.Second
 	OllamaPingTimeout     = 5 * time.Second
 	OllamaEmbedTimeout    = 60 * time.Second
-	OllamaGenerateTimeout = 120 * time.Second
-	OllamaVisionTimeout   = 120 * time.Second
+	OllamaGenerateTimeout = 300 * time.Second
+	OllamaVisionTimeout   = 300 * time.Second
 )
 
 // LLM defaults
@@ -130,6 +130,7 @@ Wrong: Here are the entities: {...}`,
 
 Rules:
 - Keep the exact same section headings (# Memory, ## About the author, ## People, ## Ongoing threads, ## Preferences)
+- Each heading appears EXACTLY ONCE. If a section has nothing to say, leave it empty after its heading - never write "None" or "Nothing specified"
 - Merge: add new entries and enrich existing ones — never remove unrelated content
 - COLLAPSE repetition: multiple meetings/events with the same person become ONE summary line, optionally with a count ("met Bob 5 times about X")
 - One line per person; that line contains facts about THAT person only — never copy another person's fact into their entry

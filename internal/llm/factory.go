@@ -7,12 +7,27 @@ import (
 )
 
 func NewLLM(cfg config.LLMConfig) (LLMExt, error) {
+	return newOllamaLLM(cfg, cfg.TextModel)
+}
+
+// NewConsolidationLLM returns a dedicated client for memory consolidation
+// when a distinct consolidation_model is configured. Returns (nil, nil) when
+// the consolidation model is unset or identical to the main text model, in
+// which case callers should reuse their primary client.
+func NewConsolidationLLM(cfg config.LLMConfig) (LLMExt, error) {
+	if cfg.ConsolidationModel == "" || cfg.ConsolidationModel == cfg.TextModel {
+		return nil, nil
+	}
+	return newOllamaLLM(cfg, cfg.ConsolidationModel)
+}
+
+func newOllamaLLM(cfg config.LLMConfig, textModel string) (LLMExt, error) {
 	switch cfg.Provider {
 	case ProviderOllama:
 		client := NewOllamaClientWithConcurrency(
 			cfg.OllamaHost,
 			cfg.EmbedModel,
-			cfg.TextModel,
+			textModel,
 			cfg.VisionModel,
 			cfg.MaxLLMConcurrency,
 		)
