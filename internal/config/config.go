@@ -27,13 +27,14 @@ func DefaultServerURL() string {
 }
 
 type Config struct {
-	Vault  VaultConfig  `yaml:"vault"`
-	Server ServerConfig `yaml:"server"`
-	LLM    LLMConfig    `yaml:"llm"`
-	Worker WorkerConfig `yaml:"worker"`
-	DB     DBConfig     `yaml:"db"`
-	Search SearchConfig `yaml:"search"`
-	Log    LogConfig    `yaml:"log"`
+	Vault       VaultConfig       `yaml:"vault"`
+	Server      ServerConfig      `yaml:"server"`
+	LLM         LLMConfig         `yaml:"llm"`
+	Worker      WorkerConfig      `yaml:"worker"`
+	DB          DBConfig          `yaml:"db"`
+	Search      SearchConfig      `yaml:"search"`
+	Connections ConnectionsConfig `yaml:"connections"`
+	Log         LogConfig         `yaml:"log"`
 }
 
 type VaultConfig struct {
@@ -139,6 +140,35 @@ func (c SearchConfig) ChunkOptions() chunk.Options {
 		OverlapWords: c.ChunkOverlapWords,
 	}
 }
+
+type ConnectionsConfig struct {
+	// Enabled gates the whole feature; nil means true (default on).
+	Enabled *bool `yaml:"enabled"`
+	// MinAgeDays: nil means the 7-day default; an explicit 0 is honored
+	// (surface everything up to now) — needed for testing setups.
+	MinAgeDays          *int             `yaml:"min_age_days"`
+	MaxPerCapture       int              `yaml:"max_per_capture"`
+	SimilarityThreshold float64          `yaml:"similarity_threshold"`
+	Types               ConnectionsTypes `yaml:"types"`
+}
+
+// AgeDays resolves the minimum-age setting: nil -> 7, negative -> 7.
+func (c ConnectionsConfig) AgeDays() int {
+	if c.MinAgeDays == nil || *c.MinAgeDays < 0 {
+		return 7
+	}
+	return *c.MinAgeDays
+}
+
+// ConnectionsTypes toggles individual connection types; nil means on.
+type ConnectionsTypes struct {
+	Similar *bool `yaml:"similar"`
+	Person  *bool `yaml:"person"`
+	Amount  *bool `yaml:"amount"`
+}
+
+// IsOn resolves a nil-means-true flag.
+func IsOn(f *bool) bool { return f == nil || *f }
 
 type LogConfig struct {
 	Level             string `yaml:"level"`
@@ -269,6 +299,14 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.Search.ChunkOverlapWords <= 0 {
 		c.Search.ChunkOverlapWords = d.OverlapWords
+	}
+	if c.Connections.MaxPerCapture <= 0 {
+		c.Connections.MaxPerCapture = 3
+	}
+	// 0.72 sits inside the measured gap between unrelated notes (~0.49)
+	// and topically related ones (~0.79) for nomic-embed-text raw cosines.
+	if c.Connections.SimilarityThreshold <= 0 {
+		c.Connections.SimilarityThreshold = 0.72
 	}
 	if c.LLM.TruncateTextTokens == 0 {
 		c.LLM.TruncateTextTokens = 2000

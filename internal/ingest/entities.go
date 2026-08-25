@@ -67,12 +67,39 @@ type Entities struct {
 	URLs    []string `json:"urls"`
 }
 
+// personStoplist are pronouns/author references LLMs occasionally emit as
+// "people". Single letters are rejected outright.
+var personStoplist = map[string]bool{
+	"i": true, "me": true, "we": true, "us": true,
+	"he": true, "she": true, "it": true, "they": true, "them": true,
+	"him": true, "her": true,
+	"you": true, "myself": true, "ourselves": true,
+}
+
+// isPlausiblePerson filters junk the extractor sometimes emits: single
+// letters and first-person/pronoun entries.
+func isPlausiblePerson(name string) bool {
+	t := strings.TrimSpace(name)
+	if len(t) <= 1 {
+		return false
+	}
+	return !personStoplist[strings.ToLower(t)]
+}
+
 // NormalizeEntities applies normalization to raw LLM entity output:
 // amounts become plain integer strings, people lose short-form
-// duplicates, and the remaining types pass through unchanged.
+// duplicates and pronoun junk, and the remaining types pass through
+// unchanged.
 func NormalizeEntities(raw llm.EntityResult) Entities {
+	people := normalizeNames(raw.People)
+	filtered := make([]string, 0, len(people))
+	for _, p := range people {
+		if isPlausiblePerson(p) {
+			filtered = append(filtered, p)
+		}
+	}
 	return Entities{
-		People:  normalizeNames(raw.People),
+		People:  filtered,
 		Amounts: normalizeAmounts(raw.Amounts),
 		Dates:   raw.Dates,
 		Places:  raw.Places,

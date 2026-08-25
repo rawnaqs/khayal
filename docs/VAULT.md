@@ -192,6 +192,20 @@ Field order is fixed: people, amounts, dates, places, urls, orgs.
 At most 10 values per field. The same entities live in the SQLite
 `entities` table for fast lookup.
 
+## Frontmatter Connections Block (v1.1)
+
+When proactive connections find related older notes, khayal writes them
+into a `connections:` block as verified Obsidian wikilinks — only targets
+that exist on disk become links, and the body text is never touched.
+
+```yaml
+connections:
+  - "[[2026-08-21-meeting-with-bob]]"
+```
+
+Idempotent: reprocessing replaces the block; no stale links survive.
+The same data is available via the queue API (`jobs.result`).
+
 ## Reading Notes (Reader)
 
 The `vault.Reader` reads and parses markdown notes from the vault inbox. It parses YAML frontmatter and extracts markdown sections.

@@ -607,3 +607,105 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// SetConnections writes the note's proactive-connections block into
+// frontmatter as verified Obsidian wikilinks, leaving the note body
+// untouched. Idempotent: identical link sets skip the write entirely.
+// Aborts when the file changed externally between read and write.
+func (w *Writer) SetConnections(notePath string, targets []string) error {
+	absolutePath := w.resolvePath(notePath)
+	if err := w.ensurePathInInbox(absolutePath); err != nil {
+		return err
+	}
+
+	before, err := os.Stat(absolutePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("%w: %s", ErrVaultNoteNotFound, notePath)
+		}
+		return fmt.Errorf("failed to stat note: %w", err)
+	}
+	preMtime := before.ModTime()
+
+	raw, err := os.ReadFile(absolutePath)
+	if err != nil {
+		return fmt.Errorf("failed to read note: %w", err)
+	}
+
+	updated, changed := spliceConnectionsBlock(string(raw), targets)
+	if !changed {
+		return nil
+	}
+
+	if err := w.writeFileAtomically(absolutePath, updated); err != nil {
+		return fmt.Errorf("failed to update note: %w", err)
+	}
+
+	// Restore mtime so external-change detection elsewhere keeps working.
+	if err := os.Chtimes(absolutePath, preMtime, preMtime); err != nil {
+		slog.Default().Warn("failed to restore mtime", "path", absolutePath, "error", err)
+	}
+	return nil
+}
+
+// spliceConnectionsBlock replaces or inserts a top-level `connections:`
+// frontmatter key and reports whether the document changed. Body is never
+// touched; the block lands just before the closing frontmatter delimiter.
+func spliceConnectionsBlock(raw string, targets []string) (string, bool) {
+	lines := strings.SplitAfter(raw, "\n")
+	if len(lines) < 2 || strings.TrimRight(lines[0], "\r\n") != "---" {
+		return raw, false // no frontmatter, nothing we own
+	}
+	closeIdx := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimRight(lines[i], "\r\n") == "---" {
+			closeIdx = i
+			break
+		}
+	}
+	if closeIdx == -1 {
+		return raw, false
+	}
+
+	block := ""
+	if len(targets) > 0 {
+		var b strings.Builder
+		b.WriteString("connections:\n")
+		for _, t := range targets {
+			b.WriteString("  - \"[[")
+			b.WriteString(strings.TrimSuffix(filepath.Base(t), ".md"))
+			b.WriteString("]]\"\n")
+		}
+		block = b.String()
+	}
+
+	var kept []string
+	inOld := false
+	for _, line := range lines[1:closeIdx] {
+		key := strings.TrimRight(line, "\r\n")
+		switch {
+		case strings.HasPrefix(key, "connections:"):
+			inOld = true
+			continue
+		case inOld:
+			if strings.HasPrefix(line, " ") || strings.HasPrefix(line, "-") || strings.TrimSpace(line) == "" {
+				continue
+			}
+			inOld = false
+			kept = append(kept, line)
+		default:
+			kept = append(kept, line)
+		}
+	}
+
+	out := strings.Builder{}
+	out.WriteString("---\n")
+	out.WriteString(strings.Join(kept, ""))
+	if block != "" {
+		out.WriteString(block)
+	}
+	out.WriteString("---\n")
+
+	updated := out.String() + strings.Join(lines[closeIdx+1:], "")
+	return updated, updated != raw
+}

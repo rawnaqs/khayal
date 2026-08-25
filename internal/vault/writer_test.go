@@ -435,3 +435,114 @@ func TestRenderNote_EntitiesWithSpecialChars(t *testing.T) {
 		t.Errorf("value containing brackets must be quoted:\n%s", out)
 	}
 }
+
+func writeFixtureNote(t *testing.T, w *Writer, body string) string {
+	t.Helper()
+	note := &Note{
+		Metadata: NoteMetadata{
+			Created: time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC),
+			Type:    "text", Status: "done",
+		},
+		Title: "Fixture",
+		Raw:   body,
+	}
+	p, err := w.WriteNote(note, "fixturejob1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestSetConnections_InsertsBlockAndKeepsBody(t *testing.T) {
+	w := newTestWriter(t)
+	p := writeFixtureNote(t, w, "first paragraph\n\nsecond paragraph")
+
+	if err := w.SetConnections(p, []string{"khayal/old-alice.md", "khayal/old-bob.md"}); err != nil {
+		t.Fatalf("SetConnections: %v", err)
+	}
+
+	full := readNoteFile(t, w, p)
+	if !strings.Contains(full, "- \"[[old-alice]]\"") || !strings.Contains(full, "- \"[[old-bob]]\"") {
+		t.Errorf("wikilinks missing:\n%s", full)
+	}
+	if !strings.Contains(full, "second paragraph") {
+		t.Error("body was mutated")
+	}
+}
+
+func TestSetConnections_IdempotentAndReplace(t *testing.T) {
+	w := newTestWriter(t)
+	p := writeFixtureNote(t, w, "content here")
+
+	if err := w.SetConnections(p, []string{"khayal/a.md"}); err != nil {
+		t.Fatal(err)
+	}
+	first := readNoteFile(t, w, p)
+
+	// Same links again → byte-identical file (no write churn).
+	if err := w.SetConnections(p, []string{"khayal/a.md"}); err != nil {
+		t.Fatal(err)
+	}
+	if readNoteFile(t, w, p) != first {
+		t.Error("identical SetConnections must not change the file")
+	}
+
+	// Replace with different links → old entries gone.
+	if err := w.SetConnections(p, []string{"khayal/b.md", "khayal/c.md"}); err != nil {
+		t.Fatal(err)
+	}
+	updated := readNoteFile(t, w, p)
+	if strings.Contains(updated, "[[a]]") {
+		t.Errorf("stale link survived:\n%s", updated)
+	}
+	if !strings.Contains(updated, "[[b]]") || !strings.Contains(updated, "[[c]]") {
+		t.Errorf("new links missing:\n%s", updated)
+	}
+}
+
+func TestSetConnections_ClearsWhenEmpty(t *testing.T) {
+	w := newTestWriter(t)
+	p := writeFixtureNote(t, w, "body")
+
+	if err := w.SetConnections(p, []string{"khayal/a.md"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.SetConnections(p, nil); err != nil {
+		t.Fatal(err)
+	}
+	out := readNoteFile(t, w, p)
+	if strings.Contains(out, "connections:") {
+		t.Errorf("block should be removed when no targets:\n%s", out)
+	}
+	if !strings.Contains(out, "body") {
+		t.Error("body lost")
+	}
+}
+
+func TestSetConnections_MissingNoteFails(t *testing.T) {
+	w := newTestWriter(t)
+	if err := w.SetConnections("khayal/nope.md", []string{"khayal/a.md"}); err == nil {
+		t.Fatal("expected error for missing note")
+	}
+}
+
+func newTestWriter(t *testing.T) *Writer {
+	t.Helper()
+	cfg := &config.Config{
+		Vault: config.VaultConfig{Path: t.TempDir(), InboxDir: "khayal"},
+	}
+	w, err := NewWriter(cfg, filepath.Join(t.TempDir(), "config.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return w
+}
+
+func readNoteFile(t *testing.T, w *Writer, p string) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(w.BasePath(), p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}

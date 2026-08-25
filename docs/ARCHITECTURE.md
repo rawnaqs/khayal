@@ -124,6 +124,7 @@ User Input → API Server → Vault Writer → Search Index → Response
 User Input → API Server → Job Queue → Worker → Ingest → Vault → Chunk Index
                 (queued)              (async)   (10-15s) (done)  (batch embed)
                                               └→ Entity Extract → entities table
+                                     └→ Connections Job → ranked links → frontmatter
 ```
 
 ### Search

@@ -91,22 +91,12 @@ khayal/
 │   │   └── chunk.go                    # Paragraph-aligned text chunking (pure)
 │   │
 │   ├── queue/
-│   │   └── queue.go                    # SQLite job queue, FTS5, chunk vectors
+│   │   └── queue.go                    # SQLite job queue, FTS5, semantic search
+│   │                                   #   (keyword/semantic/hybrid), entity rows,
+│   │                                   #   connections helpers
 │   │
-│   ├── search/
-│   │   ├── keyword.go                  # FTS5 + porter stemming + BM25
-│   │   ├── semantic.go                 # Vector similarity search
-│   │   ├── hybrid.go                  # RRF merge (k=60)
-│   │   ├── date.go                     # Date range filtering
-│   │   └── sync.go                     # mtime check + re-index stale
-│   │
-│   ├── connections/                    # Proactive connections (v1.1+)
-│   │   ├── engine.go                  # Orchestrates all types
-│   │   ├── similar.go                 # Semantic similarity
-│   │   ├── entity.go                  # Person + amount lookup
-│   │   ├── revisit.go                  # Revisit detection
-│   │   ├── followup.go                 # Follow-up detection
-│   │   └── contradiction.go            # LLM contradiction check
+│   ├── connections/                    # Proactive connections (v1.1 phase 2)
+│   │   └── connections.go              # Detectors (similar/person/amount), ranking, dedup
 │   │
 │   ├── config/
 │   │   └── config.go                   # Config loader, validation
@@ -313,7 +303,7 @@ Private application code. Not importable by external packages.
 | `llm/` | AI integration |
 | `vault/` | Markdown file writing |
 | `queue/` | SQLite database operations |
-| `search/` | Search algorithms |
+| `queue/` | Job queue, FTS5 + semantic search, entity/chunk stores |
 | `connections/` | Proactive connections |
 | `config/` | Configuration management |
 | `version/` | Version info |
@@ -413,6 +403,17 @@ type JobStore interface {
     CountChunks(ctx context.Context, notePath string) (int, error)
     SaveEntities(ctx context.Context, notePath string, ents NoteEntities) error
     DeleteEntities(ctx context.Context, notePath string) error
+
+    // Connections (phase 2)
+    GetEntitiesByNote(ctx context.Context, notePath, entityType string) ([]string, error)
+    GetNotesByEntity(ctx context.Context, entityValue, entityType string,
+        cutoff time.Time) ([]EntityMatch, error)
+    CountNotesByEntity(ctx context.Context, entityValue, entityType string,
+        cutoff time.Time, excludePath string) (int, error)
+    TopSimilarChunks(ctx context.Context, embedding []float32, limit int,
+        minScore float64, cutoff time.Time, excludePath string) ([]RawChunkMatch, error)
+    UpdateJobResult(ctx context.Context, jobID string, result json.RawMessage) error
+    LinkConnectionsJob(ctx context.Context, ingestJobID, connJobID string) error
 }
 ```
 
@@ -425,12 +426,10 @@ SaveEntities owns the six enrichment types (`person`, `amount`, `date`,
 ### Vault (internal/vault/writer.go)
 
 ```go
-type Writer interface {
-    WriteNote(note *Note) (string, error)
-    UpdateNote(notePath string, note *Note) error
-    DeleteNote(notePath string) error
-    CopyMediaFile(srcPath string) (string, error)
-}
+func (w *Writer) WriteNote(note *Note, jobID string) (string, error)
+func (w *Writer) UpdateNote(notePath string, note *Note) error
+func (w *Writer) DeleteNote(notePath string) error
+func (w *Writer) SetConnections(notePath string, targets []string) error // wikilink frontmatter
 ```
 
 ### API Client (internal/api/client/client.go)
@@ -510,9 +509,15 @@ CREATE TABLE jobs (
     created_at TEXT NOT NULL,
     processed_at TEXT,
     error TEXT,
-    retries INTEGER DEFAULT 0
+    retries INTEGER DEFAULT 0,
+    result TEXT,
+    connections_job_id TEXT
 );
 ```
+
+`result` stores JSON payloads for enrichment job types (currently the
+connections output); `connections_job_id` links an ingest job to the
+connections job chained after it.
 
 ### notes_fts (FTS5)
 
@@ -554,6 +559,25 @@ chunk set is replaced atomically.
 Note: capture-time ingest chunks only the raw submitted content, while
 `khayal reindex` chunks the full note body (including generated Summary /
 Key Ideas sections) — see [ADR-0001](adr/0001-chunk-coverage-asymmetry-capture-vs-reindex.md).
+
+### entities table
+
+```sql
+CREATE TABLE entities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_path TEXT NOT NULL,
+    chunk_idx INTEGER,
+    entity_type TEXT NOT NULL,
+    entity_value TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+```
+
+Two independent writers own disjoint `entity_type` sets:
+IndexNote/UpdateNoteIndex write `title` and `tag` rows; SaveEntities
+writes the six enrichment types (`person`, `amount`, `date`, `place`,
+`org`, `url`). Each deletes only its own types, so re-indexing never
+wipes enrichment and vice versa.
 
 ### stats_cache table
 
