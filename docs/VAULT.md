@@ -218,6 +218,12 @@ configurable via `memory.file`. Consolidation is not a cron — it runs on
 the background worker after captures, throttled by
 `memory.consolidation_interval_hours` / `memory.new_persons_threshold`.
 
+Consolidation hardening: a dedicated `llm.consolidation_model` may be
+configured (defaults to `text_model`); generation runs at temperature 0.2
+and passes a structural sanitizer that truncates echoed prompt labels,
+validates the canonical headings, and collapses duplicated headings with
+their content — invalid output retries instead of overwriting the file.
+
 ## Reading Notes (Reader)
 
 The `vault.Reader` reads and parses markdown notes from the vault inbox. It parses YAML frontmatter and extracts markdown sections.

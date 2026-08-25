@@ -1550,7 +1550,21 @@ over time:
   injected back into enrichment. Not a cron: consolidation is chained onto
   the background job queue after captures, gated by
   `consolidation_interval_hours` (default 24) and `new_persons_threshold`
-  (default 5); explicit 0 means every capture.
+  (default 5); explicit 0 means every capture. Reliability hardening:
+  - `llm.consolidation_model` routes consolidation to a dedicated (typically
+    larger) model; unset or equal to `text_model` reuses the primary client.
+    Consolidation generates at temperature 0.2 — it is a deterministic merge,
+    not a creative task.
+  - Consolidation output passes a structural sanitizer: echoed prompt labels
+    are truncated, canonical headings are validated, repeated canonical
+    headings collapse to their first occurrence along with everything under
+    them; invalid output errors the job for retry, leaving the previous
+    file untouched.
+- **Entity glossary rescue** — when entity extraction returns zero people,
+  known glossary names appearing in the capture text are promoted to person
+  entities deterministically (no extra LLM call). Non-empty extractions are
+  never overridden. This covers small-model flakiness where names are used
+  as topic words ("bob's issue") but not extracted.
 
 ### Search Overview (v1.1 phase 2.6)
 
@@ -1849,6 +1863,7 @@ llm:
   embed_model: nomic-embed-text
   text_model: llama3.2:3b
   vision_model: moondream
+  consolidation_model: ""              # dedicated model for memory consolidation; "" or same as text_model = reuse text model
   fallback_provider: ""                # groq | openai | "" (none)
   fallback_api_key: ""
   truncate_text_tokens: 2000           # max tokens for text content
