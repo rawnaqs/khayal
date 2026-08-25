@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -159,11 +161,13 @@ func (w *Worker) processJob(jobID string) {
 		notePath, processErr = ingest.IngestArticle(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts, w.memCfg)
 	case "connections":
 		processErr = w.processConnections(ctx, job)
+	case "memory":
+		processErr = w.processMemory(ctx, job)
 	default:
 		processErr = fmt.Errorf("unknown job type: %s", job.Type)
 	}
 
-	if processErr == nil && job.Type != "connections" {
+	if processErr == nil && job.Type != "connections" && job.Type != "memory" {
 		w.chainConnections(ctx, jobID, notePath)
 	}
 
@@ -270,6 +274,46 @@ func (w *Worker) chainConnections(ctx context.Context, ingestJobID, notePath str
 		"connections_job_id", connJob.ID,
 		"note_path", notePath,
 	)
+
+	w.chainMemoryConsolidation(ingestJobID)
+}
+
+// chainMemoryConsolidation enqueues a memory job only when the throttle
+// window has elapsed or enough new persons accumulated since last run.
+func (w *Worker) chainMemoryConsolidation(ingestJobID string) {
+	if !config.IsOn(w.memCfg.Enabled) {
+		return
+	}
+	ctx := context.Background()
+	lastRunStr, ok, _ := w.queue.GetStat(ctx, "memory_last_consolidation")
+	var lastRun time.Time
+	if ok {
+		if t, err := time.Parse(time.RFC3339, lastRunStr); err == nil {
+			lastRun = t
+		}
+	}
+	personsSince := 0
+	if !lastRun.IsZero() {
+		personsSince, _ = w.queue.CountPersonsSince(ctx, lastRun)
+	}
+
+	due := lastRun.IsZero() ||
+		time.Since(lastRun) >= constants.MemoryConsolidationInterval ||
+		personsSince >= constants.MemoryNewPersonsThreshold
+	if !due {
+		return
+	}
+
+	memJob := &queue.Job{Type: "memory", Status: "pending"}
+	if err := w.queue.CreateJob(ctx, memJob); err != nil {
+		w.logger.Warn("failed to enqueue memory job", "error", err)
+		return
+	}
+	if err := w.queue.LinkConnectionsJob(ctx, ingestJobID, memJob.ID); err == nil {
+		_ = w.queue.LinkConnectionsJob(ctx, memJob.ID, ingestJobID)
+	}
+	w.logger.Info("memory consolidation queued",
+		"job_id", memJob.ID, "persons_since_last", personsSince)
 }
 
 // processConnections runs the connection engine for one note, writes the
@@ -291,6 +335,10 @@ func (w *Worker) processConnections(ctx context.Context, job *queue.Job) error {
 
 	links := make([]string, 0, len(conns))
 	for _, c := range conns {
+		base := filepath.Base(c.NotePath)
+		if strings.EqualFold(base, strings.TrimSpace(w.memCfg.File)) {
+			continue // never link the managed memory file
+		}
 		if w.vault.NoteExists(c.NotePath) {
 			links = append(links, c.NotePath)
 		} else {
@@ -302,4 +350,82 @@ func (w *Worker) processConnections(ctx context.Context, job *queue.Job) error {
 		return nil // nothing found; also clears any stale block
 	}
 	return w.vault.SetConnections(job.NotePath, links)
+}
+
+// memorySkeleton is the seeded structure of the LLM-maintained memory file.
+// MemorySkeleton is exported for startup seeding.
+const MemorySkeleton = `# Memory
+
+## About the author
+
+## People
+
+## Ongoing threads
+
+## Preferences
+`
+
+// filenameOrDefault resolves the managed memory filename.
+func filenameOrDefault(f string) string {
+	if f == "" {
+		return "memory.md"
+	}
+	return f
+}
+
+// processMemory consolidates the LLM-maintained memory file: current file +
+// recent facts go to the LLM for a merge-style rewrite. Failures fail the
+// job (standard retry); the previous memory file survives untouched until a
+// rewrite succeeds.
+func (w *Worker) processMemory(ctx context.Context, job *queue.Job) error {
+	current := w.vault.ReadManagedFile(w.memCfg.File)
+	if strings.TrimSpace(current) == "" {
+		_ = w.vault.WriteManagedFile(filenameOrDefault(w.memCfg.File), MemorySkeleton)
+		current = w.vault.ReadManagedFile(w.memCfg.File)
+	}
+
+	recent, _ := w.recentNoteDigests(ctx, 10)
+	personDelta, _ := w.queue.CountPersonsSince(ctx, time.Now().Add(-constants.MemoryConsolidationInterval))
+
+	prompt := fmt.Sprintf("CURRENT MEMORY FILE:\n%s\n\nRECENT CAPTURED FACTS:\n%s\n\nNEW PEOPLE SINCE LAST RUN: %d",
+		current, strings.Join(recent, "\n"), personDelta)
+
+	systemPrompt := constants.DefaultSystemPrompts.ConsolidateMemory
+	merged, err := w.llm.GenerateWithSystem(systemPrompt, prompt)
+	if err != nil {
+		return fmt.Errorf("memory consolidation failed: %w", err)
+	}
+	if strings.TrimSpace(merged) == "" {
+		return fmt.Errorf("memory consolidation produced empty output")
+	}
+
+	filename := filenameOrDefault(w.memCfg.File)
+	if err := w.vault.WriteManagedFile(filename, merged); err != nil {
+		return fmt.Errorf("write memory file: %w", err)
+	}
+
+	if err := w.queue.SetStat(ctx, "memory_last_consolidation", time.Now().UTC().Format(time.RFC3339)); err != nil {
+		w.logger.Warn("failed to record consolidation marker", "error", err)
+	}
+	return nil
+}
+
+// recentNoteDigests returns short digests of the newest notes' content.
+func (w *Worker) recentNoteDigests(ctx context.Context, limit int) ([]string, error) {
+	jobs, _, err := w.queue.ListJobs(ctx, "done", limit, 0)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, j := range jobs {
+		if j.NotePath == "" || j.Content == "" {
+			continue
+		}
+		digest := j.Content
+		if len(digest) > 200 {
+			digest = digest[:200]
+		}
+		out = append(out, fmt.Sprintf("- %s", digest))
+	}
+	return out, nil
 }

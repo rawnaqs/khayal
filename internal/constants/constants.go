@@ -48,13 +48,20 @@ const (
 	MaxEntitiesPerType = 10
 )
 
+// Memory file maintenance (phase 2.5)
+const (
+	MemoryConsolidationInterval = 24 * time.Hour
+	MemoryNewPersonsThreshold   = 5
+)
+
 // System prompts define the model's persona and output expectations.
 type SystemPrompts struct {
-	ExtractTags     string `yaml:"extract_tags"`
-	Summarize       string `yaml:"summarize"`
-	ExtractKeyIdeas string `yaml:"extract_key_ideas"`
-	DescribeImage   string `yaml:"describe_image"`
-	ExtractEntities string `yaml:"extract_entities"`
+	ExtractTags       string `yaml:"extract_tags"`
+	Summarize         string `yaml:"summarize"`
+	ExtractKeyIdeas   string `yaml:"extract_key_ideas"`
+	DescribeImage     string `yaml:"describe_image"`
+	ExtractEntities   string `yaml:"extract_entities"`
+	ConsolidateMemory string `yaml:"consolidate_memory"`
 }
 
 var DefaultSystemPrompts = SystemPrompts{
@@ -124,6 +131,15 @@ Rules:
 Output format: Respond with ONLY a valid JSON object with these exact keys. No markdown wrapping, no commentary, no text outside the object.
 Correct: {"people":["John Doe"],"amounts":["2000"],"dates":[],"places":[],"orgs":[],"urls":[]}
 Wrong: Here are the entities: {...}`,
+
+	ConsolidateMemory: `You maintain the long-term memory file for a personal knowledge base. You will receive the CURRENT memory file plus recently captured facts. Rewrite the memory file incorporating anything genuinely new and durable: people and who they are, ongoing threads, preferences.
+
+Rules:
+- Keep the exact same section headings (# Memory, ## About the author, ## People, ## Ongoing threads, ## Preferences)
+- Merge: add new entries, enrich existing lines — never remove unrelated content
+- One concise line per person/topic; skip one-off trivia
+- Preserve any manual edits the user made
+- Output ONLY the full rewritten markdown file, no commentary`,
 }
 
 // Prompt templates define per-bucket user prompts.

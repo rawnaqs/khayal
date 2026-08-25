@@ -161,8 +161,8 @@ func (c *OllamaClient) getTemperature(op string) float64 {
 
 // SetCallContext stores a per-job memory context block appended to the
 // system prompt of the four enrichment calls. Cleared by ClearCallContext.
-func (c *OllamaClient) SetCallContext(block string)   { c.callContext = block }
-func (c *OllamaClient) ClearCallContext()             { c.callContext = "" }
+func (c *OllamaClient) SetCallContext(block string) { c.callContext = block }
+func (c *OllamaClient) ClearCallContext()           { c.callContext = "" }
 
 func (c *OllamaClient) withCallContext(system string) string {
 	if c.callContext == "" {

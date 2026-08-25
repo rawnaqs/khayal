@@ -206,6 +206,16 @@ connections:
 Idempotent: reprocessing replaces the block; no stale links survive.
 The same data is available via the queue API (`jobs.result`).
 
+## Managed File: memory.md (v1.1)
+
+`<inbox_dir>/memory.md` is khayal-maintained long-term memory: the LLM
+periodically consolidates recent captures into headed sections (# Memory /
+## About the author / ## People / ## Ongoing threads / ## Preferences) and
+its contents are injected back into enrichment prompts. It is excluded from
+indexing, connections, and reindex scans. You may edit it by hand — manual
+changes survive until the next merge-style consolidation. Filename is
+configurable via `memory.file`.
+
 ## Reading Notes (Reader)
 
 The `vault.Reader` reads and parses markdown notes from the vault inbox. It parses YAML frontmatter and extracts markdown sections.

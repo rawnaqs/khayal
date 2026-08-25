@@ -62,9 +62,9 @@ type EntitiesBlock struct {
 	// DateResolutions is index-aligned with Dates (not serialized):
 	// absolute dates for relative references.
 	DateResolutions []string `yaml:"-"`
-	Places  []string `yaml:"places,omitempty"`
-	Orgs    []string `yaml:"orgs,omitempty"`
-	URLs    []string `yaml:"urls,omitempty"`
+	Places          []string `yaml:"places,omitempty"`
+	Orgs            []string `yaml:"orgs,omitempty"`
+	URLs            []string `yaml:"urls,omitempty"`
 }
 
 type Note struct {
@@ -717,4 +717,50 @@ func spliceConnectionsBlock(raw string, targets []string) (string, bool) {
 
 	updated := out.String() + strings.Join(lines[closeIdx+1:], "")
 	return updated, updated != raw
+}
+
+// WriteManagedFile atomically writes a khayal-managed file inside the inbox
+// (e.g. the LLM-maintained memory file), restoring mtime after the write so
+// external-change detection elsewhere keeps working.
+func (w *Writer) WriteManagedFile(filename, content string) error {
+	if strings.TrimSpace(filename) == "" || filepath.Base(filename) != filename ||
+		strings.HasPrefix(filename, ".") {
+		return fmt.Errorf("%w: %s", ErrVaultPathOutsideInbox, filename)
+	}
+	absolutePath := filepath.Join(w.InboxPath(), filename)
+
+	preMtime := time.Time{}
+	if info, err := os.Stat(absolutePath); err == nil {
+		preMtime = info.ModTime()
+	}
+
+	sanitized := sanitizeUTF8(content)
+	if !utf8.ValidString(sanitized) {
+		return fmt.Errorf("invalid UTF-8 content")
+	}
+
+	if err := w.writeFileAtomically(absolutePath, sanitized); err != nil {
+		return fmt.Errorf("failed to write managed file: %w", err)
+	}
+	if !preMtime.IsZero() {
+		if err := os.Chtimes(absolutePath, preMtime, preMtime); err != nil {
+			slog.Default().Warn("failed to restore mtime", "path", absolutePath, "error", err)
+		}
+	}
+	return nil
+}
+
+// ManagedFileExists reports whether the managed file already exists.
+func (w *Writer) ManagedFileExists(filename string) bool {
+	_, err := os.Stat(filepath.Join(w.InboxPath(), filename))
+	return err == nil
+}
+
+// ReadManagedFile returns the managed file's content, or "" when absent.
+func (w *Writer) ReadManagedFile(filename string) string {
+	b, err := os.ReadFile(filepath.Join(w.InboxPath(), filename))
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }

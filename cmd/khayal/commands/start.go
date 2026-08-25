@@ -8,6 +8,8 @@ import (
 
 	cli "github.com/rawnaqs/khayal/cmd/khayal/internal"
 	"github.com/rawnaqs/khayal/internal/api"
+	"path/filepath"
+
 	"github.com/rawnaqs/khayal/internal/config"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/log"
@@ -113,6 +115,19 @@ func runStart() error {
 		return err
 	}
 	cli.PrintAction("vault", config.MakeAbsolute(cfg.Vault.Path, configPath))
+
+	// Seed the LLM-maintained memory file if absent (phase 2.5).
+	memFile := cfg.Memory.File
+	if memFile == "" {
+		memFile = "memory.md"
+	}
+	if !v.ManagedFileExists(memFile) {
+		if err := v.WriteManagedFile(memFile, worker.MemorySkeleton); err != nil {
+			cli.PrintAction("memory", "seed failed: "+err.Error())
+		} else {
+			cli.PrintAction("memory", filepath.Join(cfg.Vault.InboxDir, memFile))
+		}
+	}
 
 	llmClient, err := llm.NewLLM(cfg.LLM)
 	if err != nil {

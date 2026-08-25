@@ -2109,3 +2109,31 @@ func (q *Queue) GetEntityGlossary(ctx context.Context, limit int) ([]string, err
 	return out, rows.Err()
 }
 
+// GetStat reads a stats_cache marker; ok=false when absent.
+func (q *Queue) GetStat(ctx context.Context, key string) (string, bool, error) {
+	var v string
+	err := q.db.QueryRowContext(ctx,
+		`SELECT value FROM stats_cache WHERE key = ?`, key).Scan(&v)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	return v, err == nil, err
+}
+
+// SetStat writes a stats_cache marker.
+func (q *Queue) SetStat(ctx context.Context, key, value string) error {
+	_, err := q.db.ExecContext(ctx,
+		`INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)`,
+		key, value, time.Now().UTC().Format(time.RFC3339))
+	return err
+}
+
+// CountPersonsSince counts distinct person entities created after t.
+func (q *Queue) CountPersonsSince(ctx context.Context, t time.Time) (int, error) {
+	var n int
+	err := q.db.QueryRowContext(ctx,
+		`SELECT COUNT(DISTINCT entity_value) FROM entities
+		 WHERE entity_type = 'person' AND created_at > ?`,
+		t.UTC().Format(time.RFC3339)).Scan(&n)
+	return n, err
+}
