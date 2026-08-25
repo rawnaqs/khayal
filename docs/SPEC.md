@@ -542,7 +542,20 @@ Restore from backup.
 ```bash
 khayal restore --from /Volumes/BackupDrive/khayal
 khayal restore --from /Volumes/BackupDrive/khayal --date 2024-03-10
+khayal restore --from /Volumes/BackupDrive/khayal --overwrite
 ```
+
+**Safety contract (v1.1 implementation):**
+- `backup` warns and proceeds while the server is running (vault copy is
+  always safe; the db snapshot may catch a mid-write state)
+- `restore` hard-refuses while the server is running — stop first
+- vault restore is an additive merge: newer notes not in the backup are
+  never deleted; existing files are skipped without `--overwrite`
+- config restore is best-effort: an existing live config is kept with a
+  warning unless `--overwrite` is passed
+- `--encrypt` uses age (filippo.io/age, embedded): armored X25519,
+  identity file at `~/.config/khayal/backup.key`, generated via
+  `khayal backup --init-key` (refuses to overwrite an existing key)
 
 **Behavior:**
 

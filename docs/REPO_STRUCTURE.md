@@ -311,6 +311,7 @@ Private application code. Not importable by external packages.
 | `vault/` | Markdown file writing |
 | `queue/` | SQLite database operations |
 | `queue/` | Job queue, FTS5 + semantic search, entity/chunk stores |
+| `backup/` | Encrypted backup (age) and additive-merge restore |
 | `connections/` | Proactive connections |
 | `config/` | Configuration management |
 | `version/` | Version info |
