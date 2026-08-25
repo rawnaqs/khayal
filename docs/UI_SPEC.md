@@ -568,6 +568,21 @@ const modes = ['hybrid', 'keyword', 'semantic']
 
 ---
 
+## Note view — two-step delete (v1.1 phase 3)
+
+```tsx
+// NoteView header, right of title (visible once note loads)
+// Idle: muted trash icon button
+// Click -> inline confirm cluster replaces it:
+//   "move to trash?" + [delete] (red-tinted) + [×] cancel
+// Confirm -> DELETE /v1/note -> toast ("moved to trash") + sheet closes;
+//   the deleted note vanishes from open search results instantly
+// Failure -> destructive toast, sheet stays open, confirm resets
+// New note selection resets both confirming and deleting state
+```
+
+---
+
 ## Capture result tiles — 4 states
 
 ```tsx
