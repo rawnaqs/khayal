@@ -750,6 +750,58 @@ func (q *Queue) DeleteChunksByNote(ctx context.Context, notePath string) error {
 	return err
 }
 
+// RemoveNote purges every index trace of a note — FTS row, chunk
+// embeddings, and entity rows — in one transaction. Idempotent: removing
+// a note that was never indexed is a no-op.
+func (q *Queue) RemoveNote(ctx context.Context, notePath string) error {
+	const maxRetries = constants.SQLiteMaxRetries
+	var lastErr error
+
+	for range maxRetries {
+		tx, err := q.db.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM notes_fts WHERE note_path = ?`, notePath); err != nil && !isFTSErr(err) {
+			_ = tx.Rollback()
+			lastErr = err
+			if isLockError(err) {
+				time.Sleep(constants.SQLiteRetrySleep)
+				continue
+			}
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM chunks WHERE note_path = ?`, notePath); err != nil {
+			_ = tx.Rollback()
+			lastErr = err
+			if isLockError(err) {
+				time.Sleep(constants.SQLiteRetrySleep)
+				continue
+			}
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM entities WHERE note_path = ?`, notePath); err != nil {
+			_ = tx.Rollback()
+			lastErr = err
+			if isLockError(err) {
+				time.Sleep(constants.SQLiteRetrySleep)
+				continue
+			}
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			lastErr = err
+			if isLockError(err) {
+				time.Sleep(constants.SQLiteRetrySleep)
+				continue
+			}
+			return err
+		}
+		return nil
+	}
+	return lastErr
+}
+
 // NoteEntities holds enrichment entities extracted from a note. Mirrored
 // from the ingest package's Entities to avoid an import cycle.
 type NoteEntities struct {

@@ -380,3 +380,57 @@ func (c *Client) Stats() (*StatsResponse, error) {
 
 	return &result, nil
 }
+
+// QueueJobResponse mirrors a single queue job.
+type QueueJobResponse struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Status   string `json:"status"`
+	NotePath string `json:"note_path,omitempty"`
+}
+
+// DeleteNoteResponse is the soft-delete result.
+type DeleteNoteResponse struct {
+	Deleted   bool   `json:"deleted"`
+	TrashPath string `json:"trash_path"`
+}
+
+// DeleteNote soft-deletes a note by vault-relative path.
+func (c *Client) DeleteNote(notePath string) (*DeleteNoteResponse, error) {
+	resp, err := c.doRequest("DELETE", "/v1/note?path="+url.QueryEscape(notePath), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var result DeleteNoteResponse
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			return nil, fmt.Errorf("failed to decode response: %w", err)
+		}
+		return &result, nil
+	case http.StatusNotFound:
+		return nil, fmt.Errorf("note not found: %s", notePath)
+	default:
+		return nil, fmt.Errorf("delete failed with status %d", resp.StatusCode)
+	}
+}
+
+// GetJob fetches a single queue job (used to resolve job IDs to note paths).
+func (c *Client) GetJob(id string) (*QueueJobResponse, error) {
+	resp, err := c.doRequest("GET", "/v1/queue/"+id, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("job lookup failed with status %d", resp.StatusCode)
+	}
+	var result QueueJobResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+	return &result, nil
+}

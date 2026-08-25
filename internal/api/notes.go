@@ -1,8 +1,12 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -147,4 +151,49 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// DeleteNoteResponse is the soft-delete result.
+type DeleteNoteResponse struct {
+	Deleted   bool   `json:"deleted"`
+	TrashPath string `json:"trash_path"`
+}
+
+func (s *Server) noteDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	notePath := r.URL.Query().Get("path")
+	if notePath == "" {
+		WriteError(w, "missing required parameter: path", "NOTE_MISSING_PATH", http.StatusBadRequest)
+		return
+	}
+
+	trashPath, err := s.vault.DeleteNote(notePath)
+	if err != nil {
+		switch {
+		case errors.Is(err, vault.ErrVaultPathOutsideInbox),
+			errors.Is(err, vault.ErrVaultPathOutsideVault),
+			errors.Is(err, vault.ErrVaultPathNotAbsolute):
+			s.logger.Warn("note delete rejected", "path", notePath, "error", err)
+			WriteError(w, "invalid note path", "NOTE_INVALID_PATH", http.StatusBadRequest)
+		case errors.Is(err, os.ErrNotExist):
+			WriteError(w, "note not found", "NOTE_NOT_FOUND", http.StatusNotFound)
+		default:
+			s.logger.Error("note delete failed", "path", notePath, "error", err)
+			WriteError(w, "failed to delete note", "NOTE_DELETE_ERROR", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	ctx := context.Background()
+	if err := s.queue.RemoveNote(ctx, notePath); err != nil {
+		// File is already trashed; index purge failures are logged but the
+		// delete stands — a reindex sweep will reconcile the leftovers.
+		s.logger.Error("index purge after delete failed", "path", notePath, "error", err)
+	}
+	if _, err := s.queue.RecomputeStats(ctx); err != nil {
+		s.logger.Warn("stats recompute after delete failed", "error", err)
+	}
+
+	s.logger.Info("note deleted", "path", notePath, "trash_path", trashPath)
+
+	WriteJSON(w, http.StatusOK, DeleteNoteResponse{Deleted: true, TrashPath: ".khayal-trash/" + filepath.ToSlash(trashPath)})
 }

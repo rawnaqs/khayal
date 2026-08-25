@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sync/atomic"
 	"testing"
@@ -190,6 +193,120 @@ func TestSearchOverview(t *testing.T) {
 		}
 		if llm.generateCalls.Load() != 0 {
 			t.Errorf("expected 0 LLM calls, got %d", llm.generateCalls.Load())
+		}
+	})
+}
+
+func TestNoteDeleteHandler(t *testing.T) {
+	seed := func(t *testing.T, ts *testServer) string {
+		t.Helper()
+		ctx := context.Background()
+		job := &queue.Job{Type: "text", Status: "done", NotePath: "inbox/victim.md", CreatedAt: time.Now()}
+		if err := ts.Queue.CreateJob(ctx, job); err != nil {
+			t.Fatal(err)
+		}
+		if err := ts.Queue.IndexNote(ctx, "inbox/victim.md", "Victim", "deletable body words", "x"); err != nil {
+			t.Fatal(err)
+		}
+		if err := ts.Queue.SaveChunk(ctx, "inbox/victim.md", 0, "c", make([]float32, 4)); err != nil {
+			t.Fatal(err)
+		}
+		if err := ts.Queue.SaveEntities(ctx, "inbox/victim.md", queue.NoteEntities{People: []string{"Bob"}}); err != nil {
+			t.Fatal(err)
+		}
+		noteRel := filepath.Join("inbox", "victim.md")
+		abs := filepath.Join(ts.Config.Vault.Path, noteRel)
+		if err := os.MkdirAll(filepath.Dir(abs), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(abs, []byte("---\ntitle: Victim\n---\nbody"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		return noteRel
+	}
+
+	del := func(ts *testServer, path string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodDelete, "/v1/note?path="+url.QueryEscape(path), nil)
+		req.Header.Set("X-Khayal-Token", "test-token")
+		rec := httptest.NewRecorder()
+		ts.Server.noteDeleteHandler(rec, req)
+		return rec
+	}
+
+	t.Run("happy path: trashed + index purged", func(t *testing.T) {
+		ts := setupTestServer(t)
+		defer ts.close()
+		noteRel := seed(t, ts)
+
+		rec := del(ts, noteRel)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+		}
+		var resp struct {
+			Deleted   bool   `json:"deleted"`
+			TrashPath string `json:"trash_path"`
+		}
+		json.NewDecoder(rec.Body).Decode(&resp)
+		if !resp.Deleted || resp.TrashPath == "" {
+			t.Fatalf("bad response: %+v", resp)
+		}
+
+		// file gone from inbox, present in trash
+		if _, err := os.Stat(filepath.Join(ts.Config.Vault.Path, noteRel)); !os.IsNotExist(err) {
+			t.Error("note still in inbox")
+		}
+		matches, _ := filepath.Glob(filepath.Join(ts.Config.Vault.Path, "inbox", ".khayal-trash", "victim.md.*"))
+		if len(matches) != 1 {
+			t.Errorf("expected exactly one trash file, got %v", matches)
+		}
+
+		// index purged: keyword search no longer finds it
+		results, err := ts.Queue.SearchKeyword(context.Background(), "deletable", 10, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range results {
+			if r.NotePath == noteRel {
+				t.Error("deleted note still searchable")
+			}
+		}
+		if c, _ := ts.Queue.CountChunks(context.Background(), noteRel); c != 0 {
+			t.Error("chunks survived delete")
+		}
+		if e, _ := ts.Queue.CountEntities(context.Background(), noteRel, "person"); e != 0 {
+			t.Error("entities survived delete")
+		}
+	})
+
+	t.Run("traversal rejected", func(t *testing.T) {
+		ts := setupTestServer(t)
+		defer ts.close()
+
+		for _, p := range []string{"../../etc/passwd", "../outside.md", "inbox/../secret.md"} {
+			rec := del(ts, p)
+			if rec.Code != http.StatusBadRequest && rec.Code != http.StatusNotFound {
+				t.Errorf("path %q: expected 4xx, got %d", p, rec.Code)
+			}
+		}
+	})
+
+	t.Run("missing path param rejected", func(t *testing.T) {
+		ts := setupTestServer(t)
+		defer ts.close()
+		req := httptest.NewRequest(http.MethodDelete, "/v1/note", nil)
+		rec := httptest.NewRecorder()
+		ts.Server.noteDeleteHandler(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d", rec.Code)
+		}
+	})
+
+	t.Run("nonexistent note is 404", func(t *testing.T) {
+		ts := setupTestServer(t)
+		defer ts.close()
+		rec := del(ts, filepath.Join("inbox", "ghost.md"))
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d: %s", rec.Code, rec.Body.String())
 		}
 	})
 }

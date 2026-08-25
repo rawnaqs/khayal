@@ -1061,3 +1061,67 @@ func TestSaveEntitiesResolvedDates(t *testing.T) {
 		t.Errorf("March 2024 should have NULL resolution, got %q", b.String)
 	}
 }
+
+func TestRemoveNote(t *testing.T) {
+	tmpDir := t.TempDir()
+	q, err := NewQueue(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatalf("NewQueue() error = %v", err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+	notePath := "inbox/doomed.md"
+
+	if err := q.IndexNote(ctx, notePath, "Doomed", "searchable body text", "tag1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SaveChunk(ctx, notePath, 0, "chunk text", make([]float32, 4)); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SaveEntities(ctx, notePath, NoteEntities{People: []string{"Bob"}}); err != nil {
+		t.Fatal(err)
+	}
+
+	// sanity: all three stores populated
+	var ftsN int
+	if err := q.db.QueryRow(`SELECT COUNT(*) FROM notes_fts WHERE note_path = ?`, notePath).Scan(&ftsN); err != nil || ftsN == 0 {
+		t.Fatalf("fts not seeded: n=%d err=%v", ftsN, err)
+	}
+	if n, _ := q.CountChunks(ctx, notePath); n == 0 {
+		t.Fatal("chunks not seeded")
+	}
+	if n, _ := q.CountEntities(ctx, notePath, "person"); n == 0 {
+		t.Fatal("entities not seeded")
+	}
+
+	if err := q.RemoveNote(ctx, notePath); err != nil {
+		t.Fatalf("RemoveNote() error = %v", err)
+	}
+
+	if err := q.db.QueryRow(`SELECT COUNT(*) FROM notes_fts WHERE note_path = ?`, notePath).Scan(&ftsN); err != nil || ftsN != 0 {
+		t.Errorf("fts rows survived: n=%d err=%v", ftsN, err)
+	}
+	if n, _ := q.CountChunks(ctx, notePath); n != 0 {
+		t.Errorf("chunks survived: %d", n)
+	}
+	if n, _ := q.CountEntities(ctx, notePath, "person"); n != 0 {
+		t.Errorf("entities survived: %d", n)
+	}
+
+	// idempotent
+	if err := q.RemoveNote(ctx, notePath); err != nil {
+		t.Errorf("RemoveNote must be idempotent, got %v", err)
+	}
+
+	// keyword search no longer finds it
+	results, err := q.SearchKeyword(ctx, "searchable", 10, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range results {
+		if r.NotePath == notePath {
+			t.Error("deleted note still searchable")
+		}
+	}
+}
