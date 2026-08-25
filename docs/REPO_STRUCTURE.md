@@ -30,6 +30,8 @@ khayal/
 │   │       ├── status.go          # Server status + update check
 │   │       ├── reindex.go         # Progress bar reindex
 │   │       ├── vault*.go         # Vault maintenance: health, fix-links, clean-media, show-duplicates
+│   │       ├── backup.go         # Backup vault/db/config (--dest --encrypt --init-key)
+│   │       └── restore.go        # Restore from backup (--from --date --overwrite)
 │   │       ├── version.go         # Version info
 │   │       └── config.go          # View config
 │   │

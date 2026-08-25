@@ -562,15 +562,8 @@ khayal restore --from /Volumes/BackupDrive/khayal --overwrite
 ```
 khayal restore --from /Volumes/BackupDrive/khayal
 
-  available backups
-    2024-03-16  vault: 2,847 notes · db: 24MB  ← latest
-    2024-03-09  vault: 2,801 notes · db: 23MB
-    2024-03-02  vault: 2,756 notes · db: 21MB
-
-  restoring latest backup...
-
-  ! khayal must be stopped before restore
-    → run: khayal stop
+  ✗ khayal must be stopped before restore
+    → khayal stop
     → then: khayal restore --from /Volumes/BackupDrive/khayal
 ```
 
@@ -596,8 +589,10 @@ If khayal is stopped:
 
 **Rules:**
 - Refuses to run if khayal server is running
-- `--date` selects specific backup (default: latest)
-- Decrypts automatically if backup.key exists
+- `--date` selects specific backup (default: latest); no interactive menu —
+  inspect the destination directory to see available dates
+- Decrypts automatically when the encrypted variant is present and
+  `~/.config/khayal/backup.key` is readable
 - Vault restore: additive by default — never overwrites newer files
 - `--overwrite` forces full vault overwrite — explicit user intent
 - DB + config: always fully replaced
