@@ -133,6 +133,9 @@ User Input → API Server → Job Queue → Worker → Ingest → Vault → Chun
 Query → API Server → Keyword Search (FTS5)
                   → Semantic Search (chunk embeddings, best chunk per note)
                   → Hybrid Combine → Results
+                  → (optional, explicit) Overview: top-5 excerpts → one LLM
+                    call at temp 0.3 → answer with [n] citations; fail-open
+                    to null — search never fails because of the answer
 ```
 
 ## Component Responsibilities

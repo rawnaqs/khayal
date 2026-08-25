@@ -1569,10 +1569,14 @@ over time:
 ### Search Overview (v1.1 phase 2.6)
 
 On-demand AI answer above search results, Google-Gemini style. Triggered
-explicitly — PWA "AI Answer" button or `kl search --answer`; never
-automatic, no config option. The answer is synthesized from the top-K
-result excerpts with `[n]` citations into the result list. Search itself
-never fails because of the answer (fail-open to `overview: null`).
+explicitly — PWA inline "AI Answer" row or `kl search --answer`; never
+automatic, no config option. The answer is synthesized from the top
+min(5, len) result excerpts with `[n]` citations into the result list,
+generated in one LLM call at temperature 0.3. Out-of-range `[n]` refs are
+dropped; duplicates deduped. In the PWA the answer is an expanding row at
+the top of the results list — collapse keeps it cached, dismiss resets.
+Search itself never fails because of the answer (fail-open to
+`overview: null`; zero results or missing param = zero LLM calls).
 
 **v2.0 Setup Wizard:**
 - First-launch UI (no CLI required)

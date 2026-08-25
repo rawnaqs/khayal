@@ -57,6 +57,7 @@ khayal/
 │   │   ├── server.go                # HTTP server, router, middleware
 │   │   ├── capture.go               # POST /v1/capture
 │   │   ├── search.go               # GET /v1/search
+│   │   ├── overview.go             # AI answer: RAG synthesis + citation extraction
 │   │   ├── health.go               # GET /v1/health
 │   │   ├── queue.go                # GET /v1/queue, queue operations
 │   │   ├── static.go               # SPA static file serving
@@ -156,6 +157,7 @@ khayal/
 │       │   │   │       └── CaptureView.test.tsx
 │       │   │   ├── search/
 │       │   │   │   ├── SearchView.tsx       # Search with mode chips, filters
+│       │   │   │   ├── AIAnswer.tsx         # Inline expanding AI answer row
 │       │   │   │   ├── SearchInput.tsx      # Search bar
 │       │   │   │   ├── ResultCard.tsx       # Generic result card
 │       │   │   │   ├── ResultHero.tsx       # Hero result (high score)
@@ -198,6 +200,7 @@ khayal/
 │       │   ├── hooks/
 │       │   │   ├── useCapture.ts            # Capture with offline fallback
 │       │   │   ├── useSearch.ts             # Search execution
+│       │   │   ├── useAIAnswer.ts           # On-demand AI answer state machine
 │       │   │   ├── useStats.ts              # Polling stats
 │       │   │   ├── useQueue.ts              # Queue polling
 │       │   │   ├── useServerStatus.ts       # Health polling
@@ -315,7 +318,7 @@ Frontend PWA project. Built with Vite + React + Tailwind + shadcn/ui.
 | Directory | Purpose |
 |-----------|---------|
 | `src/components/capture/` | Capture UI (text, url, image, result, stats) |
-| `src/components/search/` | Search UI (view, input, results) |
+| `src/components/search/` | Search UI (view, input, results, AI answer row) |
 | `src/components/queue/` | Queue display (jobs, metrics) |
 | `src/components/layout/` | Navigation (bottom nav, header) |
 | `src/components/ui/` | shadcn/ui components |
