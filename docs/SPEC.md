@@ -1188,10 +1188,14 @@ Find notes that semantically conflict with the new note.
 
 ```
 Detection: two-step
-  Step 1: find top-5 similar notes (score > 0.80)
-  Step 2: for each, run LLM contradiction check
-  Surface: LLM returns "yes" only
-Label:     "contradicts something you wrote [date]"
+  Step 1: find top-5 similar notes (score > contradiction_threshold, default 0.80)
+  Step 2: for each, run LLM verdict call (strict JSON {"contradicts": bool})
+Surface:  only "contradicts": true verdicts; fail-open per candidate —
+          a garbage or errored verdict skips that candidate silently
+Label:    "contradicts something you wrote [date]"
+Cost:     ~3s (async job — never blocks capture)
+Config:   types.contradiction toggle (nil = on); nil checker in the
+          engine skips the type entirely (tests stay LLM-free)
 ```
 
 #### Type 5 — Follow-ups Never Completed (v1.2)
@@ -1200,11 +1204,13 @@ Find past notes expressing follow-up intent mentioning the same people, with no 
 
 ```
 Detection: three-step
-  Step 1: FTS5 query for intent keywords + same person
-  Step 2: check date of intent note
-  Step 3: check if subsequent notes mention same person
-Filter:    intent note age > 14 days
-Label:     "you planned to follow up with [name] — no record of this happening"
+  Step 1: FTS5 query for intent keywords ("follow up", "todo",
+          "need to", "will send", "promise") AND same person entity
+  Step 2: check date of intent note — age must exceed 14 days
+  Step 3: verify NO subsequent capture mentions that person after the
+          intent date (existing entity lookup)
+Label:    "you planned to follow up with [name] — no record of this happening"
+Config:   types.follow_up toggle (nil = on)
 ```
 
 #### Type 6 — Ideas Revisited Over Time (v1.2)
@@ -1212,10 +1218,17 @@ Label:     "you planned to follow up with [name] — no record of this happening
 Detect when the new note is part of a recurring pattern — same topic appearing multiple times across months or years.
 
 ```
-Detection: reuse semantic similar results
+Detection: reuse the semantic-similar matches already fetched by Type 1
            if 3+ similar notes found spanning > 6 months
 Label:     "you've returned to this idea [N] times since [earliest date]"
 Surface:   oldest + newest note as bookends
+Config:    types.revisit toggle (nil = on)
+```
+
+**Ranking priority (v1.2):**
+
+```
+person 5 > contradiction 4 > follow_up 3 ≈ amount 3 > similar 2 > revisit 1
 ```
 
 ### Async Delivery
@@ -1290,12 +1303,12 @@ connections:
   min_age_days: 7
   max_per_capture: 3
   similarity_threshold: 0.85
-  contradiction_threshold: 0.80
+  contradiction_threshold: 0.80   # semantic floor for contradiction candidates
   types:
     similar:      true
     person:       true
     amount:       true
-    contradiction: true
+    contradiction: true   # LLM verdicts; nil = on
     follow_up:    true
     revisit:      true
 ```
@@ -1317,12 +1330,10 @@ Total v1.2 types:    ~3-4s  (async — never blocks capture)
 
 ```
 internal/connections/
-├── engine.go        ← orchestrates all types, ranking, dedup
-├── similar.go       ← semantic similarity
-├── entity.go        ← person + amount
-├── revisit.go       ← revisit detection
-├── followup.go     ← follow-up detection
-└── contradiction.go ← LLM-based contradiction detection
+├── connections.go   ← Find orchestrator, ranking, dedup (v1.1)
+├── revisit.go       ← revisit detection (v1.2)
+├── followup.go      ← follow-up detection (v1.2)
+└── contradiction.go ← LLM-based contradiction detection (v1.2)
 ```
 
 ---
