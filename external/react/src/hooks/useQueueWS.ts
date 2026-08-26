@@ -28,9 +28,8 @@ export function useQueueWS(onJob: (job: QueueJob) => void, enabled = true) {
 
     const connect = () => {
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-      const token = localStorage.getItem('khayal_token') || ''
       try {
-        ws = new WebSocket(`${proto}://${window.location.host}/v1/queue/ws?token=${encodeURIComponent(token)}`)
+        ws = new WebSocket(`${proto}://${window.location.host}/v1/queue/ws`)
       } catch {
         return // malformed host etc. — stay on polling
       }
@@ -47,6 +46,10 @@ export function useQueueWS(onJob: (job: QueueJob) => void, enabled = true) {
       }
 
       ws.onopen = () => {
+        // First-message auth: token never travels in the URL (it would
+        // leak into access logs). Server streams nothing until authed.
+        const token = localStorage.getItem('khayal_token') || ''
+        ws?.send(JSON.stringify({ type: 'auth', token }))
         attempts = 0
       }
 

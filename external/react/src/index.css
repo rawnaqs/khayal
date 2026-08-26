@@ -2495,12 +2495,24 @@
   }
 
   .done-expand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: 100%;
+    background: none;
+    border: none;
     font-family: "IBM Plex Mono", monospace;
     font-size: 9px;
     color: rgba(245, 245, 245, 0.2);
     text-align: center;
     letter-spacing: 0.5px;
-    padding: 4px 2px;
+    padding: 6px 2px;
+    transition: color 0.15s;
+  }
+
+  .done-expand:hover:not(:disabled) {
+    color: rgba(245, 245, 245, 0.45);
   }
 
   .divider {

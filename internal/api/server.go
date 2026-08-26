@@ -67,12 +67,16 @@ func (s *Server) setupRouter() {
 		r.Get("/stats", s.statsHandler)
 		r.Get("/notes/{path:.*}", s.noteHandler)
 		r.Delete("/note", s.noteDeleteHandler)
-		r.Get("/queue/ws", s.queueWSHandler)
 		r.Get("/queue", s.queueListHandler)
 		r.Get("/queue/{id}", s.queueGetHandler)
 		r.Post("/queue/{id}/retry", s.queueRetryHandler)
 		r.Post("/queue/{id}/discard", s.queueDiscardHandler)
 	})
+
+	// WebSocket stream lives outside the header-auth group: browsers
+	// cannot send custom headers during the handshake, so this endpoint
+	// authenticates via its first message frame instead.
+	s.router.Get("/v1/queue/ws", s.queueWSHandler)
 
 	// Static file serving (after API routes)
 	s.router.Get("/*", s.staticHandler)

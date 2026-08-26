@@ -12,9 +12,6 @@ import (
 
 const (
 	TokenHeader = "X-Khayal-Token"
-	// TokenQueryParam is accepted as a fallback for endpoints where
-	// browsers cannot set custom headers — WebSocket handshakes.
-	TokenQueryParam = "token"
 )
 
 type statusRecorder struct {
@@ -47,9 +44,6 @@ func AuthMiddleware(token string, writeError func(w http.ResponseWriter, message
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			clientToken := r.Header.Get(TokenHeader)
-			if clientToken == "" {
-				clientToken = r.URL.Query().Get(TokenQueryParam)
-			}
 			if clientToken == "" {
 				writeError(w, "token missing", "AUTH_TOKEN_MISSING", http.StatusUnauthorized)
 				return
