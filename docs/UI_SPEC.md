@@ -580,9 +580,22 @@ const modes = ['hybrid', 'keyword', 'semantic']
 // Done history: "show all N" button pages through full history via
 //   status=done&offset pagination (50/page); "show less" collapses back
 //   to the first 5; fresh polls reset expansion
-// Status groups (pending/failed/done) animate with layout transitions
-// Header logout: trash-style two-step confirm ("lock out?") ->
+// Internal pipeline jobs (connections, memory) are NEVER rendered as
+//   entries in any group — they surface only as flare chips on their
+//   ingest job (client-side filter, regression-tested)
+// Section structure is flat (no wrapper animations): fade-in per item,
+//   matching the original q-body flex layout
+// Header logout: two-step confirm ("lock out?") ->
 //   clears stored token and locks (vault-lock modes) or reloads clean
+
+## Service worker updates — immediate (v1.1)
+
+```tsx
+// main.tsx: on updatefound -> installed, post SKIP_WAITING to the worker;
+// controllerchange -> window.location.reload()
+// Deploys land on the next refresh; installed PWAs never strand on a
+// stale bundle (workbox default skipWaiting=false would wait forever)
+```
 ```
 
 ---

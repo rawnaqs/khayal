@@ -235,6 +235,7 @@ khayal/
 │           ├── helpers.ts                   # Playwright fixtures
 │           ├── capture.spec.ts              # Capture flow E2E
 │           ├── search.spec.ts               # Search flow E2E
+│           ├── queue-open-note.spec.ts      # Queue -> note sheet E2E
 │           └── offline.spec.ts              # Offline/PWA E2E
 │
 ├── internal/api/ui/                         # Built PWA (generated)
