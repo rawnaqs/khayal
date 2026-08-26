@@ -1580,11 +1580,14 @@ over time:
 ### Queue Realtime (v1.1 phase 5)
 
 Job status transitions stream to connected clients over
-`GET /v1/queue/ws` (`{event: "job_updated", job}` frames; token as query
-parameter). The PWA patches its queue view live via `useQueueWS` and
-falls back silently to polling. Internal pipeline jobs (connections,
-memory) never render in the queue UI — they surface only as connection
-count flares on their ingest job.
+`GET /v1/queue/ws` (`{event: "job_updated", job}` frames). Auth is
+first-message based — after connecting, the client sends
+`{"type":"auth","token":"..."}` as its first frame within 5s; tokens
+never appear in URLs (they leak into access logs), and invalid or
+missing auth closes with code 1008. The PWA patches its queue view live
+via `useQueueWS` and falls back silently to polling. Internal pipeline
+jobs (connections, memory) never render in the queue UI — they surface
+only as connection count flares on their ingest job.
 
 ### Search Overview (v1.1 phase 2.6)
 
