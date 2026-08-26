@@ -208,6 +208,11 @@ paths:
         - Queue
       summary: List jobs
       description: |
+        Also available: `GET /v1/queue/ws` upgrades to a WebSocket stream
+        of `{event: "job_updated", job}` frames on every status transition.
+        Auth via the `token` query parameter (browsers cannot set custom
+        headers on the handshake).
+      description: |
         Get list of jobs in the queue with optional filtering.
         
         Jobs have statuses:

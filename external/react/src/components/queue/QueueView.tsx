@@ -10,6 +10,7 @@ import { DoneItem } from "./DoneItem";
 import { OfflineSection } from "./OfflineSection";
 import { LIMITS } from "@/lib/constants";
 import { useQueue } from "@/hooks/useQueue";
+import { useQueueWS } from "@/hooks/useQueueWS";
 import { useToast } from "@/hooks/use-toast";
 import { useVaultLock } from "@/hooks/useVaultLock";
 import { getOfflineQueue } from "@/lib/offline";
@@ -76,6 +77,7 @@ export function QueueView({ onNoteSelect }: QueueViewProps = {}) {
     doneExpanded,
     doneLoadingMore,
     loadMoreDone,
+    applyLiveJob,
     setDoneExpanded,
     fetchQueue,
     retryJob,
@@ -104,6 +106,9 @@ export function QueueView({ onNoteSelect }: QueueViewProps = {}) {
   useEffect(() => {
     handleRefresh();
   }, [handleRefresh]);
+
+  // Live updates: patch in place; polling remains as the fallback
+  useQueueWS(applyLiveJob, firstLoadDone);
 
   useEffect(() => {
     if (!loading && !firstLoadDone) setFirstLoadDone(true);

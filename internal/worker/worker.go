@@ -16,6 +16,7 @@ import (
 	"github.com/rawnaqs/khayal/internal/config"
 	"github.com/rawnaqs/khayal/internal/connections"
 	"github.com/rawnaqs/khayal/internal/constants"
+	"github.com/rawnaqs/khayal/internal/events"
 	"github.com/rawnaqs/khayal/internal/ingest"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/memory"
@@ -32,10 +33,25 @@ type Worker struct {
 	chunkOpts chunk.Options
 	connCfg   config.ConnectionsConfig
 	memCfg    config.MemoryConfig
+	hub       *events.Hub
 	jobs      chan string
 	wg        sync.WaitGroup
 	running   atomic.Bool
 	logger    *slog.Logger
+}
+
+// SetHub installs the event hub used to broadcast job status transitions
+// to WebSocket subscribers. Nil-safe: without a hub nothing is published.
+func (w *Worker) SetHub(h *events.Hub) {
+	w.hub = h
+}
+
+// publishJob broadcasts a job transition; never blocks.
+func (w *Worker) publishJob(job *queue.Job) {
+	if w.hub == nil || job == nil {
+		return
+	}
+	w.hub.Publish(events.Event{Event: "job_updated", Job: job})
 }
 
 // SetMemoryLLM installs a dedicated client for memory consolidation jobs.
@@ -156,6 +172,7 @@ func (w *Worker) processJob(jobID string) {
 		w.logger.Error("failed to update job status", "job_id", jobID, "error", err)
 		return
 	}
+	w.publishJob(job)
 
 	var notePath string
 	var processErr error
@@ -195,6 +212,7 @@ func (w *Worker) processJob(jobID string) {
 		w.logger.Error("failed to update job", "job_id", jobID, "error", err)
 		return
 	}
+	w.publishJob(job)
 
 	// Recompute stats cache after successful capture
 	if _, err := w.queue.RecomputeStats(ctx); err != nil {
@@ -241,6 +259,7 @@ func (w *Worker) handleFailure(job *queue.Job, processErr error) {
 	if err := w.queue.UpdateJob(ctx, job); err != nil {
 		w.logger.Error("failed to update job after failure", "job_id", job.ID, "error", err)
 	}
+	w.publishJob(job)
 }
 
 func (w *Worker) calculateBackoff(retry int) time.Duration {

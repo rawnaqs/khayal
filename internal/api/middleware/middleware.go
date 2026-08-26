@@ -1,7 +1,10 @@
 package middleware
 
 import (
+	"bufio"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"time"
@@ -9,11 +12,30 @@ import (
 
 const (
 	TokenHeader = "X-Khayal-Token"
+	// TokenQueryParam is accepted as a fallback for endpoints where
+	// browsers cannot set custom headers — WebSocket handshakes.
+	TokenQueryParam = "token"
 )
 
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
+}
+
+// Hijack forwards the WebSocket upgrade requirement through the wrapper.
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("response writer does not support hijacking")
+	}
+	return hj.Hijack()
+}
+
+// Flush forwards the Flusher interface through the wrapper.
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func (r *statusRecorder) WriteHeader(code int) {
@@ -25,6 +47,9 @@ func AuthMiddleware(token string, writeError func(w http.ResponseWriter, message
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			clientToken := r.Header.Get(TokenHeader)
+			if clientToken == "" {
+				clientToken = r.URL.Query().Get(TokenQueryParam)
+			}
 			if clientToken == "" {
 				writeError(w, "token missing", "AUTH_TOKEN_MISSING", http.StatusUnauthorized)
 				return

@@ -587,6 +587,8 @@ const modes = ['hybrid', 'keyword', 'semantic']
 //   matching the original q-body flex layout
 // Header logout: two-step confirm ("lock out?") ->
 //   clears stored token and locks (vault-lock modes) or reloads clean
+// Live updates: useQueueWS streams job_updated events over
+//   /v1/queue/ws and patches rows in place; polling stays as fallback
 
 ## Service worker updates — immediate (v1.1)
 

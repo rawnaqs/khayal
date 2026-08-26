@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/rawnaqs/khayal/internal/events"
 	"github.com/rawnaqs/khayal/internal/queue"
 )
 
@@ -160,6 +161,10 @@ func (s *Server) queueRetryHandler(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("job retry",
 		"job_id", job.ID,
 	)
+
+	if s.hub != nil {
+		s.hub.Publish(events.Event{Event: "job_updated", Job: job})
+	}
 
 	WriteJSON(w, http.StatusOK, job)
 }

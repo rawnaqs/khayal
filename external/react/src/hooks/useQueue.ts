@@ -40,6 +40,17 @@ export function useQueue() {
     }
   }, [token, applyResponse])
 
+  // applyLiveJob merges a WebSocket broadcast into the local list
+  const applyLiveJob = useCallback((job: QueueJob) => {
+    setJobs(prev => {
+      const idx = prev.findIndex(j => j.id === job.id)
+      if (idx === -1) return [job, ...prev]
+      const next = [...prev]
+      next[idx] = { ...next[idx], ...job }
+      return next
+    })
+  }, [])
+
   // loadMoreDone pages through the full done history
   const loadMoreDone = useCallback(async () => {
     if (doneLoadingMore) return
@@ -104,6 +115,7 @@ export function useQueue() {
     doneExpanded,
     doneLoadingMore,
     loadMoreDone,
+    applyLiveJob,
     setDoneExpanded,
     fetchQueue,
     retryJob,

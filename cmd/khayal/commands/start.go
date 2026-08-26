@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/rawnaqs/khayal/internal/config"
+	"github.com/rawnaqs/khayal/internal/events"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/log"
 	"github.com/rawnaqs/khayal/internal/queue"
@@ -136,7 +137,10 @@ func runStart() error {
 	}
 	cli.PrintAction("llm", cfg.LLM.Provider)
 
+	hub := events.NewHub()
+
 	w := worker.NewWorker(cfg.Worker, cfg.Search.ChunkOptions(), cfg.Connections, cfg.Memory, q, v, llmClient, loggerSetup.WorkerLogger)
+	w.SetHub(hub)
 	memLLM, err := llm.NewConsolidationLLM(cfg.LLM)
 	if err != nil {
 		cli.Fatal(cli.ExitServer, "failed to initialize consolidation LLM: %v", err)
@@ -150,6 +154,7 @@ func runStart() error {
 	cli.PrintAction("worker", "started")
 
 	srv := api.NewServer(cfg, q, v, llmClient, loggerSetup.MainLogger)
+	srv.SetHub(hub)
 
 	go func() {
 		if err := srv.Start(); err != nil {

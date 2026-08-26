@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/rawnaqs/khayal/internal/api/middleware"
 	"github.com/rawnaqs/khayal/internal/config"
+	"github.com/rawnaqs/khayal/internal/events"
 	"github.com/rawnaqs/khayal/internal/llm"
 	"github.com/rawnaqs/khayal/internal/queue"
 	"github.com/rawnaqs/khayal/internal/vault"
@@ -23,13 +24,14 @@ import (
 var staticFS embed.FS
 
 type Server struct {
-	router     *chi.Mux
-	config     *config.Config
-	queue      *queue.Queue
-	vault      *vault.Writer
+	router      *chi.Mux
+	config      *config.Config
+	queue       *queue.Queue
+	hub         *events.Hub
+	vault       *vault.Writer
 	vaultReader *vault.Reader
-	llm        llm.LLMExt
-	logger     *slog.Logger
+	llm         llm.LLMExt
+	logger      *slog.Logger
 }
 
 func NewServer(cfg *config.Config, q *queue.Queue, v *vault.Writer, l llm.LLMExt, logger *slog.Logger) *Server {
@@ -37,23 +39,26 @@ func NewServer(cfg *config.Config, q *queue.Queue, v *vault.Writer, l llm.LLMExt
 		logger = slog.Default()
 	}
 	s := &Server{
-		config: cfg,
-		queue:  q,
-		vault:  v,
+		config:      cfg,
+		queue:       q,
+		vault:       v,
 		vaultReader: vault.NewReader(v.BasePath(), cfg.Vault.InboxDir),
-		llm:    l,
-		logger: logger,
+		llm:         l,
+		logger:      logger,
 	}
 	s.setupRouter()
 	return s
 }
+
+// SetHub installs the event hub backing the WebSocket endpoint.
+func (s *Server) SetHub(h *events.Hub) { s.hub = h }
 
 func (s *Server) setupRouter() {
 	s.router = chi.NewRouter()
 
 	s.router.Use(middleware.RequestLogger(s.logger))
 
-		s.router.Route("/v1", func(r chi.Router) {
+	s.router.Route("/v1", func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware(s.config.Server.Token, WriteError))
 
 		r.Get("/health", s.healthHandler)
@@ -62,6 +67,7 @@ func (s *Server) setupRouter() {
 		r.Get("/stats", s.statsHandler)
 		r.Get("/notes/{path:.*}", s.noteHandler)
 		r.Delete("/note", s.noteDeleteHandler)
+		r.Get("/queue/ws", s.queueWSHandler)
 		r.Get("/queue", s.queueListHandler)
 		r.Get("/queue/{id}", s.queueGetHandler)
 		r.Post("/queue/{id}/retry", s.queueRetryHandler)
