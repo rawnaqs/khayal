@@ -162,32 +162,33 @@ Release preparation.
 - [x] Docker Compose
 - [x] README, CONTRIBUTING
 - [x] Example config
-- [ ] Shell completion (v1.1)
-- [ ] Vault subcommands (v1.1)
-- [ ] Backup/restore (v1.1)
+- [ ] Shell completion (v1.2)
+- [x] Vault subcommands (v1.1)
+- [x] Backup/restore (v1.1)
 
 **Files Created:** ~5
 **Tests:** Full integration
 
-## v1.1 Scope (Post-Release)
+## v1.1 — SHIPPED
 
-See [SPEC.md](./SPEC.md) for full details.
+All phases complete on main. See [SPEC.md](./SPEC.md) for full details.
 
-### Chunking
-- 150-200 words per chunk
-- 30-50 word overlap
-- Paragraph boundary splits only
-- Minimum 50 words per chunk
+| Feature | What landed |
+|---------|-------------|
+| Chunking | 150-200 words, overlap, paragraph splits; `khayal reindex` |
+| Entity extraction | people/amounts/dates/places/orgs/urls + glossary rescue pass for missed people |
+| Proactive connections | similar / person / same-amount (corroborated), chained async after capture |
+| Capture intelligence | relative-date resolution (`resolved_date`), LLM memory context injection into enrichment prompts, LLM-maintained `memory.md` with throttled consolidation (dedicated consolidation model, temp 0.2, structural sanitizer) |
+| Search overview | on-demand AI answer (`overview=true`, `kl search --answer`, PWA expanding row), fail-open, zero LLM calls unless requested |
+| Delete note | `DELETE /v1/note` soft-delete to `.khayal-trash/` + index purge; `kl delete`; PWA two-step confirm |
+| Vault commands | `khayal vault health / fix-links / clean-media / show-duplicates` |
+| Backup/restore | age-encrypted snapshots, additive-merge restore, refuse-if-running |
+| Queue realtime | WebSocket `/v1/queue/ws` job_updated stream; PWA live patching with polling fallback |
+| Queue UX | connection flares, note opening from queue, full-history pagination, skeletons, logout |
+| PWA infra | service-worker immediate updates (no stale bundles) |
 
-### Entity Extraction
-- People, amounts, dates, places, orgs, URLs
-- Name normalization
-- Frontmatter + entities table
-
-### Proactive Connections
-- Async delivery after capture
-- Types: similar, person, amount (v1.1)
-- Types: contradiction, follow_up, revisit (v1.2)
+Deferred to v1.2: contradiction/follow_up/revisit connection types,
+shell completion.
 
 ---
 

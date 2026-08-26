@@ -1,8 +1,10 @@
-import { Check } from 'lucide-react'
-import type { QueueJob } from '@/lib/api'
+import { Check, Link2, Sparkles } from 'lucide-react'
+import type { QueueFlare, QueueJob } from '@/lib/api'
 
 interface DoneItemProps {
   job: QueueJob
+  flare?: QueueFlare
+  onSelect?: (notePath: string) => void
 }
 
 function timeAgo(dateStr: string) {
@@ -24,11 +26,17 @@ function truncateTitle(title: string, maxLen = 40) {
   return title.slice(0, maxLen - 3) + '...'
 }
 
-export function DoneItem({ job }: DoneItemProps) {
+export function DoneItem({ job, flare, onSelect }: DoneItemProps) {
   const title = truncateTitle(job.note_path || job.type)
+  const openable = !!job.note_path && !!onSelect
 
   return (
-    <div className="done-item">
+    <div
+      className={`done-item ${openable ? 'clickable' : ''}`}
+      onClick={openable ? () => onSelect!(job.note_path!) : undefined}
+      role={openable ? 'button' : undefined}
+      data-testid="done-item"
+    >
       <div className="done-check">
         <Check className="w-3 h-3" style={{ color: '#3ddc84' }} />
       </div>
@@ -36,6 +44,17 @@ export function DoneItem({ job }: DoneItemProps) {
         <div className="done-title">{title}</div>
         <div className="done-meta">{job.type}</div>
       </div>
+      {flare && flare.connections > 0 && (
+        <span className="flare-chip" title={`${flare.connections} connected notes`}>
+          <Link2 className="w-3 h-3" />
+          {flare.connections}
+        </span>
+      )}
+      {job.result != null && (
+        <span className="flare-enriched" title="enriched with memory context">
+          <Sparkles className="w-3 h-3" />
+        </span>
+      )}
       <span className="done-ago">{timeAgo(job.processed_at || job.created_at)}</span>
     </div>
   )

@@ -206,3 +206,28 @@ func TestRescuePeopleFromGlossary(t *testing.T) {
 		}
 	})
 }
+
+func TestNormalizeAmountsDedupes(t *testing.T) {
+	tests := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{"identical values collapse", []string{"$2,000", "2k"}, []string{"2000"}},
+		{"distinct values preserved in order", []string{"2k", "$500", "1.5m"}, []string{"2000", "500", "1500000"}},
+		{"first occurrence wins position", []string{"100", "2k", "2000"}, []string{"100", "2000"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := normalizeAmounts(tt.in)
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("pos %d: got %q want %q (full: %v)", i, got[i], tt.want[i], got)
+				}
+			}
+		})
+	}
+}

@@ -129,10 +129,14 @@ func NormalizeEntities(raw llm.EntityResult) Entities {
 
 func normalizeAmounts(raw []string) []string {
 	out := make([]string, 0, len(raw))
+	seen := make(map[string]bool, len(raw))
 	for _, s := range raw {
-		if n := normalizeAmount(s); n != "" {
-			out = append(out, n)
+		n := normalizeAmount(s)
+		if n == "" || seen[n] {
+			continue // unparseable, or a duplicate of an already-stored value
 		}
+		seen[n] = true
+		out = append(out, n)
 	}
 	return out
 }

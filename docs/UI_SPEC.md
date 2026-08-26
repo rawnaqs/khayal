@@ -568,6 +568,40 @@ const modes = ['hybrid', 'keyword', 'semantic']
 
 ---
 
+## Queue view — polish pass (v1.1 phase 5)
+
+```tsx
+// First load: shimmer skeleton rows (icon block + two bars) until the
+// first fetch resolves; afterwards every refresh animates in place
+// DoneItem: clickable when note_path exists -> opens NoteView sheet
+//   flare chips (server-hydrated GET /v1/queue flares map):
+//     [link-icon N]  gold chip, N proactive connections; hidden when 0
+//     [sparkles]     muted marker when the job carries a result payload
+// Done history: "show all N" button pages through full history via
+//   status=done&offset pagination (50/page); "show less" collapses back
+//   to the first 5; fresh polls reset expansion
+// Internal pipeline jobs (connections, memory) are NEVER rendered as
+//   entries in any group — they surface only as flare chips on their
+//   ingest job (client-side filter, regression-tested)
+// Section structure is flat (no wrapper animations): fade-in per item,
+//   matching the original q-body flex layout
+// Header logout: two-step confirm ("lock out?") ->
+//   clears stored token and locks (vault-lock modes) or reloads clean
+// Live updates: useQueueWS streams job_updated events over
+//   /v1/queue/ws and patches rows in place; polling stays as fallback
+
+## Service worker updates — immediate (v1.1)
+
+```tsx
+// main.tsx: on updatefound -> installed, post SKIP_WAITING to the worker;
+// controllerchange -> window.location.reload()
+// Deploys land on the next refresh; installed PWAs never strand on a
+// stale bundle (workbox default skipWaiting=false would wait forever)
+```
+```
+
+---
+
 ## Note view — two-step delete (v1.1 phase 3)
 
 ```tsx

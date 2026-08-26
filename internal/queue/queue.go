@@ -360,7 +360,7 @@ func (q *Queue) ListJobs(ctx context.Context, status string, limit, offset int) 
 		return nil, 0, err
 	}
 
-	query = `SELECT id, type, status, note_path, source_url, source_file, content, user_context, created_at, processed_at, error, retries FROM jobs`
+	query = `SELECT id, type, status, note_path, source_url, source_file, content, user_context, created_at, processed_at, error, retries, result, connections_job_id FROM jobs`
 	if status != "" && status != "all" {
 		query += " WHERE status = ?"
 	}
@@ -379,8 +379,10 @@ func (q *Queue) ListJobs(ctx context.Context, status string, limit, offset int) 
 		var createdAtStr string
 		var notePath, sourceURL, sourceFile, userContext, content, errorStr sql.NullString
 		var processedAtStr sql.NullString
+		var resultStr, connectionsJobID sql.NullString
 		if err := rows.Scan(&job.ID, &job.Type, &job.Status, &notePath, &sourceURL, &sourceFile,
-			&content, &userContext, &createdAtStr, &processedAtStr, &errorStr, &job.Retries); err != nil {
+			&content, &userContext, &createdAtStr, &processedAtStr, &errorStr, &job.Retries,
+			&resultStr, &connectionsJobID); err != nil {
 			return nil, 0, err
 		}
 
@@ -390,6 +392,10 @@ func (q *Queue) ListJobs(ctx context.Context, status string, limit, offset int) 
 		job.UserContext = userContext.String
 		job.Content = content.String
 		job.Error = errorStr.String
+		if resultStr.Valid && resultStr.String != "" {
+			job.Result = json.RawMessage(resultStr.String)
+		}
+		job.ConnectionsJobID = connectionsJobID.String
 
 		var parseErr error
 		job.CreatedAt, parseErr = time.Parse(time.RFC3339, createdAtStr)

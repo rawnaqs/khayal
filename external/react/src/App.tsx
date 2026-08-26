@@ -75,7 +75,7 @@ export default function App() {
       case 'search':
         return <SearchView onCaptureQuery={handleCaptureQuery} onNoteSelect={handleNoteSelect} deletedPaths={deletedNotes} />
       case 'queue':
-        return <QueueView />
+        return <QueueView onNoteSelect={handleNoteSelect} />
       default:
         return <CaptureView captureQuery={captureQuery} onCaptureQueryConsumed={handleCaptureQueryConsumed} />
     }

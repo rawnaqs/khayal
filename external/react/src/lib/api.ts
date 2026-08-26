@@ -78,6 +78,12 @@ export interface QueueJob {
   created_at: string
   processed_at?: string
   error?: string
+  result?: unknown
+  connections_job_id?: string
+}
+
+export interface QueueFlare {
+  connections: number
 }
 
 export interface QueueResponse {
@@ -85,6 +91,7 @@ export interface QueueResponse {
   limit: number
   offset: number
   jobs: QueueJob[]
+  flares?: Record<string, QueueFlare>
 }
 
 export interface NoteResponse {

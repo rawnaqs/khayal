@@ -208,6 +208,13 @@ paths:
         - Queue
       summary: List jobs
       description: |
+        Also available: `GET /v1/queue/ws` upgrades to a WebSocket stream
+        of `{event: "job_updated", job}` frames on every status transition.
+        Auth is first-message based (tokens never appear in URLs): after
+        connecting, the client sends `{"type":"auth","token":"..."}` as its
+        first frame within 5s; invalid or missing auth closes with code
+        1008. An `{event:"authenticated"}` ack precedes all broadcasts.
+      description: |
         Get list of jobs in the queue with optional filtering.
         
         Jobs have statuses:
@@ -634,6 +641,17 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Job'
+        flares:
+          description: >
+            Per-job UI hints keyed by job id (v1.1 polish). Present only
+            when at least one listed job has a hydrated connections count.
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              connections:
+                type: integer
+                description: Number of proactive connections for the note.
 
     Job:
       type: object

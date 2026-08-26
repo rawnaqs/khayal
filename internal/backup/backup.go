@@ -16,15 +16,15 @@ import (
 
 // Config describes one backup or restore operation.
 type Config struct {
-	VaultPath   string // vault root (copied as <dest>/vault)
-	DBPath      string // live khayal.db
-	ConfigPath  string // live config.yaml
-	DestPath    string // backup directory (backup) / source directory (restore)
-	Encrypt     bool   // encrypt db + config with the key at KeyPath
-	KeyPath     string // age identity file
-	Date        string // restore: pick a specific YYYY-MM-DD backup instead of latest
-	Overwrite   bool   // restore: overwrite existing db/config files
-	SkipVault   bool   // restore: only restore db + config
+	VaultPath  string // vault root (copied as <dest>/vault)
+	DBPath     string // live khayal.db
+	ConfigPath string // live config.yaml
+	DestPath   string // backup directory (backup) / source directory (restore)
+	Encrypt    bool   // encrypt db + config with the key at KeyPath
+	KeyPath    string // age identity file
+	Date       string // restore: pick a specific YYYY-MM-DD backup instead of latest
+	Overwrite  bool   // restore: overwrite existing db/config files
+	SkipVault  bool   // restore: only restore db + config
 }
 
 // Result reports what an operation did.

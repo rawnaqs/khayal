@@ -37,10 +37,10 @@ type NoteContent struct {
 	Related     []string               `yaml:"related,omitempty"`
 
 	// Sections (parsed from markdown body)
-	Title      string
-	Summary    string
-	KeyIdeas   []string
-	Raw        string
+	Title       string
+	Summary     string
+	KeyIdeas    []string
+	Raw         string
 	Description string
 	Source      string
 }

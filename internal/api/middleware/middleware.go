@@ -1,7 +1,10 @@
 package middleware
 
 import (
+	"bufio"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"time"
@@ -14,6 +17,22 @@ const (
 type statusRecorder struct {
 	http.ResponseWriter
 	status int
+}
+
+// Hijack forwards the WebSocket upgrade requirement through the wrapper.
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("response writer does not support hijacking")
+	}
+	return hj.Hijack()
+}
+
+// Flush forwards the Flusher interface through the wrapper.
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func (r *statusRecorder) WriteHeader(code int) {

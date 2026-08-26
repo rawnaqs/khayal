@@ -12,11 +12,22 @@ if ("serviceWorker" in navigator) {
       .then((registration) => {
         console.log("SW registered:", registration.scope);
 
-        // Listen for updates
+        // Reload once a newly activated worker takes control so deploys
+        // land immediately instead of waiting for every tab to close.
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (navigator.serviceWorker.controller) {
+            window.location.reload();
+          }
+        });
+
+        // Listen for updates and activate them right away
         registration.addEventListener("updatefound", () => {
           const newWorker = registration.installing;
           if (newWorker) {
             newWorker.addEventListener("statechange", () => {
+              if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                newWorker.postMessage({ type: "SKIP_WAITING" });
+              }
               if (newWorker.state === "activated") {
                 console.log("SW activated");
               }

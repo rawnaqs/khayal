@@ -127,6 +127,19 @@ User Input → API Server → Job Queue → Worker → Ingest → Vault → Chun
                                      └→ Connections Job → ranked links → frontmatter
 ```
 
+### Realtime Queue Updates
+
+```
+Worker status transition → events.Hub.Publish(job_updated)
+                        → GET /v1/queue/ws subscribers (gorilla/websocket)
+PWA: useQueueWS patches the job list in place; polling remains as the
+silent fallback (capped-backoff reconnect). Auth is first-message based
+— browsers cannot set custom headers on handshakes, and tokens in URLs
+leak into logs — so the client sends {"type":"auth"} immediately after
+connect and nothing streams until it is validated. Slow consumers are
+dropped rather than blocking the worker.
+```
+
 ### Search
 
 ```
