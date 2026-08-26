@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rawnaqs/khayal/internal/config"
+	"github.com/rawnaqs/khayal/internal/constants"
 	"github.com/rawnaqs/khayal/internal/queue"
 )
 
@@ -51,7 +52,8 @@ type Store interface {
 // Find runs every enabled detector against older notes and returns at most
 // cfg.MaxPerCapture ranked connections. Detector errors degrade to skipping
 // that type — a connections job must not fail because one source hiccups.
-func Find(ctx context.Context, q Store, notePath string, cfg config.ConnectionsConfig) ([]Connection, error) {
+func Find(ctx context.Context, q Store, notePath string, cfg config.ConnectionsConfig,
+	checker ContradictionChecker) ([]Connection, error) {
 	if !config.IsOn(cfg.Enabled) {
 		return nil, nil
 	}
@@ -81,6 +83,25 @@ func Find(ctx context.Context, q Store, notePath string, cfg config.ConnectionsC
 		if config.IsOn(cfg.Types.Revisit) {
 			if r := findRevisit(similarConns, time.Now().UTC()); r != nil {
 				conns = append(conns, *r)
+			}
+		}
+
+		// Contradiction runs LLM verdicts over high-similarity candidates
+		// (v1.2 Type 4). Nil checker skips it entirely.
+		if config.IsOn(cfg.Types.Contradiction) && checker != nil {
+			floor := cfg.SimilarityThreshold - 0.10
+			if cfg.ContradictionThreshold > 0 {
+				floor = cfg.ContradictionThreshold
+			}
+			hot := make([]Connection, 0, len(similarConns))
+			for _, c := range similarConns {
+				if c.Score >= floor {
+					hot = append(hot, c)
+				}
+			}
+			if cds := findContradictions(ctx, checker,
+				constants.DefaultSystemPrompts.CheckContradiction, hot, time.Now().UTC()); len(cds) > 0 {
+				conns = append(conns, cds...)
 			}
 		}
 	}

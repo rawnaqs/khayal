@@ -58,7 +58,7 @@ func TestFind_DisabledYieldsNothing(t *testing.T) {
 	off := false
 	cfg.Enabled = &off
 
-	got, err := Find(context.Background(), q, "khayal/x.md", cfg)
+	got, err := Find(context.Background(), q, "khayal/x.md", cfg, nil)
 	if err != nil || got != nil {
 		t.Fatalf("disabled must return nil,nil, got %v (err=%v)", got, err)
 	}
@@ -76,7 +76,7 @@ func TestFind_SemimilarDetectedWithAgeAndSelfFilters(t *testing.T) {
 	mkOldNote(t, ctx, q, "old-diff", "khayal/old-diff.md", "cooking pasta today",
 		[]float32{0, 0, 1}, nil)
 
-	got, err := Find(ctx, q, "khayal/current.md", testCfg())
+	got, err := Find(ctx, q, "khayal/current.md", testCfg(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestFind_PersonAndAmountLabels(t *testing.T) {
 	// A second older note with Alice, to exercise the count label.
 	mkOldNote(t, ctx, q, "p2", "khayal/p2.md", "Coffee with Alice", nil, []string{"Alice"})
 
-	got, err := Find(ctx, q, "khayal/current.md", testCfg())
+	got, err := Find(ctx, q, "khayal/current.md", testCfg(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +231,7 @@ func TestFind_AmountRequiresCorroboration(t *testing.T) {
 			[]float32{1, 0, 0},
 			[]float32{0, 1, 0}) // unrelated content
 		defer closeQ()
-		got, err := Find(ctx, q, "khayal/current.md", testCfg())
+		got, err := Find(ctx, q, "khayal/current.md", testCfg(), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -247,7 +247,7 @@ func TestFind_AmountRequiresCorroboration(t *testing.T) {
 			[]float32{1, 0, 0},
 			[]float32{0.995, 0.03, 0}) // near-identical topic
 		defer closeQ()
-		got, err := Find(ctx, q, "khayal/current.md", testCfg())
+		got, err := Find(ctx, q, "khayal/current.md", testCfg(), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -282,7 +282,7 @@ func TestFind_AmountRequiresCorroboration(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		got, err := Find(ctx, q, "khayal/c2.md", testCfg())
+		got, err := Find(ctx, q, "khayal/c2.md", testCfg(), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -308,7 +308,7 @@ func TestFind_SimilarReportsTrueCosine(t *testing.T) {
 	mkOldNote(t, ctx, q, "old-sim", "khayal/old-sim.md", "similar",
 		[]float32{4, 3, 0}, nil) // cos = 24/25 = 0.96
 
-	got, err := Find(ctx, q, "khayal/current.md", testCfg())
+	got, err := Find(ctx, q, "khayal/current.md", testCfg(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

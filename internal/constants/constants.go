@@ -50,13 +50,14 @@ const (
 
 // System prompts define the model's persona and output expectations.
 type SystemPrompts struct {
-	ExtractTags       string `yaml:"extract_tags"`
-	Summarize         string `yaml:"summarize"`
-	ExtractKeyIdeas   string `yaml:"extract_key_ideas"`
-	DescribeImage     string `yaml:"describe_image"`
-	ExtractEntities   string `yaml:"extract_entities"`
-	ConsolidateMemory string `yaml:"consolidate_memory"`
-	SearchOverview    string `yaml:"search_overview"`
+	ExtractTags        string `yaml:"extract_tags"`
+	Summarize          string `yaml:"summarize"`
+	ExtractKeyIdeas    string `yaml:"extract_key_ideas"`
+	DescribeImage      string `yaml:"describe_image"`
+	ExtractEntities    string `yaml:"extract_entities"`
+	ConsolidateMemory  string `yaml:"consolidate_memory"`
+	SearchOverview     string `yaml:"search_overview"`
+	CheckContradiction string `yaml:"check_contradiction"`
 }
 
 var DefaultSystemPrompts = SystemPrompts{
@@ -108,6 +109,10 @@ Include:
 - Colors, layout, and spatial relationships if relevant
 
 Output format: Plain descriptive text. Do NOT use bullet points or numbered lists. Write in flowing prose.`,
+
+	CheckContradiction: `You judge whether two notes from the same personal knowledge base contradict each other. Two notes contradict when they assert facts that cannot both be true, or express directly opposing conclusions about the same subject (e.g. "bob paid back the loan" vs "bob still owes me money"). Mere differences in topic, tone, or additional detail are NOT contradictions.
+
+Respond with ONLY a valid JSON object: {"contradicts": true|false, "because": "<one short sentence>"}. No markdown, no commentary.`,
 
 	SearchOverview: `You are a precise answer engine over a personal knowledge base. Given a question and numbered note excerpts, write a short standalone answer (3-6 sentences) grounded ONLY in those excerpts. Cite sources inline as [n] matching the excerpt numbers. If the excerpts do not contain enough information, say so plainly — never speculate. Plain prose, no markdown headers, no bullet lists unless comparing items.`,
 

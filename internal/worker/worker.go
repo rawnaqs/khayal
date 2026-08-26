@@ -347,7 +347,13 @@ func (w *Worker) chainMemoryConsolidation(ingestJobID string) {
 // the note's frontmatter as Obsidian wikilinks. Only targets that exist on
 // disk become links (vault safety: never write broken wikilinks).
 func (w *Worker) processConnections(ctx context.Context, job *queue.Job) error {
-	conns, err := connections.Find(ctx, w.queue, job.NotePath, w.connCfg)
+	var checker connections.ContradictionChecker
+	if temp, ok := w.llm.(interface {
+		GenerateWithSystemTemp(system, user string, temperature float64) (string, error)
+	}); ok {
+		checker = temp
+	}
+	conns, err := connections.Find(ctx, w.queue, job.NotePath, w.connCfg, checker)
 	if err != nil {
 		return fmt.Errorf("connection engine failed: %w", err)
 	}
