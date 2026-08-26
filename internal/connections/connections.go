@@ -15,18 +15,25 @@ import (
 
 // Connection is one surfaced relation between the new note and an older one.
 type Connection struct {
-	Type     string  `json:"type"` // "similar" | "person" | "amount"
+	Type     string  `json:"type"` // "similar" | "person" | "amount" | "revisit" | ...
 	NotePath string  `json:"note_path"`
 	Excerpt  string  `json:"excerpt"`
 	Score    float64 `json:"score"` // true cosine for "similar"; 1.0 for entity matches
 	Label    string  `json:"label"`
+	// CreatedAt carries the target note's creation time between detectors
+	// and ranking; hidden from API output.
+	CreatedAt *time.Time `json:"-"`
 }
 
-// priority per SPEC: person > amount > similar.
+// priority per SPEC: person > contradiction > follow_up ~ amount >
+// similar > revisit.
 var priority = map[string]int{
-	"person":  3,
-	"amount":  2,
-	"similar": 1,
+	"person":        5,
+	"contradiction": 4,
+	"follow_up":     3,
+	"amount":        3,
+	"similar":       2,
+	"revisit":       1,
 }
 
 // Store is the slice of queue.Queue the engine needs. *queue.Queue
@@ -57,12 +64,22 @@ func Find(ctx context.Context, q Store, notePath string, cfg config.ConnectionsC
 
 	var conns []Connection
 
+	var similarConns []Connection
+
 	if hasEmb {
 		sim, err := findSimilar(ctx, q, selfEmb, notePath, cutoff, cfg.SimilarityThreshold)
 		if err == nil {
 			conns = append(conns, sim...)
+			similarConns = sim
 		} else {
 			fmt.Println("connections: similar skipped:", err)
+		}
+
+		// Revisit rides on the same semantic matches (v1.2 Type 6).
+		if config.IsOn(cfg.Types.Revisit) {
+			if r := findRevisit(similarConns, time.Now().UTC()); r != nil {
+				conns = append(conns, *r)
+			}
 		}
 	}
 
@@ -97,12 +114,14 @@ func findSimilar(ctx context.Context, q Store, selfEmb []float32, notePath strin
 	var conns []Connection
 	for _, m := range matches {
 		created, _ := time.Parse(time.RFC3339, m.CreatedAt)
+		createdCopy := created
 		conns = append(conns, Connection{
-			Type:     "similar",
-			NotePath: m.NotePath,
-			Excerpt:  m.Content,
-			Score:    m.Score,
-			Label:    fmt.Sprintf("you thought about this %s", formatAge(created)),
+			Type:      "similar",
+			NotePath:  m.NotePath,
+			Excerpt:   m.Content,
+			Score:     m.Score,
+			Label:     fmt.Sprintf("you thought about this %s", formatAge(created)),
+			CreatedAt: &createdCopy,
 		})
 	}
 	return conns, nil
