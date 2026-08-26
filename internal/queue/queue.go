@@ -2218,3 +2218,88 @@ func (q *Queue) GetReferencedMedia(ctx context.Context) ([]string, error) {
 	}
 	return out, rows.Err()
 }
+
+// FollowupCandidate is one past intent-bearing note for a person.
+type FollowupCandidate struct {
+	NotePath  string
+	Content   string
+	CreatedAt time.Time
+}
+
+// FindFollowupCandidates locates done notes older than `before` that both
+// mention the given person and contain any of the FTS keywords — the raw
+// material for follow-up-never-completed detection.
+func (q *Queue) FindFollowupCandidates(ctx context.Context, person string, keywords []string, before time.Time, excludePath string) ([]FollowupCandidate, error) {
+	if len(keywords) == 0 {
+		return nil, nil
+	}
+	parts := make([]string, len(keywords))
+	for i, kw := range keywords {
+		parts[i] = `"` + strings.ReplaceAll(kw, `"`, "") + `"`
+	}
+	match := strings.Join(parts, " OR ")
+
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT DISTINCT j.note_path, j.content, j.created_at
+		FROM jobs j
+		JOIN entities e ON e.note_path = j.note_path
+			AND e.entity_type = 'person' AND LOWER(e.entity_value) = LOWER(?)
+		JOIN notes_fts f ON f.note_path = j.note_path AND notes_fts MATCH ?
+		WHERE j.status = 'done' AND j.created_at <= ? AND j.note_path != ?
+		ORDER BY j.created_at ASC LIMIT 5`,
+		person, match, before.UTC().Format(time.RFC3339), excludePath)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []FollowupCandidate
+	for rows.Next() {
+		var c FollowupCandidate
+		var created string
+		var content sql.NullString
+		if err := rows.Scan(&c.NotePath, &content, &created); err != nil {
+			continue
+		}
+		c.Content = content.String
+		c.CreatedAt, _ = time.Parse(time.RFC3339, created)
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// PersonMentionedSince reports whether any note outside excludePaths
+// mentions the person STRICTLY after `since` — evidence an intended
+// follow-up actually happened.
+func (q *Queue) PersonMentionedSince(ctx context.Context, person string, since time.Time, excludePaths ...string) (bool, error) {
+	excludes := make([]string, len(excludePaths))
+	for i, p := range excludePaths {
+		excludes[i] = strings.ToLower(p)
+	}
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT DISTINCT j.note_path FROM jobs j
+		JOIN entities e ON e.note_path = j.note_path
+		WHERE e.entity_type = 'person' AND LOWER(e.entity_value) = LOWER(?)
+		  AND j.created_at > ?`, person, since.UTC().Format(time.RFC3339))
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			continue
+		}
+		excluded := false
+		for _, x := range excludes {
+			if strings.ToLower(p) == x {
+				excluded = true
+				break
+			}
+		}
+		if !excluded {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
+}

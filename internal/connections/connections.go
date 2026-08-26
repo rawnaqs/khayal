@@ -44,6 +44,8 @@ type Store interface {
 	GetEntitiesByNote(ctx context.Context, notePath, entityType string) ([]string, error)
 	GetNotesByEntity(ctx context.Context, entityValue, entityType string, cutoff time.Time) ([]queue.EntityMatch, error)
 	CountNotesByEntity(ctx context.Context, entityValue, entityType string, cutoff time.Time, excludePath string) (int, error)
+	FindFollowupCandidates(ctx context.Context, person string, keywords []string, before time.Time, excludePath string) ([]queue.FollowupCandidate, error)
+	PersonMentionedSince(ctx context.Context, person string, since time.Time, excludePaths ...string) (bool, error)
 }
 
 // Find runs every enabled detector against older notes and returns at most
@@ -93,6 +95,12 @@ func Find(ctx context.Context, q Store, notePath string, cfg config.ConnectionsC
 			}
 		}
 	}
+	if config.IsOn(cfg.Types.FollowUp) {
+		if f := findFollowups(ctx, q, notePath, time.Now().UTC()); len(f) > 0 {
+			conns = append(conns, f...)
+		}
+	}
+
 	if config.IsOn(cfg.Types.Amount) {
 		a, err := findAmounts(ctx, q, selfEmb, hasEmb, personByPath, notePath, cutoff, cfg.SimilarityThreshold)
 		if err == nil {
