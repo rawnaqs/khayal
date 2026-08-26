@@ -1577,6 +1577,17 @@ over time:
 
 ### Search Overview (v1.1 phase 2.6)
 
+### Queue Realtime (v1.1 phase 5)
+
+Job status transitions stream to connected clients over
+`GET /v1/queue/ws` (`{event: "job_updated", job}` frames; token as query
+parameter). The PWA patches its queue view live via `useQueueWS` and
+falls back silently to polling. Internal pipeline jobs (connections,
+memory) never render in the queue UI — they surface only as connection
+count flares on their ingest job.
+
+### Search Overview (v1.1 phase 2.6)
+
 On-demand AI answer above search results, Google-Gemini style. Triggered
 explicitly — PWA inline "AI Answer" row or `kl search --answer`; never
 automatic, no config option. The answer is synthesized from the top

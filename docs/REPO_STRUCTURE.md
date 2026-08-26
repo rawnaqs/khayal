@@ -66,6 +66,7 @@ khayal/
 │   │   ├── overview.go             # AI answer: RAG synthesis + citation extraction
 │   │   ├── health.go               # GET /v1/health
 │   │   ├── queue.go                # GET /v1/queue, queue operations
+│   │   ├── ws.go                   # GET /v1/queue/ws WebSocket stream
 │   │   ├── static.go               # SPA static file serving
 │   │   ├── client/                 # SHARED HTTP CLIENT
 │   │   │   └── client.go           # Typed Go client for API
@@ -209,6 +210,7 @@ khayal/
 │       │   │   ├── useAIAnswer.ts           # On-demand AI answer state machine
 │       │   │   ├── useStats.ts              # Polling stats
 │       │   │   ├── useQueue.ts              # Queue polling
+│       │   │   ├── useQueueWS.ts            # Live job updates over WebSocket
 │       │   │   ├── useServerStatus.ts       # Health polling
 │       │   │   ├── useSubmitLock.ts         # Prevent double-submit
 │       │   │   ├── useVaultLock.tsx          # App-lock state + token/key context
@@ -315,6 +317,7 @@ Private application code. Not importable by external packages.
 | `queue/` | SQLite database operations |
 | `queue/` | Job queue, FTS5 + semantic search, entity/chunk stores |
 | `backup/` | Encrypted backup (age) and additive-merge restore |
+| `events/` | In-process pub-sub hub for realtime job updates |
 | `connections/` | Proactive connections |
 | `config/` | Configuration management |
 | `version/` | Version info |
