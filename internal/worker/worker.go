@@ -203,7 +203,11 @@ func (w *Worker) processJob(jobID string) {
 	}
 
 	now := time.Now().UTC()
-	job.NotePath = notePath
+	if notePath != "" || (job.Type != "connections" && job.Type != "memory") {
+		// Enricher jobs carry their note path from creation; never let an
+		// empty local overwrite the stored value.
+		job.NotePath = notePath
+	}
 	job.Status = "done"
 	job.ProcessedAt = &now
 	job.Error = ""

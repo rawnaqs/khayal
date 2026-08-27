@@ -2303,3 +2303,22 @@ func (q *Queue) PersonMentionedSince(ctx context.Context, person string, since t
 	}
 	return false, rows.Err()
 }
+
+// GetNoteContent returns the most recent stored content for a note path,
+// falling back to the note's chunk text (chunks are written during ingest
+// and survive any later pruning of job payloads).
+func (q *Queue) GetNoteContent(ctx context.Context, notePath string) (string, error) {
+	var content sql.NullString
+	err := q.db.QueryRowContext(ctx,
+		`SELECT content FROM jobs WHERE note_path = ? AND content IS NOT NULL AND content != ''
+		 ORDER BY created_at DESC LIMIT 1`, notePath).Scan(&content)
+	if err == nil && strings.TrimSpace(content.String) != "" {
+		return content.String, nil
+	}
+	err = q.db.QueryRowContext(ctx,
+		`SELECT content FROM chunks WHERE note_path = ? LIMIT 1`, notePath).Scan(&content)
+	if err != nil {
+		return "", err
+	}
+	return content.String, nil
+}

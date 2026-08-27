@@ -1231,6 +1231,18 @@ Config:    types.revisit toggle (nil = on)
 person 5 > contradiction 4 > follow_up 3 ≈ amount 3 > similar 2 > revisit 1
 ```
 
+Selection guarantees type diversity: before the cap fills by global rank,
+every present detector type reserves its best result — a flood of person
+matches can no longer silence rarer types (observed live with 19+ person
+connections hiding a confirmed contradiction). Same note may appear in
+two type rows (complementary information); duplicates are per
+(note_path, type), not per path.
+
+Contradiction verdict prompts must carry BOTH sides: the new note's own
+content is fetched at engine time (jobs.content, falling back to chunk
+text) after live testing caught one-sided prompts producing silent
+always-false verdicts.
+
 ### Async Delivery
 
 Connections run as a separate job type after ingest completes:

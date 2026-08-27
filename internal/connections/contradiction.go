@@ -23,8 +23,8 @@ type ContradictionChecker interface {
 // contradiction threshold and keeps only confirmed conflicts. Fail-open:
 // any parse or call error skips that candidate.
 func findContradictions(ctx context.Context, checker ContradictionChecker,
-	system string, similar []Connection, now time.Time) []Connection {
-	if checker == nil || len(similar) == 0 {
+	system, selfContent string, similar []Connection, now time.Time) []Connection {
+	if checker == nil || len(similar) == 0 || strings.TrimSpace(selfContent) == "" {
 		return nil
 	}
 
@@ -38,9 +38,9 @@ func findContradictions(ctx context.Context, checker ContradictionChecker,
 		if c.CreatedAt == nil {
 			continue
 		}
-		user := fmt.Sprintf("NOTE A (new):\n%s\n\nNOTE B (%s):\n%s",
-			now.Format("January 2, 2006"), c.CreatedAt.Format("January 2, 2006"),
-			strings.TrimSpace(c.Excerpt))
+		user := fmt.Sprintf("NOTE A (newest, %s):\n%s\n\nNOTE B (older, %s):\n%s",
+			now.Format("January 2, 2006"), strings.TrimSpace(selfContent),
+			c.CreatedAt.Format("January 2, 2006"), strings.TrimSpace(c.Excerpt))
 		resp, err := checker.GenerateWithSystemTemp(system, user, 0.2)
 		if err != nil {
 			continue

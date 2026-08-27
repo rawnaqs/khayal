@@ -110,7 +110,10 @@ Include:
 
 Output format: Plain descriptive text. Do NOT use bullet points or numbered lists. Write in flowing prose.`,
 
-	CheckContradiction: `You judge whether two notes from the same personal knowledge base contradict each other. Two notes contradict when they assert facts that cannot both be true, or express directly opposing conclusions about the same subject (e.g. "bob paid back the loan" vs "bob still owes me money"). Mere differences in topic, tone, or additional detail are NOT contradictions.
+	CheckContradiction: `You judge whether two notes from the same personal knowledge base contradict each other. Work in steps:
+1. Restate NOTE A as one factual claim.
+2. Restate NOTE B as one factual claim.
+3. Decide: they contradict ONLY if both claims cannot simultaneously be true, or express directly opposing conclusions about the same subject (e.g. "bob paid back the loan" vs "bob still owes me money"). Mere differences in topic, tone, or detail are NOT contradictions.
 
 Respond with ONLY a valid JSON object: {"contradicts": true|false, "because": "<one short sentence>"}. No markdown, no commentary.`,
 

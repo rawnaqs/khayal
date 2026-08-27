@@ -9,6 +9,8 @@ import (
 	"sort"
 	"time"
 
+	"strings"
+
 	"github.com/rawnaqs/khayal/internal/config"
 	"github.com/rawnaqs/khayal/internal/constants"
 	"github.com/rawnaqs/khayal/internal/queue"
@@ -45,6 +47,7 @@ type Store interface {
 	GetEntitiesByNote(ctx context.Context, notePath, entityType string) ([]string, error)
 	GetNotesByEntity(ctx context.Context, entityValue, entityType string, cutoff time.Time) ([]queue.EntityMatch, error)
 	CountNotesByEntity(ctx context.Context, entityValue, entityType string, cutoff time.Time, excludePath string) (int, error)
+	GetNoteContent(ctx context.Context, notePath string) (string, error)
 	FindFollowupCandidates(ctx context.Context, person string, keywords []string, before time.Time, excludePath string) ([]queue.FollowupCandidate, error)
 	PersonMentionedSince(ctx context.Context, person string, since time.Time, excludePaths ...string) (bool, error)
 }
@@ -99,8 +102,12 @@ func Find(ctx context.Context, q Store, notePath string, cfg config.ConnectionsC
 					hot = append(hot, c)
 				}
 			}
+			selfContent, cerr := q.GetNoteContent(ctx, notePath)
+			if cerr != nil || strings.TrimSpace(selfContent) == "" {
+				selfContent = ""
+			}
 			if cds := findContradictions(ctx, checker,
-				constants.DefaultSystemPrompts.CheckContradiction, hot, time.Now().UTC()); len(cds) > 0 {
+				constants.DefaultSystemPrompts.CheckContradiction, selfContent, hot, time.Now().UTC()); len(cds) > 0 {
 				conns = append(conns, cds...)
 			}
 		}
@@ -262,12 +269,15 @@ func otherCount(q Store, ctx context.Context, val, typ string, cutoff time.Time,
 // rankAndLimit dedupes by note (keeping the highest-priority occurrence),
 // sorts by priority then score, and caps the output.
 func rankAndLimit(conns []Connection, max int) []Connection {
-	best := make(map[string]Connection, len(conns))
+	// Keep the best connection per (notePath, type): different detector
+	// types about the same note are complementary information, not dupes.
+	type key struct{ path, typ string }
+	best := make(map[key]Connection, len(conns))
 	for _, c := range conns {
-		cur, seen := best[c.NotePath]
-		if !seen || priority[c.Type] > priority[cur.Type] ||
-			(priority[c.Type] == priority[cur.Type] && c.Score > cur.Score) {
-			best[c.NotePath] = c
+		k := key{c.NotePath, c.Type}
+		cur, seen := best[k]
+		if !seen || c.Score > cur.Score {
+			best[k] = c
 		}
 	}
 
@@ -283,10 +293,39 @@ func rankAndLimit(conns []Connection, max int) []Connection {
 		return deduped[i].Score > deduped[j].Score
 	})
 
-	if len(deduped) > max {
-		deduped = deduped[:max]
+	if len(deduped) <= max {
+		return deduped
 	}
-	return deduped
+
+	// Diversity guarantee: before filling the remainder by global rank,
+	// reserve one slot for every present type so a high-priority flood
+	// cannot silence rarer detector types entirely.
+	selected := make([]Connection, 0, max)
+	seenType := make(map[string]bool)
+	taken := make(map[key]bool)
+	for _, c := range deduped {
+		if len(selected) >= max {
+			break
+		}
+		if seenType[c.Type] {
+			continue
+		}
+		seenType[c.Type] = true
+		taken[key{c.NotePath, c.Type}] = true
+		selected = append(selected, c)
+	}
+	for _, c := range deduped {
+		if len(selected) >= max {
+			break
+		}
+		k := key{c.NotePath, c.Type}
+		if taken[k] {
+			continue
+		}
+		taken[k] = true
+		selected = append(selected, c)
+	}
+	return selected
 }
 
 func formatAge(t time.Time) string {
