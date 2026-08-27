@@ -2535,6 +2535,66 @@
     display: none;
   }
 
+  /* ── Linked notes (note view) ───────────────────────────────── */
+
+  .note-links {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .note-links-label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: rgba(245, 245, 245, 0.25);
+    margin-bottom: 7px;
+  }
+
+  .note-link-chip {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    border-radius: 9px;
+    border: 1px solid rgba(201, 147, 58, 0.14);
+    background: rgba(201, 147, 58, 0.04);
+    color: rgba(245, 245, 245, 0.75);
+    font-size: 12.5px;
+    line-height: 1.4;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .note-link-chip:last-child {
+    margin-bottom: 0;
+  }
+
+  .note-link-chip svg {
+    color: var(--gold, #c9933a);
+    flex-shrink: 0;
+  }
+
+  .note-link-chip:hover {
+    background: rgba(201, 147, 58, 0.1);
+    border-color: rgba(201, 147, 58, 0.35);
+    color: #fff;
+  }
+
+  .note-link-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
   /* ── AI Answer ─────────────────────────────────────────────── */
 
   /* Inline expanding AI answer row (first item in results list) */

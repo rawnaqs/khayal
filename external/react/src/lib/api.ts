@@ -94,6 +94,11 @@ export interface QueueResponse {
   flares?: Record<string, QueueFlare>
 }
 
+export interface RelatedLink {
+  note_path: string
+  title: string
+}
+
 export interface NoteResponse {
   note_path: string
   title: string
@@ -109,6 +114,7 @@ export interface NoteResponse {
   source_file?: string
   description?: string
   related?: string[]
+  related_links?: RelatedLink[]
   excerpt?: string
   search_query?: string
   excerpt_section?: string

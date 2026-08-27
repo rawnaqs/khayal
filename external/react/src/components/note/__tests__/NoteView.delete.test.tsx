@@ -102,7 +102,9 @@ describe('NoteView linked-notes chips', () => {
           note_path: 'khayal/hates.md',
           title: 'Hates',
           type: 'text',
-          related: ['khayal/2026-08-26-bob-loves-note-abc123.md'],
+          related_links: [
+            { note_path: 'khayal/2026-08-26-bob-loves-note-abc123.md', title: 'Bob loves the note' },
+          ],
         },
         loading: false,
         error: null,
@@ -112,7 +114,7 @@ describe('NoteView linked-notes chips', () => {
     const { render: r, screen: s2, fireEvent: fe } = await import('@testing-library/react')
     r(<NV notePath="khayal/hates.md" onClose={() => {}} onOpenNote={onOpenNote} />)
     const chip = s2.getAllByTestId('note-link-chip')[0]
-    expect(chip.textContent).toContain('bob-loves-note')
+    expect(chip.textContent).toContain('Bob loves the note')
     fe.click(chip)
     expect(onOpenNote).toHaveBeenCalledWith('khayal/2026-08-26-bob-loves-note-abc123.md')
   })

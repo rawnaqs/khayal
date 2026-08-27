@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { createClient } from "@/lib/api";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Trash2, X } from "lucide-react";
+import { Trash2, X, Link2 } from "lucide-react";
 import { ExcerptView } from "./ExcerptView";
 import { FullNoteView } from "./FullNoteView";
 
@@ -197,23 +197,21 @@ export function NoteView({ notePath, query, onClose, onDeleted, onOpenNote }: No
               </div>
 
               {/* Linked notes (proactive connections / related) */}
-              {note.related && note.related.length > 0 && (
+              {note.related_links && note.related_links.length > 0 && (
                 <div className="note-links" data-testid="note-links">
                   <div className="note-links-label">linked notes</div>
-                  {note.related.map((rel, i) => {
-                    const label = rel.replace(/\[\[|\]\]/g, "").replace(/\.md$/, "").split("/").pop();
-                    return (
-                      <button
-                        key={i}
-                        className="note-link-chip"
-                        onClick={() => onOpenNote?.(rel)}
-                        title={rel}
-                        data-testid="note-link-chip"
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
+                  {note.related_links.map((link, i) => (
+                    <button
+                      key={i}
+                      className="note-link-chip"
+                      onClick={() => onOpenNote?.(link.note_path)}
+                      title={link.note_path}
+                      data-testid="note-link-chip"
+                    >
+                      <Link2 className="w-3 h-3 shrink-0" />
+                      <span className="note-link-title">{link.title}</span>
+                    </button>
+                  ))}
                 </div>
               )}
 
