@@ -108,6 +108,10 @@ export default function App() {
           query={searchQuery || undefined}
           onClose={handleBackToSearch}
           onDeleted={handleNoteDeleted}
+          onOpenNote={(p) => {
+            setSelectedNote(p)
+            setSearchQuery('')
+          }}
         />
       </div>
     </ErrorBoundary>

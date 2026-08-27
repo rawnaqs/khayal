@@ -14,6 +14,7 @@ interface NoteViewProps {
   query?: string;
   onClose: () => void;
   onDeleted?: (notePath: string) => void;
+  onOpenNote?: (notePath: string) => void;
 }
 
 function getTypeBadgeClass(type: string) {
@@ -38,7 +39,7 @@ function formatDate(dateStr: string) {
   }
 }
 
-export function NoteView({ notePath, query, onClose, onDeleted }: NoteViewProps) {
+export function NoteView({ notePath, query, onClose, onDeleted, onOpenNote }: NoteViewProps) {
   const { note, loading, error } = useNote(notePath, query);
   const [view, setView] = useState<"excerpt" | "full">("excerpt");
   const [confirming, setConfirming] = useState(false);
@@ -194,6 +195,27 @@ export function NoteView({ notePath, query, onClose, onDeleted }: NoteViewProps)
                   <span key={i} className="rb rb-tag">#{tag}</span>
                 ))}
               </div>
+
+              {/* Linked notes (proactive connections / related) */}
+              {note.related && note.related.length > 0 && (
+                <div className="note-links" data-testid="note-links">
+                  <div className="note-links-label">linked notes</div>
+                  {note.related.map((rel, i) => {
+                    const label = rel.replace(/\[\[|\]\]/g, "").replace(/\.md$/, "").split("/").pop();
+                    return (
+                      <button
+                        key={i}
+                        className="note-link-chip"
+                        onClick={() => onOpenNote?.(rel)}
+                        title={rel}
+                        data-testid="note-link-chip"
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Excerpt box */}
               {note.excerpt && (

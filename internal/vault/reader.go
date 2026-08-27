@@ -35,6 +35,7 @@ type NoteContent struct {
 	UserContext string                 `yaml:"user_context,omitempty"`
 	Entities    map[string]interface{} `yaml:"entities,omitempty"`
 	Related     []string               `yaml:"related,omitempty"`
+	Connections []string               `yaml:"connections,omitempty"`
 
 	// Sections (parsed from markdown body)
 	Title       string
@@ -92,6 +93,12 @@ func parseMarkdown(content []byte) (*NoteContent, error) {
 	// Parse YAML frontmatter
 	if err := yaml.Unmarshal(parts[1], note); err != nil {
 		return nil, fmt.Errorf("failed to parse frontmatter: %w", err)
+	}
+
+	// The proactive-connections block (written by SetConnections) is the
+	// same relationship data as related links — surface it either way.
+	if len(note.Related) == 0 && len(note.Connections) > 0 {
+		note.Related = note.Connections
 	}
 
 	// Parse markdown body sections

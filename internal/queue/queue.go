@@ -2322,3 +2322,16 @@ func (q *Queue) GetNoteContent(ctx context.Context, notePath string) (string, er
 	}
 	return content.String, nil
 }
+
+// FindNotePathByBaseName resolves an Obsidian-style wikilink basename
+// ("2026-08-25-my-note-abc123") to its vault-relative note path.
+func (q *Queue) FindNotePathByBaseName(ctx context.Context, base string) (string, error) {
+	var p sql.NullString
+	err := q.db.QueryRowContext(ctx,
+		`SELECT note_path FROM jobs WHERE note_path LIKE '%/' || ? || '.md' AND status='done'
+		 ORDER BY created_at DESC LIMIT 1`, base).Scan(&p)
+	if err != nil {
+		return "", err
+	}
+	return p.String, nil
+}

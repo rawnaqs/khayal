@@ -66,9 +66,25 @@ func (s *Server) noteHandler(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("note read", "path", notePath)
 
+	ctx := context.Background()
+
+	// Resolve related links (Obsidian basenames) to real vault paths so
+	// clients can navigate directly; drop unresolvable entries.
+	related := make([]string, 0, len(note.Related))
+	for _, rel := range note.Related {
+		base := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(rel), "[["), "]]")
+		if base == "" {
+			continue
+		}
+		if path, err := s.queue.FindNotePathByBaseName(ctx, base); err == nil && path != "" {
+			related = append(related, path)
+		}
+	}
+
 	// Build response
 	resp := NoteResponse{
 		NotePath:    notePath,
+		Related:     related,
 		Title:       note.Title,
 		Type:        note.Type,
 		Status:      note.Status,
@@ -79,7 +95,7 @@ func (s *Server) noteHandler(w http.ResponseWriter, r *http.Request) {
 		SourceURL:   note.SourceURL,
 		SourceFile:  note.SourceFile,
 		Description: note.Description,
-		Related:     note.Related,
+
 	}
 
 	// Extract excerpt context if query provided
