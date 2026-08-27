@@ -370,12 +370,17 @@ func (w *Worker) processConnections(ctx context.Context, job *queue.Job) error {
 	}
 
 	links := make([]string, 0, len(conns))
+	linked := map[string]bool{}
 	for _, c := range conns {
 		base := filepath.Base(c.NotePath)
 		if strings.EqualFold(base, strings.TrimSpace(w.memCfg.File)) {
 			continue // never link the managed memory file
 		}
+		if linked[c.NotePath] {
+			continue // one wikilink per target note, even if multiple types matched
+		}
 		if w.vault.NoteExists(c.NotePath) {
+			linked[c.NotePath] = true
 			links = append(links, c.NotePath)
 		} else {
 			w.logger.Warn("connection target missing on disk, skipping link",
