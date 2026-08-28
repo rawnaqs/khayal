@@ -196,15 +196,18 @@ export function NoteView({ notePath, query, onClose, onDeleted, onOpenNote }: No
                 ))}
               </div>
 
-              {/* Linked notes (proactive connections / related) */}
+              {/* Linked notes (proactive connections / related).
+                  Keyed by the note path: switching notes remounts the
+                  list so hover/focus state never lingers on a chip. */}
               {note.related_links && note.related_links.length > 0 && (
-                <div className="note-links" data-testid="note-links">
+                <div className="note-links" key={note.note_path} data-testid="note-links">
                   <div className="note-links-label">linked notes</div>
                   {note.related_links.map((link, i) => (
                     <button
-                      key={i}
+                      key={note.note_path + "-" + i}
                       className="note-link-chip"
                       onClick={() => onOpenNote?.(link.note_path)}
+                      onMouseDown={(e) => e.preventDefault()}
                       title={link.note_path}
                       data-testid="note-link-chip"
                     >
