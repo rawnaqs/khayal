@@ -2335,3 +2335,16 @@ func (q *Queue) FindNotePathByBaseName(ctx context.Context, base string) (string
 	}
 	return p.String, nil
 }
+
+// GetConnectionsResultByPath returns the stored result payload of the
+// most recent connections job for a note path (nil when none ran).
+func (q *Queue) GetConnectionsResultByPath(ctx context.Context, notePath string) (json.RawMessage, error) {
+	var result sql.NullString
+	err := q.db.QueryRowContext(ctx,
+		`SELECT result FROM jobs WHERE type='connections' AND note_path = ? AND result IS NOT NULL
+		 ORDER BY created_at DESC LIMIT 1`, notePath).Scan(&result)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(result.String), nil
+}

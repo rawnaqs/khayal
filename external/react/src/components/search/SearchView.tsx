@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useMemo } from 'react'
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, X, AlertCircle } from 'lucide-react'
 import { ResultHero } from './ResultHero'
@@ -52,9 +52,11 @@ interface SearchViewProps {
   onCaptureQuery?: (query: string) => void;
   onNoteSelect?: (notePath: string, query?: string) => void;
   deletedPaths?: string[];
+  initialQuery?: string;
+  onInitialQueryConsumed?: () => void;
 }
 
-export function SearchView({ onCaptureQuery, onNoteSelect, deletedPaths }: SearchViewProps = {}) {
+export function SearchView({ onCaptureQuery, onNoteSelect, deletedPaths, initialQuery, onInitialQueryConsumed }: SearchViewProps = {}) {
   const [query, setQuery] = useState('')
   const [searchedQuery, setSearchedQuery] = useState("")
   const [mode, setMode] = useState<SearchMode>('hybrid')
@@ -83,6 +85,16 @@ export function SearchView({ onCaptureQuery, onNoteSelect, deletedPaths }: Searc
     saveRecentSearch(q)
     setRecentSearches(getRecentSearches())
   }, [search, mode])
+
+  // Entity-chip entry: fire the pending search once on mount
+  const consumedInitialRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    if (initialQuery && consumedInitialRef.current !== initialQuery) {
+      consumedInitialRef.current = initialQuery
+      handleSearch(initialQuery)
+      onInitialQueryConsumed?.()
+    }
+  }, [initialQuery, handleSearch, onInitialQueryConsumed])
 
   const handleClear = useCallback(() => {
     setQuery('')

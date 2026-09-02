@@ -27,6 +27,7 @@ export default function App() {
   const [selectedNote, setSelectedNote] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [deletedNotes, setDeletedNotes] = useState<string[]>([])
+  const [pendingSearch, setPendingSearch] = useState<string | undefined>(undefined)
 
   const handleCaptureQuery = useCallback((query: string) => {
     setCaptureQuery(query)
@@ -45,6 +46,15 @@ export default function App() {
   const handleBackToSearch = useCallback(() => {
     setSelectedNote(null)
     setSearchQuery('')
+  }, [])
+
+  const handleEntitySearch = useCallback((q: string) => {
+    setPendingSearch(q)
+    setActiveTab('search')
+  }, [])
+
+  const handlePendingSearchConsumed = useCallback(() => {
+    setPendingSearch(undefined)
   }, [])
 
   const handleNoteDeleted = useCallback((notePath: string) => {
@@ -73,7 +83,7 @@ export default function App() {
       case 'capture':
         return <CaptureView captureQuery={captureQuery} onCaptureQueryConsumed={handleCaptureQueryConsumed} />
       case 'search':
-        return <SearchView onCaptureQuery={handleCaptureQuery} onNoteSelect={handleNoteSelect} deletedPaths={deletedNotes} />
+        return <SearchView onCaptureQuery={handleCaptureQuery} onNoteSelect={handleNoteSelect} deletedPaths={deletedNotes} initialQuery={pendingSearch} onInitialQueryConsumed={handlePendingSearchConsumed} />
       case 'queue':
         return <QueueView onNoteSelect={handleNoteSelect} />
       default:
@@ -112,6 +122,7 @@ export default function App() {
             setSelectedNote(p)
             setSearchQuery('')
           }}
+          onSearch={handleEntitySearch}
         />
       </div>
     </ErrorBoundary>
