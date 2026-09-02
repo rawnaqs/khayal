@@ -48,6 +48,7 @@ type Store interface {
 	GetNotesByEntity(ctx context.Context, entityValue, entityType string, cutoff time.Time) ([]queue.EntityMatch, error)
 	CountNotesByEntity(ctx context.Context, entityValue, entityType string, cutoff time.Time, excludePath string) (int, error)
 	GetNoteContent(ctx context.Context, notePath string) (string, error)
+	GetPersonVariants(ctx context.Context, person string) ([]string, error)
 	FindFollowupCandidates(ctx context.Context, person string, keywords []string, before time.Time, excludePath string) ([]queue.FollowupCandidate, error)
 	PersonMentionedSince(ctx context.Context, person string, since time.Time, excludePaths ...string) (bool, error)
 }
@@ -170,26 +171,38 @@ func findByEntity(ctx context.Context, q Store, notePath, entityType string, cut
 	}
 
 	var conns []Connection
+	seenPaths := map[string]bool{}
 	for _, val := range values {
-		matches, err := q.GetNotesByEntity(ctx, val, entityType, cutoff)
-		if err != nil {
-			continue
+		// Name variants (Sara/Sarah, Dan/Daniel) resolve to the same
+		// human — expand each extracted value before matching.
+		variants := []string{val}
+		if entityType == "person" {
+			if vs, err := q.GetPersonVariants(ctx, val); err == nil && len(vs) > 0 {
+				variants = vs
+			}
 		}
-		for _, m := range matches {
-			if m.NotePath == notePath {
+		for _, variant := range variants {
+			matches, err := q.GetNotesByEntity(ctx, variant, entityType, cutoff)
+			if err != nil {
 				continue
 			}
-			label := fmt.Sprintf("%s also appears in %d other notes", val, otherCount(q, ctx, val, entityType, cutoff, notePath))
-			if entityType == "amount" {
-				label = "you've mentioned this amount before"
+			for _, m := range matches {
+				if m.NotePath == notePath || seenPaths[m.NotePath] {
+					continue
+				}
+				seenPaths[m.NotePath] = true
+				label := fmt.Sprintf("%s also appears in %d other notes", val, otherCount(q, ctx, val, entityType, cutoff, notePath))
+				if entityType == "amount" {
+					label = "you've mentioned this amount before"
+				}
+				conns = append(conns, Connection{
+					Type:     entityType,
+					NotePath: m.NotePath,
+					Excerpt:  m.Excerpt,
+					Score:    1.0,
+					Label:    label,
+				})
 			}
-			conns = append(conns, Connection{
-				Type:     entityType,
-				NotePath: m.NotePath,
-				Excerpt:  m.Excerpt,
-				Score:    1.0,
-				Label:    label,
-			})
 		}
 	}
 	return conns, nil

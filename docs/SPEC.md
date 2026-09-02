@@ -1592,6 +1592,12 @@ over time:
     headings collapse to their first occurrence along with everything under
     them; invalid output errors the job for retry, leaving the previous
     file untouched.
+- **Person name-variant joins** — personal collections store spelling
+  variants ("Sara"/"Sarah", "Dan"/"Daniel"); person lookups (connections,
+  follow-up detection, completion checks) expand each name to all known
+  variants via case-insensitive, shared-prefix (>=3 chars), and
+  edit-distance-<=1 matching before querying. Stored data is never
+  rewritten — matching happens at read time.
 - **Entity glossary rescue** — when entity extraction returns zero people,
   known glossary names appearing in the capture text are promoted to person
   entities deterministically (no extra LLM call). Non-empty extractions are

@@ -94,3 +94,30 @@ func TestFindFollowups(t *testing.T) {
 		}
 	})
 }
+
+// Regression for the live-found gap: the model extracted "Sara" but older
+// notes store "Sarah" — variant-aware joins must still find the intent.
+func TestFindFollowups_NameVariants(t *testing.T) {
+	ctx := context.Background()
+	q, closeQ := setup(t)
+	defer closeQ()
+
+	// older intent stored as "Sarah" with intent keyword
+	seedFollowup(t, ctx, q, "intent", "khayal/intent.md",
+		"todo: need to follow up with Sarah about the design feedback", []string{"Sarah"}, 30)
+
+	// current capture extracted the variant "Sara"
+	seedFollowup(t, ctx, q, "new", "khayal/new.md",
+		"meeting sara later", []string{"Sara"}, 0)
+
+	got := findFollowups(ctx, q, "khayal/new.md", time.Now().UTC())
+	found := false
+	for _, c := range got {
+		if c.Type == "follow_up" && c.NotePath == "khayal/intent.md" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("variant join failed, got %+v", got)
+	}
+}
