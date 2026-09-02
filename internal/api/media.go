@@ -28,8 +28,15 @@ func (s *Server) mediaHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mediaRoot := s.vault.MediaPath()
-	clean := path.Clean("/" + rel) // leading slash pins rel against the root
-	full := filepath.Join(mediaRoot, clean)
+	// Normalize to inbox-relative so both conventions resolve:
+	//   "media/x.jpg" (media-relative) and "khayal/media/x.jpg"
+	// (vault-relative, the shape stored in notes' source_file). Join
+	// against the inbox, then require the final path to live inside
+	// the media dir.
+	inboxRoot := filepath.Dir(mediaRoot)
+	rel = strings.TrimPrefix(rel, s.config.Vault.InboxDir+"/")
+	clean := path.Clean("/" + rel)
+	full := filepath.Join(inboxRoot, clean)
 
 	if !strings.HasPrefix(full, mediaRoot+string(filepath.Separator)) {
 		s.logger.Warn("media path rejected", "path", rel)

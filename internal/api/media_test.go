@@ -42,6 +42,13 @@ func TestMediaHandler(t *testing.T) {
 		}
 	})
 
+	t.Run("vault-relative path accepted", func(t *testing.T) {
+		rec := get("/v1/media?path=" + ts.Config.Vault.InboxDir + "/media/pic.jpg")
+		if rec.Code != http.StatusOK || rec.Body.String() != "JPEGDATA" {
+			t.Errorf("status %d body %q", rec.Code, rec.Body.String())
+		}
+	})
+
 	t.Run("traversal rejected", func(t *testing.T) {
 		rec := get("/v1/media?path=../../etc/passwd")
 		if rec.Code != http.StatusBadRequest {
@@ -66,7 +73,7 @@ func TestMediaHandler(t *testing.T) {
 	t.Run("not found is 404", func(t *testing.T) {
 		rec := get("/v1/media?path=media/ghost.png")
 		if rec.Code != http.StatusNotFound {
-			t.Errorf("expected 404, got %d", rec.Code)
+			t.Errorf("expected 404, got %d body %s", rec.Code, rec.Body.String())
 		}
 	})
 }

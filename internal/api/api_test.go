@@ -98,6 +98,7 @@ func setupTestServer(t *testing.T) *testServer {
 		Vault: config.VaultConfig{
 			Path:     tmpDir,
 			InboxDir: "inbox",
+			Media:    config.MediaConfig{DefaultDir: "media"},
 		},
 		Search: config.SearchConfig{
 			MaxResults: 50,
