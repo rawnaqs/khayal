@@ -287,9 +287,11 @@ export function NoteView({ notePath, query, onClose, onDeleted, onOpenNote, onSe
 
               {/* Entity chips — tap to search */}
               {(() => {
-                const people = note.entities?.people || [];
-                const amounts = note.entities?.amounts || [];
-                const dates = note.entities?.dates || [];
+                // YAML frontmatter stores amounts (and sometimes dates) as
+                // numbers — coerce everything to strings before use.
+                const people = (note.entities?.people || []).map(String);
+                const amounts = (note.entities?.amounts || []).map(String);
+                const dates = (note.entities?.dates || []).map(String);
                 if (people.length === 0 && amounts.length === 0 && dates.length === 0) return null;
                 return (
                   <div className="entity-rows" data-testid="entity-chips">
