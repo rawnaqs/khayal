@@ -321,6 +321,42 @@ func (c *Client) GetNote(ctx context.Context, notePath string, query string) (*N
 }
 ```
 
+## Delete & Media Methods
+
+```go
+// notes.go
+
+// DeleteNote soft-deletes a note: moves it to .khayal-trash/ and purges
+// its search index, chunk vectors, and entity rows.
+func (c *Client) DeleteNote(ctx context.Context, notePath string) (*DeleteNoteResponse, error) {
+    resp, err := c.request(ctx, "DELETE", "/v1/note?path="+url.QueryEscape(notePath), nil)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+
+    var result DeleteNoteResponse
+    json.NewDecoder(resp.Body).Decode(&result)
+    return &result, nil
+}
+
+// MediaBlob fetches a media file as bytes (token travels in the header —
+// media URLs never carry tokens). Render via blob URL in web clients.
+func (c *Client) MediaBlob(ctx context.Context, mediaPath string) ([]byte, error) {
+    resp, err := c.request(ctx, "GET", "/v1/media?path="+url.QueryEscape(mediaPath), nil)
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+    return io.ReadAll(resp.Body)
+}
+```
+
+Realtime queue updates are available over `GET /v1/queue/ws` (WebSocket):
+after connecting, send `{"type":"auth","token":"..."}` as the first frame;
+the server then streams `{event: "job_updated", job}` on every status
+transition. Invalid auth closes with code 1008.
+
 ## Types
 
 ```go
@@ -404,7 +440,9 @@ type NoteResponse struct {
     SourceURL      string   `json:"source_url,omitempty"`
     SourceFile     string   `json:"source_file,omitempty"`
     Description    string   `json:"description,omitempty"`
-    Related        []string `json:"related,omitempty"`
+    Related        []string       `json:"related,omitempty"`
+    RelatedLinks   []RelatedLink  `json:"related_links,omitempty"`
+    Entities       map[string]interface{} `json:"entities,omitempty"`
     Excerpt        string   `json:"excerpt,omitempty"`
     SearchQuery    string   `json:"search_query,omitempty"`
     ExcerptSection string   `json:"excerpt_section,omitempty"`
@@ -422,6 +460,16 @@ type QueueStats struct {
     Processing int `json:"processing"`
     Done       int `json:"done"`
     Failed     int `json:"failed"`
+}
+```
+
+### RelatedLink
+
+```go
+type RelatedLink struct {
+    NotePath string   `json:"note_path"`
+    Title    string   `json:"title"`
+    Types    []string `json:"types,omitempty"` // similar | person | amount | contradiction | follow_up | revisit
 }
 ```
 

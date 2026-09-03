@@ -9,7 +9,7 @@
 <!-- TODO: add asciinema recording or terminal screenshot here -->
 <img src="charm-vhs-tape/khayal.gif" alt="Khayal demo" />
 
-A local-first, privacy-focused second brain. Capture anything — text, images, URLs. Process locally with your own LLM. Search semantically and by keyword. Your data never leaves your machine.
+A local-first, privacy-focused second brain. Capture anything — text, images, URLs, PDFs, voice. Process locally with your own LLM: tags, summaries, entities, and proactive connections that resurface what you've forgotten. Search semantically and by keyword, or ask AI questions over your own notes. Your data never leaves your machine.
 
 ## How It Works
 
@@ -42,14 +42,20 @@ Khayal and Obsidian are complementary. Khayal is a capture and retrieval layer �
 
 ## Features
 
-- **Capture** — Text, images, URLs, articles with zero friction
-- **Process** — Tags, summaries, key ideas, entities via local LLM
+- **Capture** — Text, images, URLs, articles with zero friction (voice notes and PDF ingestion on the roadmap)
+- **Process** — Tags, summaries, key ideas, entities (people, amounts, dates, places, orgs, URLs) via local LLM
+- **Proactive connections** — after every capture, khayal resurfaces related thoughts, shared people, matching amounts, **contradictions of things you wrote**, unfinished follow-ups, and ideas you keep revisiting
+- **Capture intelligence** — relative dates resolved at capture; an LLM-maintained memory file keeps naming consistent across months
 - **Search** — Keyword (FTS5) + semantic (chunk-level embeddings) hybrid, with passage-level excerpts
-- **Store** — Plain markdown in your vault, yours forever
+- **AI answers** — on-demand answers above search results, grounded in your own notes with `[n]` citations; explicit CTA, never automatic, never breaks search
+- **Store** — Plain markdown in your vault, yours forever (Obsidian-friendly, with connection wikilinks written into frontmatter)
+- **Vault care** — health report, broken-link repair, orphaned-media cleanup, duplicate detection, soft-delete with trash
+- **Backup** — encrypted (age) vault/database/config backups with additive-merge restore
 - **PWA** — Web interface, works offline, update notifications
+  - Live queue over WebSocket (job status streams in; polling fallback)
+  - AI answer with skeleton loading, connection flares on the queue, linked notes with reasons, entity chips, image previews
   - Offline capture queue (syncs when server is back)
   - Works as installable PWA on iOS and desktop
-  - Live pipeline visualization for queued notes
   - Optional Face ID / Touch ID app lock (WebAuthn PRF) that encrypts the token at rest
 - **CLI** — Full client (`kl`) + server admin (`khayal`)
 - **Updates** — Built-in update checker via GitHub releases
@@ -74,6 +80,9 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama pull nomic-embed-text
 ollama pull qwen2.5:3b
 ollama pull moondream
+
+# optional: a larger model just for memory consolidation (recommended)
+ollama pull qwen2.5:7b
 ```
 
 ### 2. Install Khayal
@@ -175,6 +184,20 @@ search:
   chunk_min_words: 50
   chunk_overlap_words: 35
 
+connections:
+  enabled: true              # proactive connections after every capture
+  similarity_threshold: 0.72
+  types:                     # toggle each detector independently
+    similar: true
+    person: true
+    amount: true
+    contradiction: true
+    follow_up: true
+    revisit: true
+
+memory:
+  enabled: true              # LLM context memory + memory.md consolidation
+
 log:
   level: info
   file: logs/khayal.log
@@ -188,11 +211,14 @@ See [config.example.yaml](config.example.yaml) for all options.
 
 | Location | Content |
 |---|---|
+| `~/Documents/brain/khayal/` | Your notes (plain markdown + media) |
+| `~/Documents/brain/khayal/memory.md` | LLM-maintained memory (editable by hand) |
+| `~/Documents/brain/khayal/.khayal-trash/` | Soft-deleted notes (recoverable) |
 | `~/.config/khayal/khayal.db` | Search index + embeddings |
 | `~/.config/khayal/config.yaml` | Server configuration |
 | `~/.config/khayal/logs/` | Server logs |
 
-All on your machine. Back up the vault directory — it's plain markdown.
+All on your machine. Back up the vault directory — it's plain markdown (or use `khayal backup --encrypt`).
 
 ## Commands
 
@@ -207,6 +233,12 @@ All on your machine. Back up the vault directory — it's plain markdown.
 | `khayal status` | Server status + update check |
 | `khayal reindex` | Rebuild search index (FTS + chunk embeddings) |
 | `khayal config` | View config (token redacted) |
+| `khayal vault health` | Vault health report (notes, indexed %, orphans, broken links) |
+| `khayal vault fix-links` | Remove broken wikilinks (dry-run by default) |
+| `khayal vault clean-media` | Move orphaned media files to trash |
+| `khayal vault show-duplicates` | Show potential duplicate notes |
+| `khayal backup --dest <path>` | Backup vault, database, config (`--encrypt` for age encryption) |
+| `khayal restore --from <path>` | Restore from backup (additive merge, refuses while running) |
 
 ### Client (`kl`)
 
@@ -215,7 +247,8 @@ All on your machine. Back up the vault directory — it's plain markdown.
 | `kl "text"` | Capture text |
 | `kl url "https://..."` | Capture URL |
 | `kl image <path>` | Capture image |
-| `kl search "query"` | Search vault |
+| `kl search "query"` | Search vault (`--answer` adds a grounded AI answer) |
+| `kl delete <path-or-id>` | Soft-delete a note (moved to `.khayal-trash/`) |
 | `kl recent` | Recent captures |
 | `kl stats` | Vault statistics |
 | `kl status` | Server status + update check |
@@ -238,7 +271,10 @@ tail -f ~/.config/khayal/logs/khayal.log   # view logs
 Web interface at `http://127.0.0.1:1133`
 
 - Capture text, URLs, images
-- Search with excerpts
+- Search with excerpts + on-demand **AI answers** with citations
+- **Live queue** — job status streams over WebSocket, connection flares on finished captures
+- **Note reader** — image previews, entity chips that jump to search, linked notes with reasons, copy-as-markdown
+- **Delete** — two-step confirm, recoverable from trash
 - Offline queue (IndexedDB)
 - Update notification icon
 
@@ -257,12 +293,15 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## Roadmap
 
-- **v1.0** — Core capture, search, CLI, PWA
-- **v1.1** — Chunking, entity extraction, proactive connections
+- **v1.0** ✅ — Core capture, search, CLI, PWA
+- **v1.1** ✅ — Chunking, entity extraction, proactive connections, capture intelligence, AI answers, delete, vault commands, encrypted backups
+- **v1.2** 🚧 — Contradiction / follow-up / revisit connections ✅ · voice notes · PDF ingestion
+- **v1.3** — Graph connections, backlinks
+- **v1.4** — YouTube / video ingestion
 - **v1.5** — Browser extension
 - **v2.0** — Setup wizard UI
 
-See [SPEC.md](docs/SPEC.md) for full roadmap.
+See [SPEC.md](docs/SPEC.md) for the full roadmap.
 
 ## License
 
