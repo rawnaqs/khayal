@@ -39,6 +39,8 @@ vi.mock('@/lib/api', async (importOriginal) => {
 vi.mock('@/components/ui/sheet', () => ({
   Sheet: ({ children }: any) => <>{children}</>,
   SheetContent: ({ children }: any) => <div>{children}</div>,
+  SheetTitle: ({ children }: any) => <div>{children}</div>,
+  SheetDescription: ({ children }: any) => <div>{children}</div>,
 }))
 
 describe('NoteView delete affordance', () => {

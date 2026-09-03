@@ -3,7 +3,7 @@ import { useNote } from "@/hooks/useNote";
 import { useVaultLock } from "@/hooks/useVaultLock";
 import { useToast } from "@/hooks/use-toast";
 import { createClient } from "@/lib/api";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Trash2, X, Link2, Copy, Zap, Repeat2, Clock, User, Sparkles } from "lucide-react";
 import { ExcerptView } from "./ExcerptView";
@@ -145,6 +145,7 @@ export function NoteView({ notePath, query, onClose, onDeleted, onOpenNote, onSe
     >
       <SheetContent
         side="right"
+        aria-describedby={undefined}
         className="w-[90vw] sm:max-w-[500px] md:max-w-[580px] p-0 flex flex-col [&>button:first-of-type]:hidden focus:outline-none"
         style={{
           background: "#0d0d0d",
@@ -152,6 +153,12 @@ export function NoteView({ notePath, query, onClose, onDeleted, onOpenNote, onSe
           paddingBottom: 'max(env(safe-area-inset-bottom), 0px)',
         }}
       >
+        {/* Screen-reader title: the visible h2 is decorative styling */}
+        <SheetTitle className="sr-only">{note?.title || "Note"}</SheetTitle>
+        <SheetDescription className="sr-only">
+          Note details, connections, and actions
+        </SheetDescription>
+
         {/* Header */}
         <div
           className="flex items-center gap-3 px-5 py-4 border-b border-white/5 shrink-0"
