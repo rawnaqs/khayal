@@ -23,15 +23,16 @@ export function useQueue() {
     }
   }, [])
 
-  const fetchQueue = useCallback(async (status?: string) => {
+  const fetchQueue = useCallback(async (status?: string, opts?: { keepExpansion?: boolean }) => {
     setLoading(true)
     setError(null)
 
     try {
       const client = createClient(token)
       const response = await client.queue({ status, limit: LIMITS.QUEUE_JOBS })
-      // a fresh poll resets the expanded history view
-      setDoneExpanded(false)
+      // a fresh poll resets the expanded history view unless this is a
+      // background rehydrate (e.g. live flare refresh)
+      if (!opts?.keepExpansion) setDoneExpanded(false)
       applyResponse(response)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch queue')

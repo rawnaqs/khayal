@@ -2,6 +2,7 @@ package connections
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -58,7 +59,7 @@ func TestFind_DisabledYieldsNothing(t *testing.T) {
 	off := false
 	cfg.Enabled = &off
 
-	got, err := Find(context.Background(), q, "khayal/x.md", cfg)
+	got, err := Find(context.Background(), q, "khayal/x.md", cfg, nil)
 	if err != nil || got != nil {
 		t.Fatalf("disabled must return nil,nil, got %v (err=%v)", got, err)
 	}
@@ -76,7 +77,7 @@ func TestFind_SemimilarDetectedWithAgeAndSelfFilters(t *testing.T) {
 	mkOldNote(t, ctx, q, "old-diff", "khayal/old-diff.md", "cooking pasta today",
 		[]float32{0, 0, 1}, nil)
 
-	got, err := Find(ctx, q, "khayal/current.md", testCfg())
+	got, err := Find(ctx, q, "khayal/current.md", testCfg(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +122,7 @@ func TestFind_PersonAndAmountLabels(t *testing.T) {
 	// A second older note with Alice, to exercise the count label.
 	mkOldNote(t, ctx, q, "p2", "khayal/p2.md", "Coffee with Alice", nil, []string{"Alice"})
 
-	got, err := Find(ctx, q, "khayal/current.md", testCfg())
+	got, err := Find(ctx, q, "khayal/current.md", testCfg(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,38 +154,42 @@ func TestRankAndLimit(t *testing.T) {
 		{Type: "amount", NotePath: "c", Score: 1.0},
 		{Type: "similar", NotePath: "d", Score: 0.95},
 		{Type: "person", NotePath: "e", Score: 1.0},
-		// duplicate note across types — keep highest priority occurrence
+		// same note in two types = complementary rows, both may survive
 		{Type: "similar", NotePath: "b", Score: 0.99},
 	}
 
-	got := rankAndLimit(conns, 3)
+	got := rankAndLimit(conns, 4)
 
-	if len(got) != 3 {
-		t.Fatalf("len = %d, want 3", len(got))
+	if len(got) != 4 {
+		t.Fatalf("len = %d, want 4 (one per distinct type + fill), got %+v", len(got), got)
 	}
 	if got[0].Type != "person" {
 		t.Errorf("first = %+v, want a person connection", got[0])
 	}
-	foundB := false
+	foundBPerson := false
+	pairs := map[string]bool{}
 	for _, c := range got {
 		if c.NotePath == "b" && c.Type == "person" {
-			foundB = true
+			foundBPerson = true
 		}
+		k := c.NotePath + "|" + c.Type
+		if pairs[k] {
+			t.Errorf("duplicate (path,type) pair leaked: %s", k)
+		}
+		pairs[k] = true
 	}
-	if !foundB {
-		t.Errorf("b must survive as its higher-priority person occurrence: %+v", got)
+	if !foundBPerson {
+		t.Errorf("b's person occurrence must survive: %+v", got)
 	}
+	typesSeen := map[string]bool{}
 	for _, c := range got {
 		if c.NotePath == "" {
 			t.Error("nil path leaked")
 		}
+		typesSeen[c.Type] = true
 	}
-	paths := map[string]bool{}
-	for _, c := range got {
-		if paths[c.NotePath] {
-			t.Errorf("duplicate note_path in output: %s", c.NotePath)
-		}
-		paths[c.NotePath] = true
+	if !typesSeen["similar"] || !typesSeen["amount"] || !typesSeen["person"] {
+		t.Errorf("type diversity violated: %v", typesSeen)
 	}
 }
 
@@ -231,7 +236,7 @@ func TestFind_AmountRequiresCorroboration(t *testing.T) {
 			[]float32{1, 0, 0},
 			[]float32{0, 1, 0}) // unrelated content
 		defer closeQ()
-		got, err := Find(ctx, q, "khayal/current.md", testCfg())
+		got, err := Find(ctx, q, "khayal/current.md", testCfg(), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -247,7 +252,7 @@ func TestFind_AmountRequiresCorroboration(t *testing.T) {
 			[]float32{1, 0, 0},
 			[]float32{0.995, 0.03, 0}) // near-identical topic
 		defer closeQ()
-		got, err := Find(ctx, q, "khayal/current.md", testCfg())
+		got, err := Find(ctx, q, "khayal/current.md", testCfg(), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -282,7 +287,7 @@ func TestFind_AmountRequiresCorroboration(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		got, err := Find(ctx, q, "khayal/c2.md", testCfg())
+		got, err := Find(ctx, q, "khayal/c2.md", testCfg(), nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -308,7 +313,7 @@ func TestFind_SimilarReportsTrueCosine(t *testing.T) {
 	mkOldNote(t, ctx, q, "old-sim", "khayal/old-sim.md", "similar",
 		[]float32{4, 3, 0}, nil) // cos = 24/25 = 0.96
 
-	got, err := Find(ctx, q, "khayal/current.md", testCfg())
+	got, err := Find(ctx, q, "khayal/current.md", testCfg(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,4 +326,26 @@ func TestFind_SimilarReportsTrueCosine(t *testing.T) {
 		}
 	}
 	t.Fatalf("similar connection missing: %+v", got)
+}
+
+// Ranking must not let one high-priority type crowd out every other type:
+// each present type contributes its best result before the cap fills.
+func TestRankAndLimitTypeDiversity(t *testing.T) {
+	var conns []Connection
+	for i := 0; i < 5; i++ {
+		conns = append(conns, Connection{Type: "person", Score: 1.0,
+			Label: fmt.Sprintf("person %d", i)})
+	}
+	conns = append(conns, Connection{Type: "similar", Score: 0.9, Label: "similar top"},
+		Connection{Type: "similar", Score: 0.8, Label: "similar low"},
+		Connection{Type: "contradiction", Score: 0.95, Label: "contradiction!"})
+
+	got := rankAndLimit(conns, 3)
+	types := map[string]bool{}
+	for _, c := range got {
+		types[c.Type] = true
+	}
+	if !types["person"] || !types["similar"] || !types["contradiction"] {
+		t.Errorf("diversity violated, got: %+v", got)
+	}
 }

@@ -1,4 +1,3 @@
-import { HighlightedText } from '@/components/search/HighlightedText'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { NoteResponse } from '@/lib/api'
@@ -8,8 +7,6 @@ interface FullNoteViewProps {
 }
 
 export function FullNoteView({ note }: FullNoteViewProps) {
-  const query = note.search_query
-
   return (
     <div className="note-content">
       {/* Summary */}
@@ -17,7 +14,7 @@ export function FullNoteView({ note }: FullNoteViewProps) {
         <section id="excerpt-Summary" className="note-section">
           <h3 className="note-section-heading">Summary</h3>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            <HighlightedText text={note.summary} query={query} />
+            {note.summary}
           </p>
         </section>
       )}
@@ -28,9 +25,7 @@ export function FullNoteView({ note }: FullNoteViewProps) {
           <h3 className="note-section-heading">Key Ideas</h3>
           <ul className="note-list">
             {note.key_ideas.map((idea, i) => (
-              <li key={i}>
-                <HighlightedText text={idea} query={query} />
-              </li>
+              <li key={i}>{idea}</li>
             ))}
           </ul>
         </section>
@@ -39,12 +34,8 @@ export function FullNoteView({ note }: FullNoteViewProps) {
       {/* Raw */}
       <section id="excerpt-Raw" className="note-section">
         <h3 className="note-section-heading">Raw</h3>
-        <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-          {query ? (
-            <HighlightedText text={note.raw} query={query} />
-          ) : (
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{note.raw}</ReactMarkdown>
-          )}
+        <div className="note-raw-prose text-sm text-muted-foreground">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{note.raw}</ReactMarkdown>
         </div>
       </section>
 
@@ -53,7 +44,7 @@ export function FullNoteView({ note }: FullNoteViewProps) {
         <section id="excerpt-Description" className="note-section">
           <h3 className="note-section-heading">Description</h3>
           <p className="text-sm leading-relaxed text-muted-foreground">
-            <HighlightedText text={note.description} query={query} />
+            {note.description}
           </p>
         </section>
       )}
@@ -72,7 +63,7 @@ export function FullNoteView({ note }: FullNoteViewProps) {
               textDecoration: 'underline',
             }}
           >
-            {note.source_url}
+            {(() => { try { return new URL(note.source_url).hostname } catch { return note.source_url } })()}
           </a>
         </section>
       )}

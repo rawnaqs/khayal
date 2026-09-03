@@ -602,6 +602,24 @@ const modes = ['hybrid', 'keyword', 'semantic']
 
 ---
 
+## Note view — full upgrade (v1.2)
+
+```tsx
+// Sheet: 580px on md+ desktops, reading line-height 1.7, styled prose
+// Image captures: media blob preview at top (GET /v1/media, token
+//   header; objectURL revoked on unmount — no token in URLs)
+// Entity chips: people (gold) / amounts / dates from frontmatter;
+//   tap -> search tab pre-filled with the value
+// Header: copy-as-markdown button (title+summary+ideas+raw+source)
+// Linked notes: ABOVE content, each row shows WHY via type icons
+//   (contradiction/revisit/follow_up/person/similar from the
+//   connections result) + muted type label on the right
+// FullNoteView renders raw as markdown consistently (highlighting
+//   stays in excerpt view); source URL shows hostname only
+```
+
+---
+
 ## Note view — two-step delete (v1.1 phase 3)
 
 ```tsx

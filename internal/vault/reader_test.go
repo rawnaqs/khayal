@@ -148,3 +148,39 @@ Content in subdirectory.
 		t.Errorf("expected title 'Subdir Note', got %q", note.Title)
 	}
 }
+
+// The proactive-connections block is written as `connections:` by
+// SetConnections; the reader must surface it through Related so the API
+// (and PWA note view) can render linked notes.
+func TestReader_ReadNote_ConnectionsFoldIntoRelated(t *testing.T) {
+	vaultPath := t.TempDir()
+	inboxPath := filepath.Join(vaultPath, "inbox")
+	os.MkdirAll(inboxPath, 0755)
+
+	testNote := `---
+created: "2024-03-16T14:23:00Z"
+type: text
+connections:
+  - "[[2024-03-10-old-note]]"
+  - "[[2024-03-12-other-note]]"
+---
+
+# Connected Note
+
+## Summary
+x
+`
+	os.WriteFile(filepath.Join(inboxPath, "connected.md"), []byte(testNote), 0644)
+
+	r := NewReader(vaultPath, "inbox")
+	note, err := r.ReadNote("inbox/connected.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(note.Related) != 2 {
+		t.Fatalf("expected 2 related links, got %v", note.Related)
+	}
+	if note.Related[0] != "[[2024-03-10-old-note]]" {
+		t.Errorf("link content mismatch: %v", note.Related)
+	}
+}

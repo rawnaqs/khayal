@@ -2535,6 +2535,179 @@
     display: none;
   }
 
+  /* ── Note view typography & reading experience ─────────────── */
+
+  .note-media {
+    width: 100%;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    display: block;
+  }
+
+  .note-media-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+  }
+
+  .entity-rows {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .entity-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 11px;
+    border-radius: 100px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(245, 245, 245, 0.65);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .entity-chip.person {
+    color: var(--gl, #e8b86d);
+    background: rgba(201, 147, 58, 0.06);
+    border-color: rgba(201, 147, 58, 0.28);
+  }
+
+  .entity-chip:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+  }
+
+  .entity-chip.person:hover {
+    background: rgba(201, 147, 58, 0.14);
+    color: var(--gl, #e8b86d);
+  }
+
+  .note-raw-prose {
+    line-height: 1.7;
+  }
+
+  .note-raw-prose p {
+    margin: 0 0 0.8em;
+  }
+
+  .note-raw-prose h1,
+  .note-raw-prose h2,
+  .note-raw-prose h3 {
+    color: rgba(245, 245, 245, 0.85);
+    font-size: 0.95rem;
+    margin: 1.1em 0 0.4em;
+  }
+
+  .note-raw-prose ul,
+  .note-raw-prose ol {
+    padding-left: 1.2em;
+    margin: 0.5em 0;
+  }
+
+  .note-raw-prose code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.85em;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  .note-raw-prose pre {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 10px 12px;
+    overflow-x: auto;
+  }
+
+  .note-raw-prose pre code {
+    background: none;
+    padding: 0;
+  }
+
+  .note-raw-prose a {
+    color: var(--gold, #c9933a);
+  }
+
+  .note-link-types-label {
+    margin-left: auto;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: rgba(245, 245, 245, 0.3);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ── Linked notes (note view) ───────────────────────────────── */
+
+  .note-links {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .note-links-label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    color: rgba(245, 245, 245, 0.25);
+    margin-bottom: 7px;
+  }
+
+  .note-link-chip {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    border-radius: 9px;
+    border: 1px solid rgba(201, 147, 58, 0.14);
+    background: rgba(201, 147, 58, 0.04);
+    color: rgba(245, 245, 245, 0.75);
+    font-size: 12.5px;
+    line-height: 1.4;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .note-link-chip:last-child {
+    margin-bottom: 0;
+  }
+
+  .note-link-chip svg {
+    color: var(--gold, #c9933a);
+    flex-shrink: 0;
+  }
+
+  .note-link-chip:hover {
+    background: rgba(201, 147, 58, 0.1);
+    border-color: rgba(201, 147, 58, 0.35);
+    color: #fff;
+  }
+
+  .note-link-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
   /* ── AI Answer ─────────────────────────────────────────────── */
 
   /* Inline expanding AI answer row (first item in results list) */

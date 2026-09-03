@@ -2218,3 +2218,226 @@ func (q *Queue) GetReferencedMedia(ctx context.Context) ([]string, error) {
 	}
 	return out, rows.Err()
 }
+
+// FollowupCandidate is one past intent-bearing note for a person.
+type FollowupCandidate struct {
+	NotePath  string
+	Content   string
+	CreatedAt time.Time
+}
+
+// FindFollowupCandidates locates done notes older than `before` that both
+// mention the given person and contain any of the FTS keywords — the raw
+// material for follow-up-never-completed detection.
+func (q *Queue) FindFollowupCandidates(ctx context.Context, person string, keywords []string, before time.Time, excludePath string) ([]FollowupCandidate, error) {
+	if len(keywords) == 0 {
+		return nil, nil
+	}
+	variants, err := q.GetPersonVariants(ctx, person)
+	if err != nil {
+		return nil, err
+	}
+	parts := make([]string, len(keywords))
+	for i, kw := range keywords {
+		parts[i] = `"` + strings.ReplaceAll(kw, `"`, "") + `"`
+	}
+	match := strings.Join(parts, " OR ")
+
+	var out []FollowupCandidate
+	for _, variant := range variants {
+		rows, err := q.db.QueryContext(ctx, `
+			SELECT DISTINCT j.note_path, j.content, j.created_at
+			FROM jobs j
+			JOIN entities e ON e.note_path = j.note_path
+				AND e.entity_type = 'person' AND LOWER(e.entity_value) = LOWER(?)
+			JOIN notes_fts f ON f.note_path = j.note_path AND notes_fts MATCH ?
+			WHERE j.status = 'done' AND j.created_at <= ? AND j.note_path != ?
+			ORDER BY j.created_at ASC LIMIT 5`,
+			variant, match, before.UTC().Format(time.RFC3339), excludePath)
+		if err != nil {
+			return out, err
+		}
+		for rows.Next() {
+			var c FollowupCandidate
+			var created string
+			var content sql.NullString
+			if err := rows.Scan(&c.NotePath, &content, &created); err != nil {
+				continue
+			}
+			c.Content = content.String
+			c.CreatedAt, _ = time.Parse(time.RFC3339, created)
+			out = append(out, c)
+		}
+		rows.Close()
+	}
+	return out, nil
+}
+
+// PersonMentionedSince reports whether any note outside excludePaths
+// mentions the person STRICTLY after `since` — evidence an intended
+// follow-up actually happened.
+func (q *Queue) PersonMentionedSince(ctx context.Context, person string, since time.Time, excludePaths ...string) (bool, error) {
+	excludes := make([]string, len(excludePaths))
+	for i, p := range excludePaths {
+		excludes[i] = strings.ToLower(p)
+	}
+	variants, err := q.GetPersonVariants(ctx, person)
+	if err != nil {
+		return false, err
+	}
+	for _, variant := range variants {
+		rows, err := q.db.QueryContext(ctx, `
+			SELECT DISTINCT j.note_path FROM jobs j
+			JOIN entities e ON e.note_path = j.note_path
+			WHERE e.entity_type = 'person' AND LOWER(e.entity_value) = LOWER(?)
+			  AND j.created_at > ?`, variant, since.UTC().Format(time.RFC3339))
+		if err != nil {
+			return false, err
+		}
+		if rowsContainsExcluded(rows, excludes) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// rowsContainsExcluded drains rows and reports whether ANY note_path is
+// outside the exclude list.
+func rowsContainsExcluded(rows *sql.Rows, excludes []string) bool {
+	defer rows.Close()
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			continue
+		}
+		lp := strings.ToLower(p)
+		excluded := false
+		for _, x := range excludes {
+			if lp == x {
+				excluded = true
+				break
+			}
+		}
+		if !excluded {
+			return true
+		}
+	}
+	return false
+}
+
+// GetNoteContent returns the most recent stored content for a note path,
+// falling back to the note's chunk text (chunks are written during ingest
+// and survive any later pruning of job payloads).
+func (q *Queue) GetNoteContent(ctx context.Context, notePath string) (string, error) {
+	var content sql.NullString
+	err := q.db.QueryRowContext(ctx,
+		`SELECT content FROM jobs WHERE note_path = ? AND content IS NOT NULL AND content != ''
+		 ORDER BY created_at DESC LIMIT 1`, notePath).Scan(&content)
+	if err == nil && strings.TrimSpace(content.String) != "" {
+		return content.String, nil
+	}
+	err = q.db.QueryRowContext(ctx,
+		`SELECT content FROM chunks WHERE note_path = ? LIMIT 1`, notePath).Scan(&content)
+	if err != nil {
+		return "", err
+	}
+	return content.String, nil
+}
+
+// FindNotePathByBaseName resolves an Obsidian-style wikilink basename
+// ("2026-08-25-my-note-abc123") to its vault-relative note path.
+func (q *Queue) FindNotePathByBaseName(ctx context.Context, base string) (string, error) {
+	var p sql.NullString
+	err := q.db.QueryRowContext(ctx,
+		`SELECT note_path FROM jobs WHERE note_path LIKE '%/' || ? || '.md' AND status='done'
+		 ORDER BY created_at DESC LIMIT 1`, base).Scan(&p)
+	if err != nil {
+		return "", err
+	}
+	return p.String, nil
+}
+
+// GetConnectionsResultByPath returns the stored result payload of the
+// most recent connections job for a note path (nil when none ran).
+func (q *Queue) GetConnectionsResultByPath(ctx context.Context, notePath string) (json.RawMessage, error) {
+	var result sql.NullString
+	err := q.db.QueryRowContext(ctx,
+		`SELECT result FROM jobs WHERE type='connections' AND note_path = ? AND result IS NOT NULL
+		 ORDER BY created_at DESC LIMIT 1`, notePath).Scan(&result)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(result.String), nil
+}
+
+// GetPersonVariants returns every distinct person entity_value that
+// fuzzy-matches the given name: case-insensitive equality, shared-prefix
+// (Sara/Sarah, Dan/Daniel), or edit distance <= 1 (min length 4). Personal
+// note collections routinely store name variants; person joins must treat
+// them as the same human.
+func (q *Queue) GetPersonVariants(ctx context.Context, name string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx,
+		`SELECT DISTINCT entity_value FROM entities WHERE entity_type = 'person' LIMIT 1000`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []string
+	for rows.Next() {
+		var v string
+		if err := rows.Scan(&v); err != nil {
+			continue
+		}
+		if personNameMatches(name, v) {
+			out = append(out, v)
+		}
+	}
+	return out, rows.Err()
+}
+
+// personNameMatches decides whether two person-name spellings refer to the
+// same human.
+func personNameMatches(a, b string) bool {
+	a, b = strings.ToLower(strings.TrimSpace(a)), strings.ToLower(strings.TrimSpace(b))
+	if a == "" || b == "" {
+		return false
+	}
+	if a == b {
+		return true
+	}
+	// shared prefix of at least 3 chars: "sara"~"sarah", "dan"~"daniel"
+	minLen := len(a)
+	if len(b) < minLen {
+		minLen = len(b)
+	}
+	if minLen >= 3 && (strings.HasPrefix(a, b) || strings.HasPrefix(b, a)) {
+		return true
+	}
+	// single edit for reasonably long names: "jeff"~"geoff" style typos
+	if minLen >= 4 && levenshtein(a, b) <= 1 {
+		return true
+	}
+	return false
+}
+
+func levenshtein(a, b string) int {
+	ra, rb := []rune(a), []rune(b)
+	prev := make([]int, len(rb)+1)
+	cur := make([]int, len(rb)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(ra); i++ {
+		cur[0] = i
+		for j := 1; j <= len(rb); j++ {
+			cost := 1
+			if ra[i-1] == rb[j-1] {
+				cost = 0
+			}
+			cur[j] = min(min(cur[j-1]+1, prev[j]+1), prev[j-1]+cost)
+		}
+		prev, cur = cur, prev
+	}
+	return prev[len(rb)]
+}

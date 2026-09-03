@@ -149,10 +149,13 @@ type ConnectionsConfig struct {
 	Enabled *bool `yaml:"enabled"`
 	// MinAgeDays: nil means the 7-day default; an explicit 0 is honored
 	// (surface everything up to now) — needed for testing setups.
-	MinAgeDays          *int             `yaml:"min_age_days"`
-	MaxPerCapture       int              `yaml:"max_per_capture"`
-	SimilarityThreshold float64          `yaml:"similarity_threshold"`
-	Types               ConnectionsTypes `yaml:"types"`
+	MinAgeDays          *int    `yaml:"min_age_days"`
+	MaxPerCapture       int     `yaml:"max_per_capture"`
+	SimilarityThreshold float64 `yaml:"similarity_threshold"`
+	// ContradictionThreshold is the semantic floor for contradiction
+	// candidates before the LLM verdict runs; default 0.80.
+	ContradictionThreshold float64          `yaml:"contradiction_threshold"`
+	Types                  ConnectionsTypes `yaml:"types"`
 }
 
 // AgeDays resolves the minimum-age setting: nil -> 7, negative -> 7.
@@ -196,9 +199,12 @@ func (m MemoryConfig) PersonsThreshold() int {
 
 // ConnectionsTypes toggles individual connection types; nil means on.
 type ConnectionsTypes struct {
-	Similar *bool `yaml:"similar"`
-	Person  *bool `yaml:"person"`
-	Amount  *bool `yaml:"amount"`
+	Similar       *bool `yaml:"similar"`
+	Person        *bool `yaml:"person"`
+	Amount        *bool `yaml:"amount"`
+	Contradiction *bool `yaml:"contradiction"`
+	FollowUp      *bool `yaml:"follow_up"`
+	Revisit       *bool `yaml:"revisit"`
 }
 
 // IsOn resolves a nil-means-true flag.
@@ -344,6 +350,9 @@ func (c *Config) ApplyDefaults() {
 	}
 	if c.Connections.SimilarityThreshold <= 0 {
 		c.Connections.SimilarityThreshold = 0.72
+	}
+	if c.Connections.ContradictionThreshold <= 0 {
+		c.Connections.ContradictionThreshold = 0.80
 	}
 	if c.LLM.TruncateTextTokens == 0 {
 		c.LLM.TruncateTextTokens = 2000

@@ -203,7 +203,11 @@ func (w *Worker) processJob(jobID string) {
 	}
 
 	now := time.Now().UTC()
-	job.NotePath = notePath
+	if notePath != "" || (job.Type != "connections" && job.Type != "memory") {
+		// Enricher jobs carry their note path from creation; never let an
+		// empty local overwrite the stored value.
+		job.NotePath = notePath
+	}
 	job.Status = "done"
 	job.ProcessedAt = &now
 	job.Error = ""
@@ -347,7 +351,13 @@ func (w *Worker) chainMemoryConsolidation(ingestJobID string) {
 // the note's frontmatter as Obsidian wikilinks. Only targets that exist on
 // disk become links (vault safety: never write broken wikilinks).
 func (w *Worker) processConnections(ctx context.Context, job *queue.Job) error {
-	conns, err := connections.Find(ctx, w.queue, job.NotePath, w.connCfg)
+	var checker connections.ContradictionChecker
+	if temp, ok := w.llm.(interface {
+		GenerateWithSystemTemp(system, user string, temperature float64) (string, error)
+	}); ok {
+		checker = temp
+	}
+	conns, err := connections.Find(ctx, w.queue, job.NotePath, w.connCfg, checker)
 	if err != nil {
 		return fmt.Errorf("connection engine failed: %w", err)
 	}
@@ -360,12 +370,17 @@ func (w *Worker) processConnections(ctx context.Context, job *queue.Job) error {
 	}
 
 	links := make([]string, 0, len(conns))
+	linked := map[string]bool{}
 	for _, c := range conns {
 		base := filepath.Base(c.NotePath)
 		if strings.EqualFold(base, strings.TrimSpace(w.memCfg.File)) {
 			continue // never link the managed memory file
 		}
+		if linked[c.NotePath] {
+			continue // one wikilink per target note, even if multiple types matched
+		}
 		if w.vault.NoteExists(c.NotePath) {
+			linked[c.NotePath] = true
 			links = append(links, c.NotePath)
 		} else {
 			w.logger.Warn("connection target missing on disk, skipping link",

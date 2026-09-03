@@ -39,6 +39,8 @@ vi.mock('@/lib/api', async (importOriginal) => {
 vi.mock('@/components/ui/sheet', () => ({
   Sheet: ({ children }: any) => <>{children}</>,
   SheetContent: ({ children }: any) => <div>{children}</div>,
+  SheetTitle: ({ children }: any) => <div>{children}</div>,
+  SheetDescription: ({ children }: any) => <div>{children}</div>,
 }))
 
 describe('NoteView delete affordance', () => {
@@ -89,5 +91,33 @@ describe('NoteView delete affordance', () => {
       expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title: 'Delete failed' }))
     })
     expect(onClose).not.toHaveBeenCalled()
+  })
+})
+
+describe('NoteView linked-notes chips', () => {
+  it('renders related links as clickable chips and switches note on click', async () => {
+    vi.resetModules()
+    const onOpenNote = vi.fn()
+    vi.doMock('@/hooks/useNote', () => ({
+      useNote: () => ({
+        note: {
+          note_path: 'khayal/hates.md',
+          title: 'Hates',
+          type: 'text',
+          related_links: [
+            { note_path: 'khayal/2026-08-26-bob-loves-note-abc123.md', title: 'Bob loves the note' },
+          ],
+        },
+        loading: false,
+        error: null,
+      }),
+    }))
+    const { NoteView: NV } = await import('../NoteView')
+    const { render: r, screen: s2, fireEvent: fe } = await import('@testing-library/react')
+    r(<NV notePath="khayal/hates.md" onClose={() => {}} onOpenNote={onOpenNote} />)
+    const chip = s2.getAllByTestId('note-link-chip')[0]
+    expect(chip.textContent).toContain('Bob loves the note')
+    fe.click(chip)
+    expect(onOpenNote).toHaveBeenCalledWith('khayal/2026-08-26-bob-loves-note-abc123.md')
   })
 })

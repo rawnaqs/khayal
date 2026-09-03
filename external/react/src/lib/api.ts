@@ -94,6 +94,12 @@ export interface QueueResponse {
   flares?: Record<string, QueueFlare>
 }
 
+export interface RelatedLink {
+  note_path: string
+  title: string
+  types?: string[]
+}
+
 export interface NoteResponse {
   note_path: string
   title: string
@@ -109,9 +115,17 @@ export interface NoteResponse {
   source_file?: string
   description?: string
   related?: string[]
+  related_links?: RelatedLink[]
   excerpt?: string
   search_query?: string
   excerpt_section?: string
+  entities?: {
+    people?: string[]
+    amounts?: string[]
+    dates?: string[]
+    places?: string[]
+    orgs?: string[]
+  }
 }
 
 export interface StatsResponse {
@@ -228,6 +242,14 @@ export class KhayalClient {
 
   async stats(): Promise<StatsResponse> {
     return this.request<StatsResponse>('GET', '/v1/stats')
+  }
+
+  async mediaBlob(mediaPath: string): Promise<Blob> {
+    const resp = await fetch(`${this.host}/v1/media?path=${encodeURIComponent(mediaPath)}`, {
+      headers: { 'X-Khayal-Token': this.token },
+    })
+    if (!resp.ok) throw new Error(`media fetch failed: ${resp.status}`)
+    return resp.blob()
   }
 
   async deleteNote(notePath: string): Promise<{ deleted: boolean; trash_path: string }> {

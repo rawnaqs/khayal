@@ -202,6 +202,33 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /media:
+    get:
+      tags:
+        - Vault
+      summary: Fetch a media file
+      description: |
+        Streams a media file from the vault's media directory (v1.2).
+        Path must resolve inside the media dir; extension allowlist
+        (jpg/jpeg/png/gif/webp/heic/pdf). PWA fetches with the token
+        header and renders via blob URL — media URLs never carry tokens.
+      parameters:
+        - name: path
+          in: query
+          required: true
+          description: Media-dir-relative path (e.g. "media/1777455624.jpg")
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Media bytes with the derived Content-Type
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /queue:
     get:
       tags:

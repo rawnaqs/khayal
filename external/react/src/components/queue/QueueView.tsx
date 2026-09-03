@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { RefreshCw, FileText, Link, Image, ChevronDown, ChevronUp } from "lucide-react";
 import { QueueMetrics } from "./QueueMetrics";
@@ -107,8 +107,21 @@ export function QueueView({ onNoteSelect }: QueueViewProps = {}) {
     handleRefresh();
   }, [handleRefresh]);
 
-  // Live updates: patch in place; polling remains as the fallback
-  useQueueWS(applyLiveJob, firstLoadDone);
+  // Live updates: patch in place; polling remains as the fallback.
+  // When an ingest job lands done, rehydrate so flare chips appear
+  // immediately (connection counts arrive with the queue payload).
+  const doneRef = useRef(false)
+  doneRef.current = firstLoadDone
+  useQueueWS((job) => {
+    applyLiveJob(job)
+    if (
+      doneRef.current &&
+      (job.status === 'done' || job.status === 'failed') &&
+      ['text', 'image', 'article'].includes(job.type)
+    ) {
+      fetchQueue(undefined, { keepExpansion: true })
+    }
+  }, firstLoadDone);
 
   useEffect(() => {
     if (!loading && !firstLoadDone) setFirstLoadDone(true);

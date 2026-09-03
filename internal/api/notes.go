@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -14,24 +15,34 @@ import (
 	"github.com/rawnaqs/khayal/internal/vault"
 )
 
+// RelatedLink is one resolved connection: a real vault path plus the
+// target note's human title for display.
+type RelatedLink struct {
+	NotePath string   `json:"note_path"`
+	Title    string   `json:"title"`
+	Types    []string `json:"types,omitempty"`
+}
+
 type NoteResponse struct {
-	NotePath       string   `json:"note_path"`
-	Title          string   `json:"title,omitempty"`
-	Type           string   `json:"type,omitempty"`
-	Status         string   `json:"status,omitempty"`
-	CreatedAt      string   `json:"created_at,omitempty"`
-	UpdatedAt      string   `json:"updated_at,omitempty"`
-	Tags           []string `json:"tags,omitempty"`
-	Summary        string   `json:"summary,omitempty"`
-	KeyIdeas       []string `json:"key_ideas,omitempty"`
-	Raw            string   `json:"raw"`
-	SourceURL      string   `json:"source_url,omitempty"`
-	SourceFile     string   `json:"source_file,omitempty"`
-	Description    string   `json:"description,omitempty"`
-	Related        []string `json:"related,omitempty"`
-	Excerpt        string   `json:"excerpt,omitempty"`
-	SearchQuery    string   `json:"search_query,omitempty"`
-	ExcerptSection string   `json:"excerpt_section,omitempty"`
+	NotePath       string                 `json:"note_path"`
+	Title          string                 `json:"title,omitempty"`
+	Type           string                 `json:"type,omitempty"`
+	Status         string                 `json:"status,omitempty"`
+	CreatedAt      string                 `json:"created_at,omitempty"`
+	UpdatedAt      string                 `json:"updated_at,omitempty"`
+	Tags           []string               `json:"tags,omitempty"`
+	Summary        string                 `json:"summary,omitempty"`
+	KeyIdeas       []string               `json:"key_ideas,omitempty"`
+	Raw            string                 `json:"raw"`
+	SourceURL      string                 `json:"source_url,omitempty"`
+	SourceFile     string                 `json:"source_file,omitempty"`
+	Description    string                 `json:"description,omitempty"`
+	Related        []string               `json:"related,omitempty"`
+	RelatedLinks   []RelatedLink          `json:"related_links,omitempty"`
+	Entities       map[string]interface{} `json:"entities,omitempty"`
+	Excerpt        string                 `json:"excerpt,omitempty"`
+	SearchQuery    string                 `json:"search_query,omitempty"`
+	ExcerptSection string                 `json:"excerpt_section,omitempty"`
 }
 
 func (s *Server) noteHandler(w http.ResponseWriter, r *http.Request) {
@@ -66,20 +77,62 @@ func (s *Server) noteHandler(w http.ResponseWriter, r *http.Request) {
 
 	s.logger.Info("note read", "path", notePath)
 
+	ctx := context.Background()
+
+	// Resolve related links (Obsidian basenames) to real vault paths and
+	// human titles so clients can render and navigate them directly;
+	// drop unresolvable entries.
+	related := make([]RelatedLink, 0, len(note.Related))
+	resolvedPaths := make([]string, 0, len(note.Related))
+	for _, rel := range note.Related {
+		base := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(rel), "[["), "]]")
+		if base == "" {
+			continue
+		}
+		if path, err := s.queue.FindNotePathByBaseName(ctx, base); err == nil && path != "" {
+			resolvedPaths = append(resolvedPaths, path)
+			related = append(related, RelatedLink{NotePath: path})
+		}
+	}
+	titles, _ := s.queue.BatchGetNoteTitles(ctx, resolvedPaths)
+	typeByPath := map[string][]string{}
+	if connPayload, err := s.queue.GetConnectionsResultByPath(ctx, notePath); err == nil {
+		var parsed struct {
+			Connections []struct {
+				NotePath string `json:"note_path"`
+				Type     string `json:"type"`
+			} `json:"connections"`
+		}
+		if json.Unmarshal(connPayload, &parsed) == nil {
+			for _, c := range parsed.Connections {
+				typeByPath[c.NotePath] = append(typeByPath[c.NotePath], c.Type)
+			}
+		}
+	}
+	for i := range related {
+		t := titles[related[i].NotePath]
+		if t == "" {
+			t = strings.TrimSuffix(filepath.Base(related[i].NotePath), ".md")
+		}
+		related[i].Title = t
+		related[i].Types = typeByPath[related[i].NotePath]
+	}
+
 	// Build response
 	resp := NoteResponse{
-		NotePath:    notePath,
-		Title:       note.Title,
-		Type:        note.Type,
-		Status:      note.Status,
-		Tags:        note.Tags,
-		Summary:     note.Summary,
-		KeyIdeas:    note.KeyIdeas,
-		Raw:         note.Raw,
-		SourceURL:   note.SourceURL,
-		SourceFile:  note.SourceFile,
-		Description: note.Description,
-		Related:     note.Related,
+		NotePath:     notePath,
+		RelatedLinks: related,
+		Title:        note.Title,
+		Type:         note.Type,
+		Status:       note.Status,
+		Tags:         note.Tags,
+		Entities:     note.Entities,
+		Summary:      note.Summary,
+		KeyIdeas:     note.KeyIdeas,
+		Raw:          note.Raw,
+		SourceURL:    note.SourceURL,
+		SourceFile:   note.SourceFile,
+		Description:  note.Description,
 	}
 
 	// Extract excerpt context if query provided

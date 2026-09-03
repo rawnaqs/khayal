@@ -1125,3 +1125,69 @@ func TestRemoveNote(t *testing.T) {
 		}
 	}
 }
+
+func TestGetPersonVariants(t *testing.T) {
+	tmpDir := t.TempDir()
+	q, err := NewQueue(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+	seed := func(path, person string) {
+		j := &Job{ID: path, Type: "text", Status: "done", NotePath: path, CreatedAt: time.Now()}
+		if err := q.CreateJob(ctx, j); err != nil {
+			t.Fatal(err)
+		}
+		if err := q.SaveEntities(ctx, path, NoteEntities{People: []string{person}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed("a.md", "Sarah")
+	seed("b.md", "sara")
+	seed("c.md", "Bob")
+	seed("d.md", "Bobby")
+	seed("e.md", "Alice")
+
+	t.Run("case-insensitive + prefix + edit-distance-1", func(t *testing.T) {
+		variants, err := q.GetPersonVariants(ctx, "Sara")
+		if err != nil {
+			t.Fatal(err)
+		}
+		set := map[string]bool{}
+		for _, v := range variants {
+			set[strings.ToLower(v)] = true
+		}
+		if !set["sarah"] || !set["sara"] {
+			t.Errorf("expected Sarah + sara, got %v", variants)
+		}
+		if set["bob"] || set["alice"] {
+			t.Errorf("unrelated names leaked: %v", variants)
+		}
+	})
+
+	t.Run("exact name returns itself", func(t *testing.T) {
+		variants, err := q.GetPersonVariants(ctx, "bob")
+		if err != nil {
+			t.Fatal(err)
+		}
+		lower := map[string]bool{}
+		for _, v := range variants {
+			lower[strings.ToLower(v)] = true
+		}
+		if !lower["bob"] {
+			t.Errorf("expected bob in %v", variants)
+		}
+	})
+
+	t.Run("unknown name yields nothing", func(t *testing.T) {
+		variants, err := q.GetPersonVariants(ctx, "Zephyr")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(variants) != 0 {
+			t.Errorf("expected none, got %v", variants)
+		}
+	})
+}

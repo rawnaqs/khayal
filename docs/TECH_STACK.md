@@ -1,12 +1,12 @@
 # Khayal Tech Stack
 
-> Technology decisions for Khayal v1. Updated: 2026-03-17
+> Technology decisions for Khayal. Updated: 2026-09-03
 
 ## Core
 
 | Category | Choice | Rationale |
 |----------|--------|------------|
-| Language | Go 1.22+ | Performance, single binary, native HTTP |
+| Language | Go 1.25+ | Performance, single binary, native HTTP |
 | License | AGPLv3 | Copyleft, protects modifications |
 | Org | Rawnaqs | "The luster of craftsmanship" |
 
@@ -17,7 +17,8 @@
 | HTTP Router | Chi | latest | Lightweight, idiomatic Go, middleware support |
 | Server | Go net/http | stdlib | No external dependency |
 | Auth | Token (X-Khayal-Token header) | - | Simple, effective, no session management |
-| Logging | Zerolog | latest | JSON, structured, fast |
+| Logging | log/slog | stdlib | Structured, multi-handler (console + rotating file) |
+| WebSocket | gorilla/websocket | v1.5 | Live queue updates (/v1/queue/ws) |
 
 ## Database
 
@@ -27,6 +28,7 @@
 | Job Queue | SQLite | Built-in, reliable |
 | Full-Text Search | SQLite FTS5 | Built-in |
 | Vector Search | Pure Go cosine similarity | No external dependencies, batch processing |
+| Backup Encryption | filippo.io/age | v1.2.0 | Embedded, pure Go; armored X25519 |
 
 **Notes:**
 - Uses `modernc.org/sqlite` for pure Go SQLite (no CGO, no system dependencies)
@@ -41,7 +43,8 @@
 | Fallback 1 | Groq | Fast inference, good API |
 | Fallback 2 | OpenAI | Universal fallback |
 | Embedding Model | nomic-embed-text | Ollama default, good quality |
-| Text Model | llama3.2:3b | Balanced size/performance |
+| Text Model | qwen2.5:3b (default config: llama3.2:3b) | Balanced size/performance |
+| Consolidation Model | optional (e.g. qwen2.5:7b) | Dedicated model for memory consolidation; temp 0.2 |
 | Vision Model | moondream | Lightweight, effective |
 
 ## CLI
@@ -60,9 +63,12 @@
 |-----------|--------|-----------|
 | Framework | React 18+ | Ecosystem, familiarity |
 | Build Tool | Vite | Fast, simple, HMR |
-| Routing | React Router | Standard |
-| State | Zustand | Minimal, TypeScript-friendly |
+| Routing | Tab state (single-page) | No router dependency needed |
+| State | React hooks | Minimal surface |
 | HTTP Client | Fetch (native) | No extra dependency |
+| Animation | framer-motion | Sheet/queue/list transitions |
+| Testing | Vitest + Testing Library | Unit/component |
+| E2E | Playwright | Capture/search/queue flows |
 | Offline | IndexedDB (idb-keyval) | Simple promise-based API |
 | Styling | CSS Modules + rawnaqs/theme | Scoped, design system |
 

@@ -1188,10 +1188,14 @@ Find notes that semantically conflict with the new note.
 
 ```
 Detection: two-step
-  Step 1: find top-5 similar notes (score > 0.80)
-  Step 2: for each, run LLM contradiction check
-  Surface: LLM returns "yes" only
-Label:     "contradicts something you wrote [date]"
+  Step 1: find top-5 similar notes (score > contradiction_threshold, default 0.80)
+  Step 2: for each, run LLM verdict call (strict JSON {"contradicts": bool})
+Surface:  only "contradicts": true verdicts; fail-open per candidate —
+          a garbage or errored verdict skips that candidate silently
+Label:    "contradicts something you wrote [date]"
+Cost:     ~3s (async job — never blocks capture)
+Config:   types.contradiction toggle (nil = on); nil checker in the
+          engine skips the type entirely (tests stay LLM-free)
 ```
 
 #### Type 5 — Follow-ups Never Completed (v1.2)
@@ -1200,11 +1204,13 @@ Find past notes expressing follow-up intent mentioning the same people, with no 
 
 ```
 Detection: three-step
-  Step 1: FTS5 query for intent keywords + same person
-  Step 2: check date of intent note
-  Step 3: check if subsequent notes mention same person
-Filter:    intent note age > 14 days
-Label:     "you planned to follow up with [name] — no record of this happening"
+  Step 1: FTS5 query for intent keywords ("follow up", "todo",
+          "need to", "will send", "promise") AND same person entity
+  Step 2: check date of intent note — age must exceed 14 days
+  Step 3: verify NO subsequent capture mentions that person after the
+          intent date (existing entity lookup)
+Label:    "you planned to follow up with [name] — no record of this happening"
+Config:   types.follow_up toggle (nil = on)
 ```
 
 #### Type 6 — Ideas Revisited Over Time (v1.2)
@@ -1212,11 +1218,30 @@ Label:     "you planned to follow up with [name] — no record of this happening
 Detect when the new note is part of a recurring pattern — same topic appearing multiple times across months or years.
 
 ```
-Detection: reuse semantic similar results
+Detection: reuse the semantic-similar matches already fetched by Type 1
            if 3+ similar notes found spanning > 6 months
 Label:     "you've returned to this idea [N] times since [earliest date]"
 Surface:   oldest + newest note as bookends
+Config:    types.revisit toggle (nil = on)
 ```
+
+**Ranking priority (v1.2):**
+
+```
+person 5 > contradiction 4 > follow_up 3 ≈ amount 3 > similar 2 > revisit 1
+```
+
+Selection guarantees type diversity: before the cap fills by global rank,
+every present detector type reserves its best result — a flood of person
+matches can no longer silence rarer types (observed live with 19+ person
+connections hiding a confirmed contradiction). Same note may appear in
+two type rows (complementary information); duplicates are per
+(note_path, type), not per path.
+
+Contradiction verdict prompts must carry BOTH sides: the new note's own
+content is fetched at engine time (jobs.content, falling back to chunk
+text) after live testing caught one-sided prompts producing silent
+always-false verdicts.
 
 ### Async Delivery
 
@@ -1290,12 +1315,12 @@ connections:
   min_age_days: 7
   max_per_capture: 3
   similarity_threshold: 0.85
-  contradiction_threshold: 0.80
+  contradiction_threshold: 0.80   # semantic floor for contradiction candidates
   types:
     similar:      true
     person:       true
     amount:       true
-    contradiction: true
+    contradiction: true   # LLM verdicts; nil = on
     follow_up:    true
     revisit:      true
 ```
@@ -1317,12 +1342,10 @@ Total v1.2 types:    ~3-4s  (async — never blocks capture)
 
 ```
 internal/connections/
-├── engine.go        ← orchestrates all types, ranking, dedup
-├── similar.go       ← semantic similarity
-├── entity.go        ← person + amount
-├── revisit.go       ← revisit detection
-├── followup.go     ← follow-up detection
-└── contradiction.go ← LLM-based contradiction detection
+├── connections.go   ← Find orchestrator, ranking, dedup (v1.1)
+├── revisit.go       ← revisit detection (v1.2)
+├── followup.go      ← follow-up detection (v1.2)
+└── contradiction.go ← LLM-based contradiction detection (v1.2)
 ```
 
 ---
@@ -1569,6 +1592,12 @@ over time:
     headings collapse to their first occurrence along with everything under
     them; invalid output errors the job for retry, leaving the previous
     file untouched.
+- **Person name-variant joins** — personal collections store spelling
+  variants ("Sara"/"Sarah", "Dan"/"Daniel"); person lookups (connections,
+  follow-up detection, completion checks) expand each name to all known
+  variants via case-insensitive, shared-prefix (>=3 chars), and
+  edit-distance-<=1 matching before querying. Stored data is never
+  rewritten — matching happens at read time.
 - **Entity glossary rescue** — when entity extraction returns zero people,
   known glossary names appearing in the capture text are promoted to person
   entities deterministically (no extra LLM call). Non-empty extractions are
