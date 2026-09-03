@@ -6,6 +6,8 @@
 
 > Your private treasury of thought. Local, secure, yours.
 
+*New here? Try the [silly version](SILLY_README.md) of this readme — no jargon allowed.*
+
 <!-- TODO: add asciinema recording or terminal screenshot here -->
 <img src="charm-vhs-tape/khayal.gif" alt="Khayal demo" />
 
