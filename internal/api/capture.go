@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rawnaqs/khayal/internal/ingest"
 	"github.com/rawnaqs/khayal/internal/queue"
+	"github.com/rawnaqs/khayal/internal/stt"
 )
 
 type CaptureRequest struct {
@@ -315,4 +316,97 @@ func (s *Server) parseLimit(query string, defaultVal, maxVal int) int {
 		return maxVal
 	}
 	return val
+}
+
+// handleAudioCapture stores the recording, transcribes it via the
+// configured STT service, and enqueues a voice job with the transcript.
+// The transcription is synchronous: a failed STT call aborts the capture
+// so users re-record instead of capturing a note that can never exist.
+func (s *Server) handleAudioCapture(w http.ResponseWriter, r *http.Request) {
+	if !s.config.STT.STTEnabled() || s.config.STT.Endpoint == "" {
+		WriteError(w, "voice capture is not configured — set stt.endpoint in config", "STT_NOT_CONFIGURED", http.StatusServiceUnavailable)
+		return
+	}
+
+	maxSize := int64(s.config.Server.MaxImageBodyMB) << 20
+	if err := r.ParseMultipartForm(maxSize); err != nil {
+		WriteError(w, "invalid multipart form or file too large", "CAPTURE_INVALID_FORM", http.StatusRequestEntityTooLarge)
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		WriteError(w, "missing audio file", "CAPTURE_MISSING_FILE", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	audio, err := io.ReadAll(io.LimitReader(file, maxSize))
+	if err != nil {
+		WriteError(w, "failed to read audio", "CAPTURE_READ_FAILED", http.StatusInternalServerError)
+		return
+	}
+
+	timeout := time.Duration(s.config.STT.STTTimeout()) * time.Second
+	sttClient := stt.New(s.config.STT.Endpoint, s.config.STT.API, s.config.STT.Model, timeout)
+	ctx := context.Background()
+	transcript, err := sttClient.Transcribe(ctx, header.Filename, audio, header.Header.Get("Content-Type"))
+	if err != nil {
+		s.logger.Warn("audio capture failed",
+			"code", "STT_FAILED",
+			"error", err,
+		)
+		WriteError(w, "transcription failed: "+err.Error(), "STT_FAILED", http.StatusBadGateway)
+		return
+	}
+	transcript = strings.TrimSpace(transcript)
+	if transcript == "" {
+		WriteError(w, "transcription was empty", "STT_EMPTY", http.StatusBadGateway)
+		return
+	}
+
+	mediaPath, err := s.vault.CopyMediaFromReader(bytes.NewReader(audio), header.Filename)
+	if err != nil {
+		s.logger.Error("audio capture failed",
+			"code", "VAULT_MEDIA_FAILED",
+			"error", err,
+		)
+		WriteError(w, "failed to save media", "VAULT_MEDIA_FAILED", http.StatusInternalServerError)
+		return
+	}
+
+	note := r.FormValue("note")
+	now := time.Now().UTC()
+	job := &queue.Job{
+		ID:          uuid.New().String(),
+		Type:        "voice",
+		Status:      "pending",
+		SourceFile:  mediaPath,
+		Content:     transcript,
+		UserContext: note,
+		CreatedAt:   now,
+	}
+	if err := s.queue.CreateJob(ctx, job); err != nil {
+		s.logger.Error("audio capture failed",
+			"code", "QUEUE_CREATE_FAILED",
+			"job_id", job.ID,
+			"error", err,
+		)
+		WriteError(w, "failed to create job", "QUEUE_CREATE_FAILED", http.StatusInternalServerError)
+		return
+	}
+
+	s.logger.Info("capture",
+		"type", "voice",
+		"job_id", job.ID,
+		"chars", len(transcript),
+	)
+
+	notePath := fmt.Sprintf("%s/%s-voice.md", s.config.Vault.InboxDir, now.Format("2006-01-02-")+job.ID[:8])
+	WriteCreated(w, CaptureResponse{
+		ID:        job.ID,
+		Type:      "voice",
+		Status:    job.Status,
+		NotePath:  notePath,
+		CreatedAt: job.CreatedAt.Format(time.RFC3339),
+	})
 }

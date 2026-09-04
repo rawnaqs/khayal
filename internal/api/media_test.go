@@ -1,11 +1,17 @@
 package api
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/rawnaqs/khayal/internal/config"
 )
 
 func TestMediaHandler(t *testing.T) {
@@ -76,4 +82,86 @@ func TestMediaHandler(t *testing.T) {
 			t.Errorf("expected 404, got %d body %s", rec.Code, rec.Body.String())
 		}
 	})
+}
+
+func TestAudioCapture(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.close()
+
+	// fake STT service
+	sttSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"text":"remember to water the plants"}`))
+	}))
+	defer sttSrv.Close()
+	on := true
+	ts.Config.STT = config.STTConfig{Enabled: &on, Endpoint: sttSrv.URL, API: "openai"}
+
+	post := func(url string) *httptest.ResponseRecorder {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		part, _ := writer.CreateFormFile("file", "note.webm")
+		part.Write([]byte("FAKEAUDIO"))
+		writer.WriteField("note", "from mic")
+		writer.Close()
+		req := httptest.NewRequest(http.MethodPost, url, body)
+		req.Header.Set("X-Khayal-Token", "test-token")
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		rec := httptest.NewRecorder()
+		ts.Server.handleAudioCapture(rec, req)
+		return rec
+	}
+
+	t.Run("transcribes and enqueues voice job", func(t *testing.T) {
+		rec := post("/v1/capture/audio")
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
+		}
+		var resp struct {
+			ID   string `json:"id"`
+			Type string `json:"type"`
+		}
+		json.NewDecoder(rec.Body).Decode(&resp)
+		if resp.Type != "voice" {
+			t.Errorf("type: %s", resp.Type)
+		}
+		job, err := ts.Queue.GetJob(context.Background(), resp.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if job.Content != "remember to water the plants" {
+			t.Errorf("content: %q", job.Content)
+		}
+	})
+
+	t.Run("stt not configured is 503", func(t *testing.T) {
+		off := false
+		ts.Config.STT = config.STTConfig{Enabled: &off}
+		rec := post("/v1/capture/audio")
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected 503, got %d", rec.Code)
+		}
+	})
+
+	t.Run("stt failure is 502 and nothing captured", func(t *testing.T) {
+		failSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		}))
+		defer failSrv.Close()
+		ts.Config.STT = config.STTConfig{Enabled: &on, Endpoint: failSrv.URL, API: "openai"}
+		before := countJobs(ts)
+		rec := post("/v1/capture/audio")
+		if rec.Code != http.StatusBadGateway {
+			t.Errorf("expected 502, got %d", rec.Code)
+		}
+		if countJobs(ts) != before {
+			t.Error("failed transcription must not enqueue a job")
+		}
+	})
+}
+
+func countJobs(ts *testServer) int {
+	jobs, total, _ := ts.Queue.ListJobs(context.Background(), "all", 1000, 0)
+	_ = jobs
+	return total
 }

@@ -182,6 +182,8 @@ func (w *Worker) processJob(jobID string) {
 		notePath, processErr = ingest.IngestText(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts, w.memCfg)
 	case "image":
 		notePath, processErr = ingest.IngestImage(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts, w.memCfg)
+	case "voice":
+		notePath, processErr = ingest.IngestVoice(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts, w.memCfg)
 	case "pdf":
 		notePath, processErr = ingest.IngestPDF(ctx, job, w.vault, w.queue, w.llm, w.chunkOpts, w.memCfg)
 	case "article":

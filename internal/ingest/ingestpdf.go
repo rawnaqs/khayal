@@ -17,10 +17,30 @@ import (
 )
 
 // IngestPDF processes a captured PDF: the text layer was extracted at
-// capture time and rides in job.Content. Enrichment mirrors IngestText
-// (tags, summary, key ideas, entities, chunks); the stored PDF lives in
-// the media dir and is linked via source_file.
+// capture time and rides in job.Content.
 func IngestPDF(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt, chunkOpts chunk.Options, memCfg config.MemoryConfig) (string, error) {
+	return ingestWithFile(ctx, job, v, q, llmClient, chunkOpts, memCfg, "pdf", pdfTitle)
+}
+
+// IngestVoice processes a voice capture: the transcript was produced at
+// capture time and rides in job.Content; the audio file is linked.
+func IngestVoice(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt, chunkOpts chunk.Options, memCfg config.MemoryConfig) (string, error) {
+	return ingestWithFile(ctx, job, v, q, llmClient, chunkOpts, memCfg, "voice", voiceTitle)
+}
+
+// voiceTitle: transcripts describe themselves; truncate long openers.
+func voiceTitle(sourceFile, content string) string {
+	first := extractTitle(content)
+	if len(first) > 60 {
+		first = first[:60]
+	}
+	return first
+}
+
+// ingestWithFile is the shared pipeline for captured-file notes (pdf,
+// voice): enrichment mirrors IngestText and source_file links the
+// stored file in the media dir.
+func ingestWithFile(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Queue, llmClient llm.LLMExt, chunkOpts chunk.Options, memCfg config.MemoryConfig, noteType string, titleFn func(string, string) string) (string, error) {
 	var tags []string
 	var summary string
 	var keyIdeas []string
@@ -55,7 +75,7 @@ func IngestPDF(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Qu
 	}
 	entities := NormalizeEntities(rawEntities)
 
-	title := pdfTitle(job.SourceFile, job.Content)
+	title := titleFn(job.SourceFile, job.Content)
 	now := time.Now().UTC()
 	entities.ResolveRelativeDates(now)
 	rescuePeople(ctx, q, &entities, job.Content)
@@ -64,7 +84,7 @@ func IngestPDF(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Qu
 		Metadata: vault.NoteMetadata{
 			Created:    job.CreatedAt,
 			Updated:    &now,
-			Type:       "pdf",
+			Type:       noteType,
 			Status:     "done",
 			Tags:       tags,
 			SourceFile: job.SourceFile,
