@@ -82,6 +82,12 @@ search:
   chunk_min_words: 50        # smaller fragments merge into the previous chunk
   chunk_overlap_words: 35    # words carried between consecutive chunks
 
+stt:
+  enabled: false             # voice capture; requires a transcription service
+  endpoint: ""               # e.g. http://127.0.0.1:9001/v1/audio/transcriptions
+  api: openai                # openai | whispercpp (whisper.cpp server /inference)
+  model: ""                  # optional; omit for whisper.cpp default
+
 connections:
   enabled: true              # master switch for proactive connections
   min_age_days: 7            # never surface notes younger than this (explicit 0 = same-day allowed)

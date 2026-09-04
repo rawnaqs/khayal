@@ -1274,6 +1274,38 @@ Deduplication:
   If same note qualifies for multiple types → show once, use highest priority
 ```
 
+### PDF Capture (v1.2)
+
+`kl pdf report.pdf` or the PWA img/pdf tab. The PDF is stored in the
+vault media dir; the text layer is extracted at capture time
+(ledongthuc/pdf, pure Go, per-page skip so partially-scanned PDFs still
+capture, 200k-char cap). The extracted text rides the standard
+enrichment pipeline as a pdf-type note — tags, summary, key ideas,
+entities, chunks, connections — with `source_file` linking the stored
+PDF. Note titles prefer the uploaded filename, falling back to the
+first content line (media storage renames uploads to timestamps).
+
+### Voice Capture (v1.2)
+
+Recorded in the PWA (MediaRecorder; preview + re-record before submit),
+POSTed to `/v1/capture/audio`. The server stores the audio in vault
+media and transcribes synchronously via a pluggable STT service —
+transcription failure aborts the capture (502, nothing enqueued); STT
+not configured returns 503 with a setup hint. The transcript rides the
+standard pipeline as a voice-type note.
+
+```yaml
+stt:
+  enabled: true
+  endpoint: http://127.0.0.1:9001/v1/audio/transcriptions
+  api: openai        # openai (/v1/audio/transcriptions) | whispercpp (/inference)
+  model: whisper-small-turbo   # omit for whisper.cpp default
+```
+
+Works with any OpenAI-compatible transcription server
+(faster-whisper-server, speaches) or a whisper.cpp server. No ambient
+capture — recording is always explicit.
+
 ### Capture Response
 
 ```json
@@ -1547,7 +1579,7 @@ v1.1  → Chunking + entity extraction + connections (similar, person, amount)
       + capture intelligence (relative-date resolution + LLM context memory,
       phase 2.5) + search overview (on-demand AI answer, phase 2.6)
       + user-facing delete note (soft-delete, in vault commands) + backup
-v1.2  → connections (contradiction, follow_up, revisit) + voice notes + PDF
+v1.2  ✅ → connections (contradiction, follow_up, revisit) + voice notes + PDF
 v1.3  → Graph connections, backlinks
 v1.4  → YouTube / video ingestion
 v1.5  → Browser extension (github.com/rawnaqs/khayal-browser)

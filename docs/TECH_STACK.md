@@ -29,6 +29,7 @@
 | Full-Text Search | SQLite FTS5 | Built-in |
 | Vector Search | Pure Go cosine similarity | No external dependencies, batch processing |
 | Backup Encryption | filippo.io/age | v1.2.0 | Embedded, pure Go; armored X25519 |
+| PDF Extraction | ledongthuc/pdf | latest | Pure Go text layer, per-page skip |
 
 **Notes:**
 - Uses `modernc.org/sqlite` for pure Go SQLite (no CGO, no system dependencies)

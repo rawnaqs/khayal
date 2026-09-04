@@ -44,7 +44,7 @@ Khayal and Obsidian are complementary. Khayal is a capture and retrieval layer �
 
 ## Features
 
-- **Capture** — Text, images, URLs, articles with zero friction (voice notes and PDF ingestion on the roadmap)
+- **Capture** — Text, images, URLs, articles, **PDFs** (text extracted automatically), and **voice notes** (transcribed via your own STT service) with zero friction
 - **Process** — Tags, summaries, key ideas, entities (people, amounts, dates, places, orgs, URLs) via local LLM
 - **Proactive connections** — after every capture, khayal resurfaces related thoughts, shared people, matching amounts, **contradictions of things you wrote**, unfinished follow-ups, and ideas you keep revisiting
 - **Capture intelligence** — relative dates resolved at capture; an LLM-maintained memory file keeps naming consistent across months
@@ -249,6 +249,7 @@ All on your machine. Back up the vault directory — it's plain markdown (or use
 | `kl "text"` | Capture text |
 | `kl url "https://..."` | Capture URL |
 | `kl image <path>` | Capture image |
+| `kl pdf <path>` | Capture a PDF (text extracted automatically) |
 | `kl search "query"` | Search vault (`--answer` adds a grounded AI answer) |
 | `kl delete <path-or-id>` | Soft-delete a note (moved to `.khayal-trash/`) |
 | `kl recent` | Recent captures |
@@ -272,7 +273,7 @@ tail -f ~/.config/khayal/logs/khayal.log   # view logs
 
 Web interface at `http://127.0.0.1:1133`
 
-- Capture text, URLs, images
+- Capture text, URLs, images, PDFs, and voice notes (recorded in the browser)
 - Search with excerpts + on-demand **AI answers** with citations
 - **Live queue** — job status streams over WebSocket, connection flares on finished captures
 - **Note reader** — image previews, entity chips that jump to search, linked notes with reasons, copy-as-markdown
@@ -297,7 +298,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 - **v1.0** ✅ — Core capture, search, CLI, PWA
 - **v1.1** ✅ — Chunking, entity extraction, proactive connections, capture intelligence, AI answers, delete, vault commands, encrypted backups
-- **v1.2** 🚧 — Contradiction / follow-up / revisit connections ✅ · voice notes · PDF ingestion
+- **v1.2** ✅ — Contradiction / follow-up / revisit connections · voice notes · PDF ingestion
 - **v1.3** — Graph connections, backlinks
 - **v1.4** — YouTube / video ingestion
 - **v1.5** — Browser extension

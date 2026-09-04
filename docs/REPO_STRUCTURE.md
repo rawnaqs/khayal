@@ -49,6 +49,7 @@ khayal/
 │           ├── capture_image.go    # Image capture
 │           ├── search.go           # Search vault
 │           ├── delete.go           # Soft-delete a note (kl delete)
+│           ├── capture_pdf.go      # PDF capture (kl pdf)
 │           ├── recent.go           # Recent captures
 │           ├── stats.go            # Vault statistics
 │           ├── status.go           # Lightweight check
@@ -318,6 +319,7 @@ Private application code. Not importable by external packages.
 | `queue/` | Job queue, FTS5 + semantic search, entity/chunk stores |
 | `backup/` | Encrypted backup (age) and additive-merge restore |
 | `events/` | In-process pub-sub hub for realtime job updates |
+| `stt/` | Speech-to-text clients (OpenAI-compatible, whisper.cpp) |
 | `connections/` | Proactive connections |
 | `config/` | Configuration management |
 | `version/` | Version info |

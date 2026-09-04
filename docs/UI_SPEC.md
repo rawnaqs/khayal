@@ -602,6 +602,19 @@ const modes = ['hybrid', 'keyword', 'semantic']
 
 ---
 
+## Capture tabs — img/pdf + voice (v1.2)
+
+```tsx
+// img/pdf tab: file picker accepts images + .pdf; server routes by
+//   uploaded filename extension (PDFs extract text at capture time)
+// voice tab: MediaRecorder mic capture — start/stop with live timer,
+//   audio preview + re-record before submit; permission denied shows
+//   inline hint; uploads to /v1/capture/audio (token header)
+// STT not configured: server 503 surfaces as an error toast with hint
+```
+
+---
+
 ## Note view — full upgrade (v1.2)
 
 ```tsx
