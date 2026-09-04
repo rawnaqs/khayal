@@ -54,7 +54,7 @@ export const ImageCapture = forwardRef<ImageCaptureRef, ImageCaptureProps>(
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
+          accept="image/*,.pdf"
           onChange={handleFileChange}
           className="hidden"
         />

@@ -37,6 +37,8 @@ function getTypeIcon(type: string) {
       return <Link className="w-4 h-4" />;
     case "image":
       return <Image className="w-4 h-4" />;
+    case "pdf":
+      return <FileText className="w-4 h-4" style={{ color: "#e8b86d" }} />;
     default:
       return <FileText className="w-4 h-4" />;
   }

@@ -29,7 +29,7 @@ interface CaptureViewProps {
 export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureViewProps) {
   const [mode, setMode] = useState<CaptureMode>('text')
   const [initialContent, setInitialContent] = useState<string | undefined>(undefined)
-  const { loading, result, error, errorCode, isOffline, processingTime, capture, uploadImage, clear } = useCapture()
+  const { loading, result, error, errorCode, isOffline, processingTime, capture, uploadFile, clear } = useCapture()
   const { stats, loading: statsLoading } = useStats()
 
   const textRef = useRef<TextCaptureRef>(null)
@@ -60,7 +60,7 @@ export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureVie
   }
 
   const handleImageUpload = async (file: File, note?: string) => {
-    await uploadImage(file, note)
+    await uploadFile(file, note)
   }
 
   const handleSend = () => {
@@ -86,7 +86,7 @@ export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureVie
     switch (mode) {
       case 'text': return 'cmd+enter to capture'
       case 'url': return 'article · will extract content'
-      case 'image': return 'image · will be describe'
+      case 'image': return 'image or pdf · will be processed'
     }
   }
 
@@ -100,7 +100,7 @@ export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureVie
         <div className="pills">
           <span className={cn('tp', mode === 'text' && 'on')} onClick={() => setMode('text')}>txt</span>
           <span className={cn('tp', mode === 'url' && 'on')} onClick={() => setMode('url')}>url</span>
-          <span className={cn('tp', mode === 'image' && 'on')} onClick={() => setMode('image')}>img</span>
+          <span className={cn('tp', mode === 'image' && 'on')} onClick={() => setMode('image')}>img/pdf</span>
         </div>
 
         {/* Content area */}

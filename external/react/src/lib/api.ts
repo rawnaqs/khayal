@@ -184,7 +184,7 @@ export class KhayalClient {
     return this.request<CaptureResponse>('POST', '/v1/capture', req)
   }
 
-  async uploadImage(file: File, note?: string): Promise<CaptureResponse> {
+  async uploadFile(file: File, note?: string): Promise<CaptureResponse> {
     const formData = new FormData()
     formData.append('file', file)
     if (note) formData.append('note', note)

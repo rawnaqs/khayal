@@ -245,6 +245,7 @@ export function SearchView({ onCaptureQuery, onNoteSelect, deletedPaths, initial
                 <span className={cn('fc', typeFilter === 'text' && 'on')} onClick={() => setTypeFilter('text')}>text</span>
                 <span className={cn('fc', typeFilter === 'article' && 'on')} onClick={() => setTypeFilter('article')}>article</span>
                 <span className={cn('fc', typeFilter === 'image' && 'on')} onClick={() => setTypeFilter('image')}>image</span>
+                  <span className={cn('fc', typeFilter === 'pdf' && 'on')} onClick={() => setTypeFilter('pdf')}>pdf</span>
               </div>
             </div>
             <div className="no-results" style={{ paddingTop: 40 }}>
@@ -267,6 +268,7 @@ export function SearchView({ onCaptureQuery, onNoteSelect, deletedPaths, initial
                 <span className={cn('fc', typeFilter === 'text' && 'on')} onClick={() => setTypeFilter('text')}>text</span>
                 <span className={cn('fc', typeFilter === 'article' && 'on')} onClick={() => setTypeFilter('article')}>article</span>
                 <span className={cn('fc', typeFilter === 'image' && 'on')} onClick={() => setTypeFilter('image')}>image</span>
+                  <span className={cn('fc', typeFilter === 'pdf' && 'on')} onClick={() => setTypeFilter('pdf')}>pdf</span>
               </div>
             </div>
             <div className="results">

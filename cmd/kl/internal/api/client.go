@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 )
@@ -429,6 +430,60 @@ func (c *Client) GetJob(id string) (*QueueJobResponse, error) {
 		return nil, fmt.Errorf("job lookup failed with status %d", resp.StatusCode)
 	}
 	var result QueueJobResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+	return &result, nil
+}
+
+// CapturePDF uploads a PDF for text extraction and ingestion. The server
+// detects PDFs by the uploaded filename's extension.
+func (c *Client) CapturePDF(pdfPath, note string) (*CaptureResponse, error) {
+	file, err := os.Open(pdfPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open pdf: %w", err)
+	}
+	defer file.Close()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("file", filepath.Base(pdfPath))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create form file: %w", err)
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return nil, fmt.Errorf("failed to copy file: %w", err)
+	}
+	if note != "" {
+		if err := writer.WriteField("note", note); err != nil {
+			return nil, err
+		}
+	}
+	if err := writer.WriteField("type", "pdf"); err != nil {
+		return nil, err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", c.Host+"/v1/capture", body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Khayal-Token", c.Token)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("capture failed with status %d", resp.StatusCode)
+	}
+	var result CaptureResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}

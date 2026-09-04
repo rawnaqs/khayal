@@ -6,7 +6,7 @@ import { useCapture } from '../useCapture'
 vi.mock('@/lib/api', () => ({
   createClient: vi.fn(() => ({
     capture: vi.fn(),
-    uploadImage: vi.fn(),
+    uploadFile: vi.fn(),
   })),
 }))
 
@@ -176,7 +176,7 @@ describe('useCapture', () => {
     const file = new File(['test'], 'test.png', { type: 'image/png' })
 
     await act(async () => {
-      await result.current.uploadImage(file, 'test note')
+      await result.current.uploadFile(file, 'test note')
     })
 
     expect(result.current.error).toBe('Image upload requires connection')

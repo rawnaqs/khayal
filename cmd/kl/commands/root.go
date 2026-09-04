@@ -23,6 +23,7 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.AddCommand(
 		newCaptureUrlCmd(),
 		newCaptureImageCmd(),
+		newCapturePDFCmd(),
 		newSearchCmd(),
 		newRecentCmd(),
 		newDeleteCmd(),

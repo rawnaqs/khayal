@@ -58,7 +58,7 @@ export const GREETINGS = [
 ] as const;
 
 // Type filters for search
-export const TYPE_FILTERS = ["all", "text", "article", "image"] as const;
+export const TYPE_FILTERS = ["all", "text", "article", "image", "pdf"] as const;
 
 // Search modes
 export const SEARCH_MODES = ["hybrid", "keyword", "semantic"] as const;
