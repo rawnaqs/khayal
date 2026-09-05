@@ -2575,7 +2575,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 16px;
+    padding: 14px 16px;
     border-radius: 12px;
     background: rgba(255, 99, 99, 0.04);
     border: 1px solid rgba(255, 99, 99, 0.25);
@@ -2607,38 +2607,40 @@
 
   .voice-rec-time {
     font-family: "IBM Plex Mono", monospace;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
     color: rgba(245, 245, 245, 0.8);
     letter-spacing: 1px;
+    min-width: 48px;
   }
 
+  /* Compact centered equalizer — fixed pixel heights, no stretching */
   .voice-rec-bars {
     display: flex;
-    align-items: center;
-    gap: 3px;
-    flex: 1;
-    height: 20px;
+    align-items: flex-end;
+    gap: 4px;
+    height: 16px;
+    margin: 0 auto;
   }
 
   .voice-rec-bars span {
-    width: 3px;
+    width: 4px;
     border-radius: 2px;
-    background: rgba(255, 99, 99, 0.55);
+    background: rgba(255, 99, 99, 0.6);
     animation: voice-bar 0.9s ease-in-out infinite;
   }
 
-  .voice-rec-bars span:nth-child(1) { height: 30%; animation-delay: 0s; }
-  .voice-rec-bars span:nth-child(2) { height: 70%; animation-delay: 0.15s; }
-  .voice-rec-bars span:nth-child(3) { height: 100%; animation-delay: 0.3s; }
-  .voice-rec-bars span:nth-child(4) { height: 55%; animation-delay: 0.45s; }
-  .voice-rec-bars span:nth-child(5) { height: 80%; animation-delay: 0.6s; }
+  .voice-rec-bars span:nth-child(1) { height: 6px; animation-delay: 0s; }
+  .voice-rec-bars span:nth-child(2) { height: 12px; animation-delay: 0.15s; }
+  .voice-rec-bars span:nth-child(3) { height: 16px; animation-delay: 0.3s; }
+  .voice-rec-bars span:nth-child(4) { height: 9px; animation-delay: 0.45s; }
+  .voice-rec-bars span:nth-child(5) { height: 13px; animation-delay: 0.6s; }
 
   @keyframes voice-bar {
 
     0%,
     100% {
-      transform: scaleY(0.4);
+      transform: scaleY(0.45);
     }
 
     50% {
@@ -2652,6 +2654,7 @@
     color: rgba(245, 245, 245, 0.25);
     letter-spacing: 0.5px;
     text-transform: uppercase;
+    flex-shrink: 0;
   }
 
   .voice-review {
@@ -2662,6 +2665,12 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    height: fit-content;
+  }
+
+  .voice-idle,
+  .voice-rec {
+    height: fit-content;
   }
 
   .voice-review-head {
