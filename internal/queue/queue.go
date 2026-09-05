@@ -520,6 +520,12 @@ func (q *Queue) DeleteJob(ctx context.Context, id string) error {
 	return err
 }
 
+// ingestTypesFilter excludes enricher jobs (connections, memory) from
+// note_path-based joins: since the path-wipe fix they share the ingest
+// note's path and would otherwise surface as duplicate results with
+// the enricher's type.
+const ingestTypesFilter = ` AND j.type NOT IN ('connections','memory')`
+
 func (q *Queue) SearchKeyword(ctx context.Context, query string, limit int, from, to *time.Time) ([]SearchResult, error) {
 	baseSQL := `
 		SELECT j.id, j.note_path, j.type, j.created_at,
@@ -527,7 +533,7 @@ func (q *Queue) SearchKeyword(ctx context.Context, query string, limit int, from
 			   bm25(notes_fts, 0, 3.0, 1.0, 1.0) as bm25_score
 		FROM notes_fts fts
 		JOIN jobs j ON fts.note_path = j.note_path
-		WHERE notes_fts MATCH ?`
+		WHERE notes_fts MATCH ?` + ingestTypesFilter
 
 	args := []any{query}
 
@@ -1955,7 +1961,7 @@ func (q *Queue) GetNotesByEntity(ctx context.Context, entityValue, entityType st
 		SELECT e.note_path, j.created_at
 		FROM entities e
 		JOIN jobs j ON e.note_path = j.note_path
-		WHERE LOWER(e.entity_value) = LOWER(?) AND e.entity_type = ? AND j.created_at < ?
+		WHERE LOWER(e.entity_value) = LOWER(?) AND e.entity_type = ? AND j.created_at < ?`+ingestTypesFilter+`
 		GROUP BY e.note_path
 		ORDER BY j.created_at DESC
 		LIMIT 10`,
@@ -2251,7 +2257,7 @@ func (q *Queue) FindFollowupCandidates(ctx context.Context, person string, keywo
 			JOIN entities e ON e.note_path = j.note_path
 				AND e.entity_type = 'person' AND LOWER(e.entity_value) = LOWER(?)
 			JOIN notes_fts f ON f.note_path = j.note_path AND notes_fts MATCH ?
-			WHERE j.status = 'done' AND j.created_at <= ? AND j.note_path != ?
+			WHERE j.status = 'done' AND j.created_at <= ? AND j.note_path != ?`+ingestTypesFilter+`
 			ORDER BY j.created_at ASC LIMIT 5`,
 			variant, match, before.UTC().Format(time.RFC3339), excludePath)
 		if err != nil {
@@ -2290,7 +2296,7 @@ func (q *Queue) PersonMentionedSince(ctx context.Context, person string, since t
 			SELECT DISTINCT j.note_path FROM jobs j
 			JOIN entities e ON e.note_path = j.note_path
 			WHERE e.entity_type = 'person' AND LOWER(e.entity_value) = LOWER(?)
-			  AND j.created_at > ?`, variant, since.UTC().Format(time.RFC3339))
+			  AND j.created_at > ?`+ingestTypesFilter, variant, since.UTC().Format(time.RFC3339))
 		if err != nil {
 			return false, err
 		}
@@ -2331,7 +2337,7 @@ func rowsContainsExcluded(rows *sql.Rows, excludes []string) bool {
 func (q *Queue) GetNoteContent(ctx context.Context, notePath string) (string, error) {
 	var content sql.NullString
 	err := q.db.QueryRowContext(ctx,
-		`SELECT content FROM jobs WHERE note_path = ? AND content IS NOT NULL AND content != ''
+		`SELECT content FROM jobs WHERE note_path = ? AND content IS NOT NULL AND content != ''`+ingestTypesFilter+`
 		 ORDER BY created_at DESC LIMIT 1`, notePath).Scan(&content)
 	if err == nil && strings.TrimSpace(content.String) != "" {
 		return content.String, nil
