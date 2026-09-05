@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react'
-import { Mic, RotateCcw } from 'lucide-react'
+import { Mic, RotateCcw, Play, Pause } from 'lucide-react'
 
 export interface VoiceCaptureRef {
   submit: () => void
@@ -17,9 +17,9 @@ function pickMime(): string | undefined {
   return MIME_CANDIDATES.find((m) => MediaRecorder.isTypeSupported(m))
 }
 
-function formatSeconds(total: number): string {
+function formatClock(total: number): string {
   const mm = String(Math.floor(total / 60)).padStart(2, '0')
-  const ss = String(total % 60).padStart(2, '0')
+  const ss = String(Math.floor(total % 60)).padStart(2, '0')
   return `${mm}:${ss}`
 }
 
@@ -34,6 +34,8 @@ export const VoiceCapture = forwardRef<VoiceCaptureRef, VoiceCaptureProps>(
     const chunksRef = useRef<Blob[]>([])
     const blobRef = useRef<Blob | null>(null)
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+    const secondsRef = useRef(0)
+    const previewUrlRef = useRef<string | null>(null)
 
     const stop = useCallback(() => {
       recorderRef.current?.stop()
@@ -43,6 +45,10 @@ export const VoiceCapture = forwardRef<VoiceCaptureRef, VoiceCaptureProps>(
 
     const start = useCallback(async () => {
       setError(null)
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current)
+        previewUrlRef.current = null
+      }
       setPreviewUrl(null)
       setDuration(0)
       blobRef.current = null
@@ -59,18 +65,25 @@ export const VoiceCapture = forwardRef<VoiceCaptureRef, VoiceCaptureProps>(
           const type = mimeType?.split(';')[0] || 'audio/webm'
           const blob = new Blob(chunksRef.current, { type })
           blobRef.current = blob
-          setDuration(seconds)
-          setPreviewUrl(URL.createObjectURL(blob))
+          // read the live value — the closure's `seconds` is stale (0)
+          setDuration(secondsRef.current)
+          const url = URL.createObjectURL(blob)
+          previewUrlRef.current = url
+          setPreviewUrl(url)
         }
         recorder.start()
         recorderRef.current = recorder
         setRecording(true)
+        secondsRef.current = 0
         setSeconds(0)
-        timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000)
+        timerRef.current = setInterval(() => {
+          secondsRef.current += 1
+          setSeconds(secondsRef.current)
+        }, 1000)
       } catch {
         setError('Microphone access denied — allow the mic and try again.')
       }
-    }, [seconds])
+    }, [])
 
     useImperativeHandle(ref, () => ({
       submit: () => {
@@ -101,7 +114,7 @@ export const VoiceCapture = forwardRef<VoiceCaptureRef, VoiceCaptureProps>(
         {recording && (
           <div className="voice-rec" onClick={stop} data-testid="voice-stop">
             <span className="voice-rec-dot" />
-            <span className="voice-rec-time">{formatSeconds(seconds)}</span>
+            <span className="voice-rec-time">{formatClock(seconds)}</span>
             <div className="voice-rec-bars">
               <span />
               <span />
@@ -116,12 +129,12 @@ export const VoiceCapture = forwardRef<VoiceCaptureRef, VoiceCaptureProps>(
         {!recording && previewUrl && (
           <div className="voice-review" data-testid="voice-review">
             <div className="voice-review-head">
-              <span className="voice-review-label">voice note · {formatSeconds(duration)}</span>
+              <span className="voice-review-label">voice note · {formatClock(duration)}</span>
               <div className="img-rm" onClick={start} title="re-record">
                 <RotateCcw className="w-3 h-3" />
               </div>
             </div>
-            <audio controls src={previewUrl} className="voice-preview" />
+            <VoicePlayer src={previewUrl} recordedDuration={duration} />
             <div className="img-drop-sub" style={{ textAlign: 'center' }}>
               ready — tap send to transcribe
             </div>
@@ -133,3 +146,70 @@ export const VoiceCapture = forwardRef<VoiceCaptureRef, VoiceCaptureProps>(
     )
   },
 )
+
+// VoicePlayer: custom playback bar — play/pause, seekable gold progress,
+// current/total time. Replaces the raw <audio controls>.
+function VoicePlayer({ src, recordedDuration }: { src: string; recordedDuration: number }) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [playing, setPlaying] = useState(false)
+  const [current, setCurrent] = useState(0)
+  const [total, setTotal] = useState(recordedDuration)
+
+  const toggle = () => {
+    const el = audioRef.current
+    if (!el) return
+    if (playing) {
+      el.pause()
+    } else {
+      el.play().catch(() => {})
+    }
+  }
+
+  const seek = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = audioRef.current
+    if (!el || !Number.isFinite(el.duration)) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const ratio = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1)
+    el.currentTime = ratio * el.duration
+    setCurrent(el.currentTime)
+  }
+
+  const pct = total > 0 ? Math.min((current / total) * 100, 100) : 0
+
+  return (
+    <div className="vplayer" data-testid="voice-player">
+      <button
+        className="vplayer-btn"
+        onClick={toggle}
+        data-testid="voice-player-toggle"
+        title={playing ? 'pause' : 'play'}
+      >
+        {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" style={{ marginLeft: 2 }} />}
+      </button>
+      <div className="vplayer-body">
+        <div className="vplayer-track" onClick={seek} data-testid="voice-player-track">
+          <div className="vplayer-fill" style={{ width: `${pct}%` }} />
+        </div>
+        <div className="vplayer-times">
+          <span>{formatClock(current)}</span>
+          <span>{formatClock(total)}</span>
+        </div>
+      </div>
+      <audio
+        ref={audioRef}
+        src={src}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false)
+          setCurrent(0)
+        }}
+        onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
+        onLoadedMetadata={(e) => {
+          const d = e.currentTarget.duration
+          if (Number.isFinite(d) && d > 0) setTotal(d)
+        }}
+      />
+    </div>
+  )
+}

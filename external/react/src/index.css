@@ -2677,9 +2677,75 @@
     letter-spacing: 0.4px;
   }
 
-  .voice-preview {
-    width: 100%;
-    height: 36px;
+  /* Custom voice player — replaces native <audio controls> */
+  .vplayer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .vplayer-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0d0d0d;
+    background: var(--gl, #e8b86d);
+    border: none;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.15s;
+  }
+
+  .vplayer-btn:hover {
+    background: #f0c987;
+  }
+
+  .vplayer-btn:active {
+    transform: scale(0.92);
+  }
+
+  .vplayer-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .vplayer-track {
+    position: relative;
+    height: 5px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    overflow: hidden;
+  }
+
+  .vplayer-track:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .vplayer-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--gold, #c9933a), var(--gl, #e8b86d));
+    transition: width 0.12s linear;
+  }
+
+  .vplayer-times {
+    display: flex;
+    justify-content: space-between;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9px;
+    color: rgba(245, 245, 245, 0.3);
   }
 
   .voice-error {
