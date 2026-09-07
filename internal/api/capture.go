@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -360,6 +361,18 @@ func (s *Server) handleAudioCapture(w http.ResponseWriter, r *http.Request) {
 			"code", "STT_FAILED",
 			"error", transcribeErr,
 		)
+		if errors.Is(transcribeErr, stt.ErrTimeout) {
+			// The load often continues server-side after our timeout:
+			// ask the service to preload so the retry succeeds, and tell
+			// the user the wait is expected once.
+			if s.config.STT.Model != "" {
+				go sttClient.PreloadModel(context.Background())
+			}
+			WriteError(w,
+				"STT timed out — the model is likely still loading after idle. It has been asked to preload; try again in ~30 seconds.",
+				"STT_TIMEOUT", http.StatusBadGateway)
+			return
+		}
 		WriteError(w, "transcription failed: "+transcribeErr.Error(), "STT_FAILED", http.StatusBadGateway)
 		return
 	}

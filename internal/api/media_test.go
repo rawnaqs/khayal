@@ -255,3 +255,53 @@ func TestAudioCaptureUnloadAfter(t *testing.T) {
 		}
 	})
 }
+
+// A timed-out transcription must fire the async preload and tell the
+// user to retry — the load often completes server-side right after.
+func TestAudioCaptureTimeoutPreloads(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.close()
+
+	var preload atomic.Bool
+	slowSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/v1/models/") && r.Method == http.MethodPost:
+			preload.Store(true)
+			w.WriteHeader(http.StatusOK)
+		case r.URL.Path == "/v1/audio/transcriptions":
+			// sleep past the 1s client timeout configured below
+			time.Sleep(2 * time.Second)
+		}
+	}))
+	defer slowSrv.Close()
+
+	on := true
+	timeoutS := 1
+	ts.Config.STT = config.STTConfig{Enabled: &on, Endpoint: slowSrv.URL + "/v1/audio/transcriptions",
+		API: "openai", Model: "Systran/faster-whisper-tiny", TimeoutS: &timeoutS}
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, _ := writer.CreateFormFile("file", "note.webm")
+	part.Write([]byte("FAKE"))
+	writer.Close()
+	req := httptest.NewRequest(http.MethodPost, "/v1/capture/audio", body)
+	req.Header.Set("X-Khayal-Token", "test-token")
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	rec := httptest.NewRecorder()
+	ts.Server.handleAudioCapture(rec, req)
+
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "try again") {
+		t.Errorf("expected actionable retry message, got: %s", rec.Body.String())
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for !preload.Load() && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !preload.Load() {
+		t.Error("expected async preload to fire on timeout")
+	}
+}

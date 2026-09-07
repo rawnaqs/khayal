@@ -5,13 +5,20 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"strings"
 	"time"
 )
+
+// ErrTimeout is returned when the STT service accepts the request but
+// does not answer within the client timeout — typically the model
+// loading from disk (or downloading) after an idle period.
+var ErrTimeout = errors.New("stt service timed out (model may be loading)")
 
 // Client transcribes audio via an external STT HTTP service.
 type Client struct {
@@ -69,6 +76,10 @@ func (c *Client) Transcribe(ctx context.Context, filename string, audio []byte, 
 
 	resp, err := c.http.Do(req)
 	if err != nil {
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return "", ErrTimeout
+		}
 		return "", fmt.Errorf("stt request: %w", err)
 	}
 	defer resp.Body.Close()
@@ -94,6 +105,31 @@ func (c *Client) Transcribe(ctx context.Context, filename string, audio []byte, 
 		return "", fmt.Errorf("decode stt response: %w", err)
 	}
 	return parsed.Text, nil
+}
+
+// PreloadModel asks a speaches-style service to load the model from its
+// disk cache into memory (POST {base}/v1/models/{model}). Best-effort:
+// errors swallowed — this is a warmup, not a requirement. Generic
+// OpenAI-compatible servers without this route just 404 harmlessly.
+func (c *Client) PreloadModel(ctx context.Context) {
+	if c.model == "" {
+		return
+	}
+	base := c.endpoint
+	for _, suffix := range []string{"/v1/audio/transcriptions", "/inference"} {
+		base = strings.TrimSuffix(base, suffix)
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(callCtx, http.MethodPost, base+"/v1/models/"+c.model, nil)
+	if err != nil {
+		return
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
 }
 
 // UnloadModel asks a speaches-style service to release the model from
