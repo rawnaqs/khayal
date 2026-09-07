@@ -87,6 +87,10 @@ stt:
   endpoint: ""               # e.g. http://127.0.0.1:9001/v1/audio/transcriptions
   api: openai                # openai | whispercpp (whisper.cpp server /inference)
   model: ""                  # optional; omit for whisper.cpp default
+  # Any server speaking the OpenAI /v1/audio/transcriptions contract works:
+  #   faster-whisper-server, speaches, vx/whishper — or whisper.cpp's own
+  #   server via api: whispercpp. Run one next to khayal on the same box:
+  #   docker run -p 9001:8000 fedirz/faster-whisper-server --model tiny
 
 connections:
   enabled: true              # master switch for proactive connections

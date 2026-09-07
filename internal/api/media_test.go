@@ -165,3 +165,29 @@ func countJobs(ts *testServer) int {
 	_ = jobs
 	return total
 }
+
+// Health must advertise STT capability so the PWA can hide the voice tab.
+func TestHealthReportsSTT(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.close()
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/health", nil)
+	req.Header.Set("X-Khayal-Token", "test-token")
+	rec := httptest.NewRecorder()
+	ts.Server.healthHandler(rec, req)
+
+	var resp struct {
+		STT *struct {
+			Enabled bool `json:"enabled"`
+		} `json:"stt"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.STT == nil {
+		t.Fatal("expected stt capability object, got nil")
+	}
+	if resp.STT.Enabled {
+		t.Error("stt must be disabled in the default test config")
+	}
+}

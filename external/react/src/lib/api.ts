@@ -62,6 +62,7 @@ export interface HealthResponse {
     vault: { status: string }
     llm: { status: string; host?: string }
   }
+  stt?: { enabled: boolean }
 }
 
 export interface QueueOptions {

@@ -25,6 +25,10 @@ vi.mock('@/hooks/useCapture', () => ({
   }),
 }))
 
+vi.mock('@/hooks/useServerStatus', () => ({
+  useServerStatus: () => ({ status: 'ok', health: { stt: { enabled: true } } }),
+}))
+
 vi.mock('@/hooks/useStats', () => ({
   useStats: () => ({
     stats: null,

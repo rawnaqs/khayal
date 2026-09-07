@@ -9,6 +9,7 @@ import { CaptureResult } from './CaptureResult'
 import { CaptureStats } from './CaptureStats'
 import { useCapture } from '@/hooks/useCapture'
 import { useStats } from '@/hooks/useStats'
+import { useServerStatus } from '@/hooks/useServerStatus'
 import { cn } from '@/lib/utils'
 import { TIMEOUTS, GREETINGS } from '@/lib/constants'
 
@@ -32,6 +33,8 @@ export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureVie
   const [initialContent, setInitialContent] = useState<string | undefined>(undefined)
   const { loading, result, error, errorCode, isOffline, processingTime, capture, uploadFile, uploadVoice, clear } = useCapture()
   const { stats, loading: statsLoading } = useStats()
+  const { health } = useServerStatus()
+  const sttEnabled = health?.stt?.enabled === true
 
   const textRef = useRef<TextCaptureRef>(null)
   const urlRef = useRef<UrlCaptureRef>(null)
@@ -68,6 +71,12 @@ export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureVie
   const handleVoiceUpload = async (file: File, note?: string) => {
     await uploadVoice(file, note)
   }
+
+  // Voice tab disappears when STT isn't configured; don't strand the
+  // user on a mode that no longer exists.
+  useEffect(() => {
+    if (!sttEnabled && mode === 'voice') setMode('text')
+  }, [sttEnabled, mode])
 
   const handleSend = () => {
     switch (mode) {
@@ -111,7 +120,9 @@ export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureVie
           <span className={cn('tp', mode === 'text' && 'on')} onClick={() => setMode('text')}>txt</span>
           <span className={cn('tp', mode === 'url' && 'on')} onClick={() => setMode('url')}>url</span>
           <span className={cn('tp', mode === 'image' && 'on')} onClick={() => setMode('image')}>img/pdf</span>
-          <span className={cn('tp', mode === 'voice' && 'on')} onClick={() => setMode('voice')}>voice</span>
+          {sttEnabled && (
+            <span className={cn('tp', mode === 'voice' && 'on')} onClick={() => setMode('voice')}>voice</span>
+          )}
         </div>
 
         {/* Content area */}
