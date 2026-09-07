@@ -1302,9 +1302,13 @@ stt:
   model: whisper-small-turbo   # omit for whisper.cpp default
 ```
 
-Works with any OpenAI-compatible transcription server
-(faster-whisper-server, speaches) or a whisper.cpp server. No ambient
-capture — recording is always explicit.
+Works with any OpenAI-compatible transcription server or a whisper.cpp
+server. Recommended: **speaches** (CPU-friendly, OpenAI contract) —
+shipped as an optional docker-compose profile. Speaches requires the
+`model` field per request (set `stt.model`, e.g.
+`Systran/faster-whisper-tiny`) and models preload via
+`POST /v1/models/{model_id}`. No ambient capture — recording is always
+explicit.
 
 ### Capture Response
 

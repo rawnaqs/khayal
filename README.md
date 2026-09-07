@@ -44,7 +44,7 @@ Khayal and Obsidian are complementary. Khayal is a capture and retrieval layer �
 
 ## Features
 
-- **Capture** — Text, images, URLs, articles, **PDFs** (text extracted automatically), and **voice notes** (transcribed via your own STT service) with zero friction
+- **Capture** — Text, images, URLs, articles, **PDFs** (text extracted automatically), and **voice notes** (transcribed via your own STT service — speaches ships as an optional docker-compose profile) with zero friction
 - **Process** — Tags, summaries, key ideas, entities (people, amounts, dates, places, orgs, URLs) via local LLM
 - **Proactive connections** — after every capture, khayal resurfaces related thoughts, shared people, matching amounts, **contradictions of things you wrote**, unfinished follow-ups, and ideas you keep revisiting
 - **Capture intelligence** — relative dates resolved at capture; an LLM-maintained memory file keeps naming consistent across months

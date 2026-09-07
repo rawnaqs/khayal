@@ -86,11 +86,16 @@ stt:
   enabled: false             # voice capture; requires a transcription service
   endpoint: ""               # e.g. http://127.0.0.1:9001/v1/audio/transcriptions
   api: openai                # openai | whispercpp (whisper.cpp server /inference)
-  model: ""                  # optional; omit for whisper.cpp default
-  # Any server speaking the OpenAI /v1/audio/transcriptions contract works:
-  #   faster-whisper-server, speaches, vx/whishper — or whisper.cpp's own
-  #   server via api: whispercpp. Run one next to khayal on the same box:
-  #   docker run -p 9001:8000 fedirz/faster-whisper-server --model tiny
+  model: ""                  # REQUIRED by speaches; optional for whisper.cpp
+  # Recommended: speaches (OpenAI-compatible, CPU-friendly). Ships as an
+  # optional profile in docker-compose.yml:
+  #   docker compose --profile stt up -d speaches
+  # Preload the model once (models are NOT pre-baked into the image):
+  #   curl -X POST http://127.0.0.1:9001/v1/models/Systran/faster-whisper-tiny
+  # Then point khayal at it:
+  #   endpoint: http://127.0.0.1:9001/v1/audio/transcriptions
+  #   model: Systran/faster-whisper-tiny
+  # whisper.cpp's own server also works via api: whispercpp.
 
 connections:
   enabled: true              # master switch for proactive connections
