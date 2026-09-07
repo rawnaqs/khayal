@@ -489,3 +489,68 @@ func (c *Client) CapturePDF(pdfPath, note string) (*CaptureResponse, error) {
 	}
 	return &result, nil
 }
+
+// CaptureAudio uploads a voice recording; the server transcribes it via
+// the configured STT service and enqueues a voice note.
+func (c *Client) CaptureAudio(audioPath, note string) (*CaptureResponse, error) {
+	file, err := os.Open(audioPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open audio: %w", err)
+	}
+	defer file.Close()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("file", filepath.Base(audioPath))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create form file: %w", err)
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return nil, fmt.Errorf("failed to copy file: %w", err)
+	}
+	if note != "" {
+		if err := writer.WriteField("note", note); err != nil {
+			return nil, err
+		}
+	}
+	if err := writer.WriteField("type", "voice"); err != nil {
+		return nil, err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", c.Host+"/v1/capture/audio", body)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("X-Khayal-Token", c.Token)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	// Transcription is synchronous server-side and can exceed the default
+	// client timeout (model reloads after idle, long recordings).
+	longClient := *c.client
+	longClient.Timeout = 180 * time.Second
+
+	resp, err := longClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusServiceUnavailable {
+		return nil, fmt.Errorf("voice capture is not configured on the server (stt.endpoint)")
+	}
+	if resp.StatusCode == http.StatusBadGateway {
+		return nil, fmt.Errorf("transcription failed on the server")
+	}
+	if resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("capture failed with status %d", resp.StatusCode)
+	}
+	var result CaptureResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+	return &result, nil
+}

@@ -24,6 +24,7 @@ func NewRootCmd() *cobra.Command {
 		newCaptureUrlCmd(),
 		newCaptureImageCmd(),
 		newCapturePDFCmd(),
+		newCaptureVoiceCmd(),
 		newSearchCmd(),
 		newRecentCmd(),
 		newDeleteCmd(),

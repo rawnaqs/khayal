@@ -250,6 +250,7 @@ All on your machine. Back up the vault directory — it's plain markdown (or use
 | `kl url "https://..."` | Capture URL |
 | `kl image <path>` | Capture image |
 | `kl pdf <path>` | Capture a PDF (text extracted automatically) |
+| `kl voice [file]` | Capture a voice note — record from mic, or upload an audio file |
 | `kl search "query"` | Search vault (`--answer` adds a grounded AI answer) |
 | `kl delete <path-or-id>` | Soft-delete a note (moved to `.khayal-trash/`) |
 | `kl recent` | Recent captures |

@@ -1287,8 +1287,18 @@ first content line (media storage renames uploads to timestamps).
 
 ### Voice Capture (v1.2)
 
-Recorded in the PWA (MediaRecorder; preview + re-record before submit),
-POSTed to `/v1/capture/audio`. The server stores the audio in vault
+Two capture surfaces:
+
+- **PWA**: recorded in-browser (MediaRecorder; preview + re-record
+  before submit), POSTed to `/v1/capture/audio`. The voice tab is
+  hidden until STT is configured (health advertises the capability).
+- **CLI**: `kl voice [file]` — with a file argument, uploads an
+  existing recording; without, records from the mic via the best
+  available platform recorder (arecord on Linux, sox/rec elsewhere;
+  ctrl+c stops, temp file uploaded then removed). Go has no stdlib mic
+  access, so recording shells out; uploading a file always works.
+
+Both surfaces POST to `/v1/capture/audio`. The server stores the audio in vault
 media and transcribes synchronously via a pluggable STT service —
 transcription failure aborts the capture (502, nothing enqueued); STT
 not configured returns 503 with a setup hint. The transcript rides the
