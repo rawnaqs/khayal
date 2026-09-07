@@ -9,7 +9,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/rawnaqs/khayal/internal/config"
 )
@@ -190,4 +193,65 @@ func TestHealthReportsSTT(t *testing.T) {
 	if resp.STT.Enabled {
 		t.Error("stt must be disabled in the default test config")
 	}
+}
+
+func TestAudioCaptureUnloadAfter(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.close()
+
+	var unloadCalled atomic.Bool
+	sttSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/audio/transcriptions" && r.Method == http.MethodPost:
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"text":"hello"}`))
+		case strings.HasPrefix(r.URL.Path, "/api/ps/") && r.Method == http.MethodDelete:
+			unloadCalled.Store(true)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer sttSrv.Close()
+
+	on := true
+	post := func() {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+		part, _ := writer.CreateFormFile("file", "note.webm")
+		part.Write([]byte("FAKE"))
+		writer.Close()
+		req := httptest.NewRequest(http.MethodPost, "/v1/capture/audio", body)
+		req.Header.Set("X-Khayal-Token", "test-token")
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		rec := httptest.NewRecorder()
+		ts.Server.handleAudioCapture(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("capture status %d", rec.Code)
+		}
+	}
+
+	t.Run("unload fires when enabled", func(t *testing.T) {
+		ts.Config.STT = config.STTConfig{Enabled: &on, Endpoint: sttSrv.URL + "/v1/audio/transcriptions",
+			API: "openai", Model: "Systran/faster-whisper-tiny", UnloadAfter: true}
+		unloadCalled.Store(false)
+		post()
+		deadline := time.Now().Add(3 * time.Second)
+		for !unloadCalled.Load() && time.Now().Before(deadline) {
+			time.Sleep(20 * time.Millisecond)
+		}
+		if !unloadCalled.Load() {
+			t.Error("expected unload DELETE to fire")
+		}
+	})
+
+	t.Run("no unload when disabled", func(t *testing.T) {
+		ts.Config.STT = config.STTConfig{Enabled: &on, Endpoint: sttSrv.URL + "/v1/audio/transcriptions",
+			API: "openai", Model: "Systran/faster-whisper-tiny"}
+		unloadCalled.Store(false)
+		post()
+		if unloadCalled.Load() {
+			t.Error("unload must not fire when disabled")
+		}
+	})
 }

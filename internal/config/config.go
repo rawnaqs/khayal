@@ -212,11 +212,21 @@ type STTConfig struct {
 	Model string `yaml:"model"`
 	// TimeoutS for a transcription call; nil -> 120.
 	TimeoutS *int `yaml:"timeout_s"`
+	// UnloadAfter asks the STT service to release the model from memory
+	// after each transcription (speaches: DELETE /api/ps/{model_id}).
+	// RAM-lean profile for small boxes; trades reload latency on the
+	// next capture. Weights stay on disk — no re-download. Default false.
+	UnloadAfter bool `yaml:"unload_after"`
 }
 
 // STTEnabled resolves the enabled flag (default false).
 func (c STTConfig) STTEnabled() bool {
 	return c.Enabled != nil && *c.Enabled
+}
+
+// STTUnloadAfter resolves the release-after-capture knob.
+func (c STTConfig) STTUnloadAfter() bool {
+	return c.UnloadAfter
 }
 
 // STTTimeout resolves the transcription timeout (default 120s).

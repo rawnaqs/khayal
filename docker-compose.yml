@@ -18,7 +18,7 @@ services:
     ports:
       - "9001:8000"
     volumes:
-      - ${KHAYAL_STT_MODELS:-~/.cache/huggingface}:/root/.cache/huggingface
+      - ${KHAYAL_STT_MODELS:-~/.cache/huggingface}:/home/ubuntu/.cache/huggingface
     # Model is not pre-baked — preload once after first start:
     #   curl -X POST http://127.0.0.1:9001/v1/models/Systran/faster-whisper-tiny
     # khayal must also set stt.model to the same id (speaches requires it).

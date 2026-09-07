@@ -359,6 +359,14 @@ func (s *Server) handleAudioCapture(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	transcript = strings.TrimSpace(transcript)
+
+	// RAM-lean profile: ask the STT service to drop the model from memory.
+	// Weights stay in its disk cache — the next capture reloads, never
+	// re-downloads. Fired async with its own short timeout: the endpoint
+	// can hang under racing calls, and that must never stall the capture.
+	if s.config.STT.STTUnloadAfter() && s.config.STT.Model != "" {
+		go sttClient.UnloadModel(context.Background())
+	}
 	if transcript == "" {
 		WriteError(w, "transcription was empty", "STT_EMPTY", http.StatusBadGateway)
 		return

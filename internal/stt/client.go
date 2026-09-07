@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -93,4 +94,30 @@ func (c *Client) Transcribe(ctx context.Context, filename string, audio []byte, 
 		return "", fmt.Errorf("decode stt response: %w", err)
 	}
 	return parsed.Text, nil
+}
+
+// UnloadModel asks a speaches-style service to release the model from
+// memory (DELETE {base}/api/ps/{model}). Best-effort by contract: the
+// call uses its own short timeout and swallows all errors — the capture
+// has already succeeded, and a hung unload must never delay the
+// response. The base URL is derived from the transcription endpoint.
+func (c *Client) UnloadModel(ctx context.Context) {
+	if c.model == "" {
+		return
+	}
+	base := c.endpoint
+	for _, suffix := range []string{"/v1/audio/transcriptions", "/inference"} {
+		base = strings.TrimSuffix(base, suffix)
+	}
+	callCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(callCtx, http.MethodDelete, base+"/api/ps/"+c.model, nil)
+	if err != nil {
+		return
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
 }
