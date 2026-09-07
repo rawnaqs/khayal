@@ -349,13 +349,18 @@ func (s *Server) handleAudioCapture(w http.ResponseWriter, r *http.Request) {
 	timeout := time.Duration(s.config.STT.STTTimeout()) * time.Second
 	sttClient := stt.New(s.config.STT.Endpoint, s.config.STT.API, s.config.STT.Model, timeout)
 	ctx := context.Background()
-	transcript, err := sttClient.Transcribe(ctx, header.Filename, audio, header.Header.Get("Content-Type"))
-	if err != nil {
+	var transcript string
+	transcribeErr := s.withSTTSlot(func() error {
+		var err error
+		transcript, err = sttClient.Transcribe(ctx, header.Filename, audio, header.Header.Get("Content-Type"))
+		return err
+	})
+	if transcribeErr != nil {
 		s.logger.Warn("audio capture failed",
 			"code", "STT_FAILED",
-			"error", err,
+			"error", transcribeErr,
 		)
-		WriteError(w, "transcription failed: "+err.Error(), "STT_FAILED", http.StatusBadGateway)
+		WriteError(w, "transcription failed: "+transcribeErr.Error(), "STT_FAILED", http.StatusBadGateway)
 		return
 	}
 	transcript = strings.TrimSpace(transcript)

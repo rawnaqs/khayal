@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"sync"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/rawnaqs/khayal/internal/api/middleware"
 	"github.com/rawnaqs/khayal/internal/config"
@@ -28,6 +30,7 @@ type Server struct {
 	config      *config.Config
 	queue       *queue.Queue
 	hub         *events.Hub
+	sttMu       sync.Mutex
 	vault       *vault.Writer
 	vaultReader *vault.Reader
 	llm         llm.LLMExt
@@ -52,6 +55,14 @@ func NewServer(cfg *config.Config, q *queue.Queue, v *vault.Writer, l llm.LLMExt
 
 // SetHub installs the event hub backing the WebSocket endpoint.
 func (s *Server) SetHub(h *events.Hub) { s.hub = h }
+
+// withSTTSlot serializes transcription calls: STT services (speaches)
+// wedge when a second model load overlaps an in-flight one.
+func (s *Server) withSTTSlot(fn func() error) error {
+	s.sttMu.Lock()
+	defer s.sttMu.Unlock()
+	return fn()
+}
 
 func (s *Server) setupRouter() {
 	s.router = chi.NewRouter()

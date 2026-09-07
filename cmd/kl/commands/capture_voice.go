@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/rawnaqs/khayal/cmd/kl/internal"
 	klapi "github.com/rawnaqs/khayal/cmd/kl/internal/api"
@@ -102,7 +103,33 @@ func newCaptureVoiceCmd() *cobra.Command {
 			}
 
 			client := klapi.NewClient(cfg.Host, cfg.Token)
+
+			// Live feedback: server-side transcription is synchronous and
+			// can legitimately take 30s+ (model reload after idle). A
+			// silent wait looks frozen.
+			stopTicker := make(chan struct{})
+			done := make(chan struct{})
+			go func() {
+				start := time.Now()
+				t := time.NewTicker(2 * time.Second)
+				defer t.Stop()
+				for {
+					select {
+					case <-stopTicker:
+						fmt.Print("\r\033[K")
+						close(done)
+						return
+					case <-t.C:
+						fmt.Printf("\r\033[K%s", theme.ProcessingStyle.Render(
+							fmt.Sprintf("⏳ uploading · server transcribing… %ds", int(time.Since(start).Seconds()))))
+					}
+				}
+			}()
+
 			result, err := client.CaptureAudio(audioPath, voiceNote)
+			close(stopTicker)
+			<-done
+			fmt.Println()
 			if err != nil {
 				if recorded := len(args) == 0; recorded {
 					os.Remove(audioPath)

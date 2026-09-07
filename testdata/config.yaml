@@ -27,6 +27,12 @@ llm:
   truncate_image_tokens: 3000
   truncate_article_tokens: 12000
 
+stt:
+  enabled: true             # voice capture; requires a transcription service
+  endpoint: "http://127.0.0.1:9001/v1/audio/transcriptions"               # e.g. http://127.0.0.1:9001/v1/audio/transcriptions
+  api: openai                # openai | whispercpp (whisper.cpp server /inference)
+  model: "Systran/faster-whisper-tiny"                  # REQUIRED by speaches; optional for whisper.cpp
+
 worker:
   max_workers: 1
   max_retries: 3
