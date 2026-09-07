@@ -29,9 +29,10 @@ llm:
 
 stt:
   enabled: true             # voice capture; requires a transcription service
-  endpoint: "http://127.0.0.1:9001/v1/audio/transcriptions"               # e.g. http://127.0.0.1:9001/v1/audio/transcriptions
-  api: openai                # openai | whispercpp (whisper.cpp server /inference)
-  model: "Systran/faster-whisper-tiny"                  # REQUIRED by speaches; optional for whisper.cpp
+  endpoint: "http://127.0.0.1:9001/v1/audio/transcriptions"
+  api: openai               # openai | whispercpp (whisper.cpp server /inference)
+  model: "Systran/faster-whisper-tiny"  # REQUIRED by speaches; optional for whisper.cpp
+  unload_after: true        # release the model from RAM after each capture
 
 worker:
   max_workers: 1
@@ -63,6 +64,9 @@ connections:
     similar: true
     person: true
     amount: true
+    contradiction: true
+    follow_up: true
+    revisit: true
 
 memory:
   enabled: true             # nil=on; false disables retrieval AND injection

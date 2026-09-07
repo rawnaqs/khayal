@@ -1948,7 +1948,7 @@ vault:
     strategy:
       image: vault                     # saved inside vault, linked relatively
       pdf: vault                       # saved inside vault
-      audio: config                    # saved in ~/.config/khayal/media/
+      audio: vault                     # saved inside vault media dir
       video: config                    # transcript goes to vault, raw file stays here
 
 server:
