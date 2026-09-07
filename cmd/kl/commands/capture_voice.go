@@ -89,7 +89,7 @@ func newCaptureVoiceCmd() *cobra.Command {
 				go func() {
 					<-stop
 					// graceful: let the recorder flush its file
-					cmdProc.Process.Signal(os.Interrupt)
+					_ = cmdProc.Process.Signal(os.Interrupt)
 				}()
 				_ = cmdProc.Wait()
 				signal.Stop(stop)
