@@ -1,8 +1,8 @@
-import type { QueueJob } from '@/lib/api'
-import { PROCESSING_STEPS } from '@/lib/constants'
+import { Check } from 'lucide-react'
+import type { Pipeline } from '@/lib/pipeline'
 
 interface ActiveJobCardProps {
-  job: QueueJob
+  pipeline: Pipeline
 }
 
 function timeAgo(dateStr: string) {
@@ -18,22 +18,19 @@ function timeAgo(dateStr: string) {
   }
 }
 
-function getSteps(type: string): string[] {
-  return PROCESSING_STEPS[type] || ['saved', 'processing']
-}
-
-export function ActiveJobCard({ job }: ActiveJobCardProps) {
-  const steps = getSteps(job.type)
+export function ActiveJobCard({ pipeline }: ActiveJobCardProps) {
+  const doneCount = pipeline.steps.filter((s) => s.state === 'done').length
+  const pct = (doneCount / pipeline.steps.length) * 100
 
   return (
     <>
       <div className="sec">now processing</div>
-      <div className="hero-card">
+      <div className="hero-card" data-testid="pipeline-card">
         <div className="hero-top">
           <div>
-            <div className="hero-filename">{job.note_path || job.type}</div>
+            <div className="hero-filename">{pipeline.title}</div>
             <div className="hero-meta">
-              {job.type} · {timeAgo(job.created_at)}
+              {pipeline.type} · {timeAgo(pipeline.createdAt)}
             </div>
           </div>
           <div className="hero-badge">
@@ -42,14 +39,16 @@ export function ActiveJobCard({ job }: ActiveJobCardProps) {
           </div>
         </div>
         <div className="prog-labels">
-          {steps.map((step, i) => (
-            <span key={step} className={`prog-step ${i === 0 ? 'done' : ''}`}>
-              {step}
+          {pipeline.steps.map((step, i) => (
+            <span key={step.label + i} className={`prog-step ${step.state}`} title={step.label}>
+              {step.state === 'done' && <Check className="w-2.5 h-2.5 inline" style={{ marginRight: 2, verticalAlign: -1 }} />}
+              {step.label}
             </span>
           ))}
         </div>
         <div className="prog-bar">
-          <div className="prog-fill" style={{ animation: 'indeterminate 2s linear infinite' }} />
+          <div className="prog-fill" style={{ width: `${pct}%` }} />
+          {pct < 100 && <div className="prog-fill-live" />}
         </div>
       </div>
     </>

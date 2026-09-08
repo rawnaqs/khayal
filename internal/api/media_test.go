@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -77,12 +76,6 @@ func TestMediaHandler(t *testing.T) {
 			t.Errorf("expected 404, got %d body %s", rec.Code, rec.Body.String())
 		}
 	})
-}
-
-func countJobs(ts *testServer) int {
-	jobs, total, _ := ts.Queue.ListJobs(context.Background(), "all", 1000, 0)
-	_ = jobs
-	return total
 }
 
 // Health must advertise STT capability so the PWA can hide the voice tab.

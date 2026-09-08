@@ -24,12 +24,6 @@ export const SEARCH_SUGGESTIONS = [
 ];
 
 // Processing steps by capture type
-export const PROCESSING_STEPS: Record<string, string[]> = {
-  text: ["saved", "tagging", "summarizing", "writing"],
-  image: ["saved", "describing", "tagging", "writing"],
-  article: ["saved", "extracting", "summarizing", "writing"],
-};
-
 // Limits
 export const LIMITS = {
   SEARCH_RESULTS: 20,

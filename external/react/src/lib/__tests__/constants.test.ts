@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   STORAGE_KEYS,
   SEARCH_SUGGESTIONS,
-  PROCESSING_STEPS,
   LIMITS,
   TIMEOUTS,
   GREETINGS,
@@ -26,27 +25,6 @@ describe('constants.ts', () => {
       SEARCH_SUGGESTIONS.forEach((suggestion) => {
         expect(typeof suggestion).toBe('string')
       })
-    })
-  })
-
-  describe('PROCESSING_STEPS', () => {
-    it('should have steps for text, image, and article', () => {
-      expect(PROCESSING_STEPS.text).toBeDefined()
-      expect(PROCESSING_STEPS.image).toBeDefined()
-      expect(PROCESSING_STEPS.article).toBeDefined()
-    })
-
-    it('should have saved as first step for all types', () => {
-      expect(PROCESSING_STEPS.text[0]).toBe('saved')
-      expect(PROCESSING_STEPS.image[0]).toBe('saved')
-      expect(PROCESSING_STEPS.article[0]).toBe('saved')
-    })
-
-    it('should have writing as last step for text and article', () => {
-      const textSteps = PROCESSING_STEPS.text
-      const articleSteps = PROCESSING_STEPS.article
-      expect(textSteps[textSteps.length - 1]).toBe('writing')
-      expect(articleSteps[articleSteps.length - 1]).toBe('writing')
     })
   })
 

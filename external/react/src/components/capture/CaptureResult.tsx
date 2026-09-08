@@ -1,6 +1,6 @@
 import { Check, Loader2, Zap, X, AlertTriangle } from 'lucide-react'
 import type { CaptureResponse } from '@/lib/api'
-import { PROCESSING_STEPS } from '@/lib/constants'
+import { STAGE_LABELS } from '@/lib/pipeline'
 
 interface CaptureResultProps {
   result: CaptureResponse | null
@@ -13,7 +13,7 @@ interface CaptureResultProps {
 }
 
 function getStepsForType(type: string): string[] {
-  return PROCESSING_STEPS[type] || PROCESSING_STEPS.text
+  return STAGE_LABELS[type] || STAGE_LABELS.text
 }
 
 function parseError(error: string): { code: string; message: string } {
@@ -49,8 +49,8 @@ function SuccessTile({ result, processingTime, onDismiss }: { result: CaptureRes
 
 function QueuedTile({ result, onDismiss }: { result: CaptureResponse; onDismiss: () => void }) {
   const steps = getStepsForType(result.type)
-  // Simulate: saved=done, others=waiting
-  const activeStep = 1
+  // CaptureResponse means the job is enqueued: stage 0 active, rest ahead
+  const activeStep = 0
 
   return (
     <div className="tile tile-q">
