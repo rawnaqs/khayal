@@ -1,7 +1,7 @@
 import { STORAGE_KEYS } from './constants'
 
 export interface CaptureRequest {
-  type: 'text' | 'url' | 'image' | 'voice'
+  type: 'text' | 'url' | 'image'
   content: string
 }
 

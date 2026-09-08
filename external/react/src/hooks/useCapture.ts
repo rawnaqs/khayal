@@ -12,7 +12,7 @@ export function useCapture() {
   const [isOffline, setIsOffline] = useState(false)
   const [processingTime, setProcessingTime] = useState<number | undefined>(undefined)
 
-  const capture = async (type: 'text' | 'url' | 'image' | 'voice', content: string) => {
+  const capture = async (type: 'text' | 'url' | 'image', content: string) => {
     setLoading(true)
     setError(null)
     setErrorCode(undefined)

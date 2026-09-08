@@ -187,8 +187,22 @@ All phases complete on main. See [SPEC.md](./SPEC.md) for full details.
 | Queue UX | connection flares, note opening from queue, full-history pagination, skeletons, logout |
 | PWA infra | service-worker immediate updates (no stale bundles) |
 
-Deferred to v1.2: contradiction/follow_up/revisit connection types,
-shell completion.
+## v1.2 — SHIPPED
+
+Connection types 4–6 + PDF ingestion complete. See SPEC.md for details.
+
+| Feature | What landed |
+|---------|-------------|
+| Contradiction (Type 4) | top-5 semantic candidates ≥ 0.80 → LLM verdict per candidate, strict JSON, fail-open |
+| Follow-ups (Type 5) | FTS intent keywords × shared person, 14-day floor, completion-suppression via variant-aware lookups |
+| Revisit (Type 6) | 3+ semantic matches spanning >6 months → one bookend connection |
+| Name-variant joins | Sara/Sarah-style spellings resolve to the same human (case/prefix/edit-distance matching at read time) |
+| Type-diversity ranking | per (note_path, type) dedupe + one slot per present type — floods can't silence rare detectors |
+| PDF ingestion | `kl pdf` / PWA file tab; pure-Go text extraction at capture, rides the standard pipeline |
+| Notes UI overhaul | image previews, entity chips → search, copy-as-markdown, linked notes with reason badges, typography pass |
+
+Deferred: voice capture (local STT models not mature — see SPEC Voice
+Capture section). Shell completion remains deferred.
 
 ---
 
