@@ -71,3 +71,73 @@ func TestTranscribeServerErrorFails(t *testing.T) {
 		t.Error("expected error on 500")
 	}
 }
+
+// Looping hallucinations ("Hello? x30", counting numbers) must be dropped:
+// segments with extreme compression ratios or high no-speech probability
+// are filtered; clean segments survive.
+func TestTranscribeFiltersHallucinatedSegments(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.FormValue("response_format") != "verbose_json" {
+			t.Errorf("expected verbose_json request, got %q", r.FormValue("response_format"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"text": "Hello? Hello? Hello? actual words here",
+			"segments": [
+				{"text": "Hello? Hello? Hello?", "compression_ratio": 13.5, "no_speech_prob": 0.49},
+				{"text": "actual words here", "compression_ratio": 1.4, "no_speech_prob": 0.02}
+			]
+		}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL+"/v1/audio/transcriptions", "openai", "m", 5*time.Second)
+	text, err := c.Transcribe(context.Background(), "a.webm", []byte("A"), "audio/webm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text != "actual words here" {
+		t.Errorf("looped segment survived: %q", text)
+	}
+}
+
+// All-hallucinated audio (noise, music) yields an empty transcript so the
+// caller reports "couldn't hear clear speech" instead of saving garbage.
+func TestTranscribeAllHallucinatedYieldsEmpty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"text": "2 2 2 2 3 3 4 4",
+			"segments": [
+				{"text": "2 2 2 2 3 3 4 4", "compression_ratio": 8.0, "no_speech_prob": 0.7}
+			]
+		}`))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL+"/v1/audio/transcriptions", "openai", "m", 5*time.Second)
+	text, err := c.Transcribe(context.Background(), "a.webm", []byte("A"), "audio/webm")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text != "" {
+		t.Errorf("expected empty after filtering, got %q", text)
+	}
+}
+
+// Plain-text responses (non-JSON) still work via fallback.
+func TestTranscribePlainTextFallback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("plain transcript no json"))
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL+"/v1/audio/transcriptions", "openai", "m", 5*time.Second)
+	text, err := c.Transcribe(context.Background(), "a.wav", []byte("A"), "audio/wav")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if text != "plain transcript no json" {
+		t.Errorf("got %q", text)
+	}
+}

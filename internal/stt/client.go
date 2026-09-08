@@ -63,6 +63,11 @@ func (c *Client) Transcribe(ctx context.Context, filename string, audio []byte, 
 		if err := writer.WriteField("temperature", "0"); err != nil {
 			return "", err
 		}
+	} else {
+		// verbose_json exposes per-segment compression_ratio / no_speech_prob
+		if err := writer.WriteField("response_format", "verbose_json"); err != nil {
+			return "", err
+		}
 	}
 	if err := writer.Close(); err != nil {
 		return "", err
@@ -97,15 +102,46 @@ func (c *Client) Transcribe(ctx context.Context, filename string, audio []byte, 
 		return string(b), nil
 	}
 
-	// OpenAI-compatible: {"text": "..."}
+	// OpenAI-compatible: request verbose_json so hallucinated segments can
+	// be detected and dropped. Small whisper models famously loop on short
+	// clips ("Hello? Hello? x30", counting numbers) — those segments show
+	// extreme compression ratios (normal speech stays under ~2.4) or
+	// high no-speech probability.
+	rawBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
 	var parsed struct {
-		Text string `json:"text"`
+		Text     string `json:"text"`
+		Segments []struct {
+			Text         string  `json:"text"`
+			Compression  float64 `json:"compression_ratio"`
+			NoSpeechProb float64 `json:"no_speech_prob"`
+		} `json:"segments"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
-		return "", fmt.Errorf("decode stt response: %w", err)
+	if err := json.Unmarshal(rawBody, &parsed); err != nil {
+		// plain-text response (whispercpp-style): return as-is
+		return string(rawBody), nil
 	}
-	return parsed.Text, nil
+	if len(parsed.Segments) == 0 {
+		return strings.TrimSpace(parsed.Text), nil
+	}
+
+	var kept []string
+	for _, seg := range parsed.Segments {
+		if seg.Compression > maxSegmentCompression || seg.NoSpeechProb > maxNoSpeechProb {
+			continue // hallucinated loop / silence
+		}
+		kept = append(kept, seg.Text)
+	}
+	return strings.TrimSpace(strings.Join(kept, " ")), nil
 }
+
+// thresholds mirror faster-whisper's own defaults
+const (
+	maxSegmentCompression = 2.4
+	maxNoSpeechProb       = 0.9
+)
 
 // PreloadModel asks a speaches-style service to load the model from its
 // disk cache into memory (POST {base}/v1/models/{model}). Best-effort:
