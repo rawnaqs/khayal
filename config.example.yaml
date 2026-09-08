@@ -87,6 +87,9 @@ stt:
   endpoint: ""               # e.g. http://127.0.0.1:9001/v1/audio/transcriptions
   api: openai                # openai | whispercpp (whisper.cpp server /inference)
   model: ""                  # REQUIRED by speaches; optional for whisper.cpp
+  unload_after: false        # keep false for speaches: its current version
+                             # wedges on explicit unload; the native 300s
+                             # idle offload handles RAM release safely
   # Recommended: speaches (OpenAI-compatible, CPU-friendly). Ships as an
   # optional profile in docker-compose.yml:
   #   docker compose --profile stt up -d speaches

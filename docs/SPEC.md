@@ -1310,7 +1310,13 @@ stt:
   endpoint: http://127.0.0.1:9001/v1/audio/transcriptions
   api: openai        # openai (/v1/audio/transcriptions) | whispercpp (/inference)
   model: whisper-small-turbo   # omit for whisper.cpp default
+  unload_after: false
 ```
+
+RAM note: speaches natively offloads the model after 300s idle — leave
+`unload_after: false`. Its current version wedges on explicit unload
+requests (khayal's knob exists for other services; observe behavior
+with speaches before enabling).
 
 Works with any OpenAI-compatible transcription server or a whisper.cpp
 server. Recommended: **speaches** (CPU-friendly, OpenAI contract) —

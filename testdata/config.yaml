@@ -32,7 +32,7 @@ stt:
   endpoint: "http://127.0.0.1:9001/v1/audio/transcriptions"
   api: openai               # openai | whispercpp (whisper.cpp server /inference)
   model: "Systran/faster-whisper-tiny"  # REQUIRED by speaches; optional for whisper.cpp
-  unload_after: true        # release the model from RAM after each capture
+  unload_after: false       # WARNING: speaches current version wedges on explicit unload; its native 300s idle offload handles RAM release
 
 worker:
   max_workers: 1
