@@ -11,7 +11,7 @@
 <!-- TODO: add asciinema recording or terminal screenshot here -->
 <img src="charm-vhs-tape/khayal.gif" alt="Khayal demo" />
 
-A local-first, privacy-focused second brain. Capture anything — text, images, URLs, PDFs, voice. Process locally with your own LLM: tags, summaries, entities, and proactive connections that resurface what you've forgotten. Search semantically and by keyword, or ask AI questions over your own notes. Your data never leaves your machine.
+A local-first, privacy-focused second brain. Capture anything — text, images, URLs, PDFs. Process locally with your own LLM: tags, summaries, entities, and proactive connections that resurface what you've forgotten. Search semantically and by keyword, or ask AI questions over your own notes. Your data never leaves your machine.
 
 ## How It Works
 
@@ -44,7 +44,7 @@ Khayal and Obsidian are complementary. Khayal is a capture and retrieval layer �
 
 ## Features
 
-- **Capture** — Text, images, URLs, articles, **PDFs** (text extracted automatically), and **voice notes** (transcribed via your own STT service — speaches ships as an optional docker-compose profile) with zero friction
+- **Capture** — Text, images, URLs, articles, **PDFs** (text extracted automatically) with zero friction
 - **Process** — Tags, summaries, key ideas, entities (people, amounts, dates, places, orgs, URLs) via local LLM
 - **Proactive connections** — after every capture, khayal resurfaces related thoughts, shared people, matching amounts, **contradictions of things you wrote**, unfinished follow-ups, and ideas you keep revisiting
 - **Capture intelligence** — relative dates resolved at capture; an LLM-maintained memory file keeps naming consistent across months
@@ -250,7 +250,6 @@ All on your machine. Back up the vault directory — it's plain markdown (or use
 | `kl url "https://..."` | Capture URL |
 | `kl image <path>` | Capture image |
 | `kl pdf <path>` | Capture a PDF (text extracted automatically) |
-| `kl voice [file]` | Capture a voice note — record from mic, or upload an audio file |
 | `kl search "query"` | Search vault (`--answer` adds a grounded AI answer) |
 | `kl delete <path-or-id>` | Soft-delete a note (moved to `.khayal-trash/`) |
 | `kl recent` | Recent captures |
@@ -274,7 +273,7 @@ tail -f ~/.config/khayal/logs/khayal.log   # view logs
 
 Web interface at `http://127.0.0.1:1133`
 
-- Capture text, URLs, images, PDFs, and voice notes (recorded in the browser)
+- Capture text, URLs, images, PDFs
 - Search with excerpts + on-demand **AI answers** with citations
 - **Live queue** — job status streams over WebSocket, connection flares on finished captures
 - **Note reader** — image previews, entity chips that jump to search, linked notes with reasons, copy-as-markdown
@@ -299,7 +298,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 - **v1.0** ✅ — Core capture, search, CLI, PWA
 - **v1.1** ✅ — Chunking, entity extraction, proactive connections, capture intelligence, AI answers, delete, vault commands, encrypted backups
-- **v1.2** ✅ — Contradiction / follow-up / revisit connections · voice notes · PDF ingestion
+- **v1.2** ✅ — Contradiction / follow-up / revisit connections · PDF ingestion (voice deferred until local STT models mature)
 - **v1.3** — Graph connections, backlinks
 - **v1.4** — YouTube / video ingestion
 - **v1.5** — Browser extension

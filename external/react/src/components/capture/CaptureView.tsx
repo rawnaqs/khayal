@@ -4,16 +4,14 @@ import { SendHorizontal } from 'lucide-react'
 import { TextCapture, type TextCaptureRef } from './TextCapture'
 import { UrlCapture, type UrlCaptureRef } from './UrlCapture'
 import { ImageCapture, type ImageCaptureRef } from './ImageCapture'
-import { VoiceCapture, type VoiceCaptureRef } from './VoiceCapture'
 import { CaptureResult } from './CaptureResult'
 import { CaptureStats } from './CaptureStats'
 import { useCapture } from '@/hooks/useCapture'
 import { useStats } from '@/hooks/useStats'
-import { useServerStatus } from '@/hooks/useServerStatus'
 import { cn } from '@/lib/utils'
 import { TIMEOUTS, GREETINGS } from '@/lib/constants'
 
-type CaptureMode = 'text' | 'url' | 'image' | 'voice'
+type CaptureMode = 'text' | 'url' | 'image'
 
 function getGreeting(): string {
   const hour = new Date().getHours()
@@ -31,14 +29,11 @@ interface CaptureViewProps {
 export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureViewProps) {
   const [mode, setMode] = useState<CaptureMode>('text')
   const [initialContent, setInitialContent] = useState<string | undefined>(undefined)
-  const { loading, result, error, errorCode, isOffline, processingTime, capture, uploadFile, uploadVoice, clear } = useCapture()
+  const { loading, result, error, errorCode, isOffline, processingTime, capture, uploadFile, clear } = useCapture()
   const { stats, loading: statsLoading } = useStats()
-  const { health } = useServerStatus()
-  const sttEnabled = health?.stt?.enabled === true
 
   const textRef = useRef<TextCaptureRef>(null)
   const urlRef = useRef<UrlCaptureRef>(null)
-  const voiceRef = useRef<VoiceCaptureRef>(null)
   const imageRef = useRef<ImageCaptureRef>(null)
 
   const hasResult = !!(result || error || isOffline)
@@ -68,16 +63,6 @@ export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureVie
     await uploadFile(file, note)
   }
 
-  const handleVoiceUpload = async (file: File, note?: string) => {
-    await uploadVoice(file, note)
-  }
-
-  // Voice tab disappears when STT isn't configured; don't strand the
-  // user on a mode that no longer exists.
-  useEffect(() => {
-    if (!sttEnabled && mode === 'voice') setMode('text')
-  }, [sttEnabled, mode])
-
   const handleSend = () => {
     switch (mode) {
       case 'text':
@@ -88,9 +73,6 @@ export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureVie
         break
       case 'image':
         imageRef.current?.submit()
-        break
-      case 'voice':
-        voiceRef.current?.submit()
         break
     }
   }
@@ -105,7 +87,6 @@ export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureVie
       case 'text': return 'cmd+enter to capture'
       case 'url': return 'article · will extract content'
       case 'image': return 'image or pdf · will be processed'
-      case 'voice': return 'record → transcribed by your stt service'
     }
   }
 
@@ -120,9 +101,6 @@ export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureVie
           <span className={cn('tp', mode === 'text' && 'on')} onClick={() => setMode('text')}>txt</span>
           <span className={cn('tp', mode === 'url' && 'on')} onClick={() => setMode('url')}>url</span>
           <span className={cn('tp', mode === 'image' && 'on')} onClick={() => setMode('image')}>img/pdf</span>
-          {sttEnabled && (
-            <span className={cn('tp', mode === 'voice' && 'on')} onClick={() => setMode('voice')}>voice</span>
-          )}
         </div>
 
         {/* Content area */}
@@ -144,9 +122,6 @@ export function CaptureView({ captureQuery, onCaptureQueryConsumed }: CaptureVie
               )}
               {mode === 'image' && (
                 <ImageCapture ref={imageRef} onUpload={handleImageUpload} loading={loading} />
-              )}
-              {mode === 'voice' && (
-                <VoiceCapture ref={voiceRef} onUpload={handleVoiceUpload} loading={loading} />
               )}
             </motion.div>
           </AnimatePresence>

@@ -62,7 +62,6 @@ export interface HealthResponse {
     vault: { status: string }
     llm: { status: string; host?: string }
   }
-  stt?: { enabled: boolean }
 }
 
 export interface QueueOptions {
@@ -251,26 +250,6 @@ export class KhayalClient {
     })
     if (!resp.ok) throw new Error(`media fetch failed: ${resp.status}`)
     return resp.blob()
-  }
-
-  async uploadVoice(file: File, note?: string): Promise<CaptureResponse> {
-    const formData = new FormData()
-    formData.append('file', file)
-    if (note) formData.append('note', note)
-
-    const response = await fetch(`${this.host}/v1/capture/audio`, {
-      method: 'POST',
-      headers: {
-        'X-Khayal-Token': this.token,
-      },
-      body: formData,
-    })
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Transcription failed' }))
-      throw new Error(error.error || `Voice capture failed: ${response.status}`)
-    }
-    return response.json()
   }
 
   async deleteNote(notePath: string): Promise<{ deleted: boolean; trash_path: string }> {

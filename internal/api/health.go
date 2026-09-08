@@ -13,13 +13,6 @@ type HealthResponse struct {
 	Version      string              `json:"version"`
 	Update       *updater.UpdateInfo `json:"update,omitempty"`
 	Dependencies Dependencies        `json:"dependencies"`
-	STT          *STTCapability      `json:"stt,omitempty"`
-}
-
-// STTCapability tells clients whether voice capture is usable so the
-// PWA can hide the recorder when no transcription service is set up.
-type STTCapability struct {
-	Enabled bool `json:"enabled"`
 }
 
 type Dependencies struct {
@@ -71,9 +64,6 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 		Status:  "ok",
 		Version: version.Get(),
 		Update:  updateInfo,
-		STT: &STTCapability{
-			Enabled: s.config.STT.STTEnabled() && s.config.STT.Endpoint != "",
-		},
 		Dependencies: Dependencies{
 			DB: Dependency{
 				Status: "ok",

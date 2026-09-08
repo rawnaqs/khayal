@@ -229,42 +229,6 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /capture/audio:
-    post:
-      tags:
-        - Capture
-      summary: Capture a voice note
-      description: |
-        Multipart audio upload. The server transcribes synchronously via
-        the configured STT service (config `stt.*`) and enqueues a
-        voice-type note with the transcript. Transcription failure
-        returns 502 with nothing captured; STT not configured returns
-        503. Requires `stt.enabled: true`.
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: Audio recording (webm/opus from MediaRecorder, wav, m4a)
-                note:
-                  type: string
-                  description: Optional user context
-      responses:
-        '201':
-          description: Queued (voice job); see /queue/{id} for status
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '502':
-          description: Transcription failed (STT error or empty transcript)
-        '503':
-          description: STT not configured (set stt.endpoint)
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-
   /queue:
     get:
       tags:

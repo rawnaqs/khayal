@@ -9,17 +9,3 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
-
-  # Optional: speech-to-text for voice notes (api: openai in khayal config).
-  # Enable with: docker compose --profile stt up -d
-  speaches:
-    image: ghcr.io/speaches-ai/speaches:latest-cpu
-    profiles: ["stt"]
-    ports:
-      - "9001:8000"
-    volumes:
-      - ${KHAYAL_STT_MODELS:-~/.cache/huggingface}:/home/ubuntu/.cache/huggingface
-    # Model is not pre-baked — preload once after first start:
-    #   curl -X POST http://127.0.0.1:9001/v1/models/Systran/faster-whisper-tiny
-    # khayal must also set stt.model to the same id (speaches requires it).
-    restart: unless-stopped

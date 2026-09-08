@@ -76,34 +76,6 @@ export function useCapture() {
     }
   }
 
-  const uploadVoice = async (file: File, note?: string) => {
-    setLoading(true)
-    setError(null)
-    setErrorCode(undefined)
-    setResult(null)
-    setIsOffline(false)
-    setProcessingTime(undefined)
-
-    const startTime = performance.now()
-
-    try {
-      if (!navigator.onLine) {
-        setError('Voice capture requires connection')
-        setProcessingTime(Math.round(performance.now() - startTime))
-        return
-      }
-      const client = createClient(token)
-      const response = await client.uploadVoice(file, note)
-      setProcessingTime(Math.round(performance.now() - startTime))
-      setResult(response)
-    } catch (err) {
-      setProcessingTime(Math.round(performance.now() - startTime))
-      setError(err instanceof Error ? err.message : 'Voice capture failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const clear = () => {
     setResult(null)
     setError(null)
@@ -121,7 +93,6 @@ export function useCapture() {
     processingTime,
     capture,
     uploadFile,
-    uploadVoice,
     clear,
   }
 }

@@ -1,20 +1,12 @@
 package api
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"strings"
-	"sync/atomic"
 	"testing"
-	"time"
-
-	"github.com/rawnaqs/khayal/internal/config"
 )
 
 func TestMediaHandler(t *testing.T) {
@@ -87,82 +79,6 @@ func TestMediaHandler(t *testing.T) {
 	})
 }
 
-func TestAudioCapture(t *testing.T) {
-	ts := setupTestServer(t)
-	defer ts.close()
-
-	// fake STT service
-	sttSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"text":"remember to water the plants"}`))
-	}))
-	defer sttSrv.Close()
-	on := true
-	ts.Config.STT = config.STTConfig{Enabled: &on, Endpoint: sttSrv.URL, API: "openai"}
-
-	post := func(url string) *httptest.ResponseRecorder {
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-		part, _ := writer.CreateFormFile("file", "note.webm")
-		part.Write([]byte("FAKEAUDIO"))
-		writer.WriteField("note", "from mic")
-		writer.Close()
-		req := httptest.NewRequest(http.MethodPost, url, body)
-		req.Header.Set("X-Khayal-Token", "test-token")
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-		rec := httptest.NewRecorder()
-		ts.Server.handleAudioCapture(rec, req)
-		return rec
-	}
-
-	t.Run("transcribes and enqueues voice job", func(t *testing.T) {
-		rec := post("/v1/capture/audio")
-		if rec.Code != http.StatusCreated {
-			t.Fatalf("status %d body %s", rec.Code, rec.Body.String())
-		}
-		var resp struct {
-			ID   string `json:"id"`
-			Type string `json:"type"`
-		}
-		json.NewDecoder(rec.Body).Decode(&resp)
-		if resp.Type != "voice" {
-			t.Errorf("type: %s", resp.Type)
-		}
-		job, err := ts.Queue.GetJob(context.Background(), resp.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if job.Content != "remember to water the plants" {
-			t.Errorf("content: %q", job.Content)
-		}
-	})
-
-	t.Run("stt not configured is 503", func(t *testing.T) {
-		off := false
-		ts.Config.STT = config.STTConfig{Enabled: &off}
-		rec := post("/v1/capture/audio")
-		if rec.Code != http.StatusServiceUnavailable {
-			t.Errorf("expected 503, got %d", rec.Code)
-		}
-	})
-
-	t.Run("stt failure is 502 and nothing captured", func(t *testing.T) {
-		failSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusInternalServerError)
-		}))
-		defer failSrv.Close()
-		ts.Config.STT = config.STTConfig{Enabled: &on, Endpoint: failSrv.URL, API: "openai"}
-		before := countJobs(ts)
-		rec := post("/v1/capture/audio")
-		if rec.Code != http.StatusBadGateway {
-			t.Errorf("expected 502, got %d", rec.Code)
-		}
-		if countJobs(ts) != before {
-			t.Error("failed transcription must not enqueue a job")
-		}
-	})
-}
-
 func countJobs(ts *testServer) int {
 	jobs, total, _ := ts.Queue.ListJobs(context.Background(), "all", 1000, 0)
 	_ = jobs
@@ -170,138 +86,5 @@ func countJobs(ts *testServer) int {
 }
 
 // Health must advertise STT capability so the PWA can hide the voice tab.
-func TestHealthReportsSTT(t *testing.T) {
-	ts := setupTestServer(t)
-	defer ts.close()
-
-	req := httptest.NewRequest(http.MethodGet, "/v1/health", nil)
-	req.Header.Set("X-Khayal-Token", "test-token")
-	rec := httptest.NewRecorder()
-	ts.Server.healthHandler(rec, req)
-
-	var resp struct {
-		STT *struct {
-			Enabled bool `json:"enabled"`
-		} `json:"stt"`
-	}
-	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil {
-		t.Fatal(err)
-	}
-	if resp.STT == nil {
-		t.Fatal("expected stt capability object, got nil")
-	}
-	if resp.STT.Enabled {
-		t.Error("stt must be disabled in the default test config")
-	}
-}
-
-func TestAudioCaptureUnloadAfter(t *testing.T) {
-	ts := setupTestServer(t)
-	defer ts.close()
-
-	var unloadCalled atomic.Bool
-	sttSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/v1/audio/transcriptions" && r.Method == http.MethodPost:
-			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"text":"hello"}`))
-		case strings.HasPrefix(r.URL.Path, "/api/ps/") && r.Method == http.MethodDelete:
-			unloadCalled.Store(true)
-			w.WriteHeader(http.StatusNoContent)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	defer sttSrv.Close()
-
-	on := true
-	post := func() {
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-		part, _ := writer.CreateFormFile("file", "note.webm")
-		part.Write([]byte("FAKE"))
-		writer.Close()
-		req := httptest.NewRequest(http.MethodPost, "/v1/capture/audio", body)
-		req.Header.Set("X-Khayal-Token", "test-token")
-		req.Header.Set("Content-Type", writer.FormDataContentType())
-		rec := httptest.NewRecorder()
-		ts.Server.handleAudioCapture(rec, req)
-		if rec.Code != http.StatusCreated {
-			t.Fatalf("capture status %d", rec.Code)
-		}
-	}
-
-	t.Run("unload fires when enabled", func(t *testing.T) {
-		ts.Config.STT = config.STTConfig{Enabled: &on, Endpoint: sttSrv.URL + "/v1/audio/transcriptions",
-			API: "openai", Model: "Systran/faster-whisper-tiny", UnloadAfter: true}
-		unloadCalled.Store(false)
-		post()
-		deadline := time.Now().Add(3 * time.Second)
-		for !unloadCalled.Load() && time.Now().Before(deadline) {
-			time.Sleep(20 * time.Millisecond)
-		}
-		if !unloadCalled.Load() {
-			t.Error("expected unload DELETE to fire")
-		}
-	})
-
-	t.Run("no unload when disabled", func(t *testing.T) {
-		ts.Config.STT = config.STTConfig{Enabled: &on, Endpoint: sttSrv.URL + "/v1/audio/transcriptions",
-			API: "openai", Model: "Systran/faster-whisper-tiny"}
-		unloadCalled.Store(false)
-		post()
-		if unloadCalled.Load() {
-			t.Error("unload must not fire when disabled")
-		}
-	})
-}
-
 // A timed-out transcription must fire the async preload and tell the
 // user to retry — the load often completes server-side right after.
-func TestAudioCaptureTimeoutPreloads(t *testing.T) {
-	ts := setupTestServer(t)
-	defer ts.close()
-
-	var preload atomic.Bool
-	slowSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case strings.HasPrefix(r.URL.Path, "/v1/models/") && r.Method == http.MethodPost:
-			preload.Store(true)
-			w.WriteHeader(http.StatusOK)
-		case r.URL.Path == "/v1/audio/transcriptions":
-			// sleep past the 1s client timeout configured below
-			time.Sleep(2 * time.Second)
-		}
-	}))
-	defer slowSrv.Close()
-
-	on := true
-	timeoutS := 1
-	ts.Config.STT = config.STTConfig{Enabled: &on, Endpoint: slowSrv.URL + "/v1/audio/transcriptions",
-		API: "openai", Model: "Systran/faster-whisper-tiny", TimeoutS: &timeoutS}
-
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	part, _ := writer.CreateFormFile("file", "note.webm")
-	part.Write([]byte("FAKE"))
-	writer.Close()
-	req := httptest.NewRequest(http.MethodPost, "/v1/capture/audio", body)
-	req.Header.Set("X-Khayal-Token", "test-token")
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	rec := httptest.NewRecorder()
-	ts.Server.handleAudioCapture(rec, req)
-
-	if rec.Code != http.StatusBadGateway {
-		t.Fatalf("expected 502, got %d", rec.Code)
-	}
-	if !strings.Contains(rec.Body.String(), "try again") {
-		t.Errorf("expected actionable retry message, got: %s", rec.Body.String())
-	}
-	deadline := time.Now().Add(3 * time.Second)
-	for !preload.Load() && time.Now().Before(deadline) {
-		time.Sleep(20 * time.Millisecond)
-	}
-	if !preload.Load() {
-		t.Error("expected async preload to fire on timeout")
-	}
-}

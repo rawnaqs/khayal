@@ -82,23 +82,6 @@ search:
   chunk_min_words: 50        # smaller fragments merge into the previous chunk
   chunk_overlap_words: 35    # words carried between consecutive chunks
 
-stt:
-  enabled: false             # voice capture; requires a transcription service
-  endpoint: ""               # e.g. http://127.0.0.1:9001/v1/audio/transcriptions
-  api: openai                # openai | whispercpp (whisper.cpp server /inference)
-  model: ""                  # REQUIRED by speaches; optional for whisper.cpp
-  unload_after: false        # keep false for speaches: its current version
-                             # wedges on explicit unload; the native 300s
-                             # idle offload handles RAM release safely
-  # Recommended: speaches (OpenAI-compatible, CPU-friendly). Ships as an
-  # optional profile in docker-compose.yml:
-  #   docker compose --profile stt up -d speaches
-  # Preload the model once (models are NOT pre-baked into the image):
-  #   curl -X POST http://127.0.0.1:9001/v1/models/Systran/faster-whisper-tiny
-  # Then point khayal at it:
-  #   endpoint: http://127.0.0.1:9001/v1/audio/transcriptions
-  #   model: Systran/faster-whisper-tiny
-  # whisper.cpp's own server also works via api: whispercpp.
 
 connections:
   enabled: true              # master switch for proactive connections

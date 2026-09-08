@@ -36,7 +36,6 @@ type Config struct {
 	Search      SearchConfig      `yaml:"search"`
 	Connections ConnectionsConfig `yaml:"connections"`
 	Memory      MemoryConfig      `yaml:"memory"`
-	STT         STTConfig         `yaml:"stt"`
 	Log         LogConfig         `yaml:"log"`
 }
 
@@ -196,45 +195,6 @@ func (m MemoryConfig) PersonsThreshold() int {
 		return 5
 	}
 	return *m.NewPersonsThreshold
-}
-
-// STTConfig configures speech-to-text for voice captures. Endpoint is
-// an HTTP transcription service — any OpenAI-compatible
-// /v1/audio/transcriptions server (faster-whisper-server, speaches) or
-// a whisper.cpp server. Disabled by default: no endpoint, no voice.
-type STTConfig struct {
-	// Enabled gates the voice capture endpoint; nil means false.
-	Enabled  *bool  `yaml:"enabled"`
-	Endpoint string `yaml:"endpoint"`
-	// API format: "openai" (POST /v1/audio/transcriptions, default)
-	// or "whispercpp" (POST /inference).
-	API   string `yaml:"api"`
-	Model string `yaml:"model"`
-	// TimeoutS for a transcription call; nil -> 120.
-	TimeoutS *int `yaml:"timeout_s"`
-	// UnloadAfter asks the STT service to release the model from memory
-	// after each transcription (speaches: DELETE /api/ps/{model_id}).
-	// RAM-lean profile for small boxes; trades reload latency on the
-	// next capture. Weights stay on disk — no re-download. Default false.
-	UnloadAfter bool `yaml:"unload_after"`
-}
-
-// STTEnabled resolves the enabled flag (default false).
-func (c STTConfig) STTEnabled() bool {
-	return c.Enabled != nil && *c.Enabled
-}
-
-// STTUnloadAfter resolves the release-after-capture knob.
-func (c STTConfig) STTUnloadAfter() bool {
-	return c.UnloadAfter
-}
-
-// STTTimeout resolves the transcription timeout (default 120s).
-func (c STTConfig) STTTimeout() int {
-	if c.TimeoutS == nil || *c.TimeoutS <= 0 {
-		return 120
-	}
-	return *c.TimeoutS
 }
 
 // ConnectionsTypes toggles individual connection types; nil means on.

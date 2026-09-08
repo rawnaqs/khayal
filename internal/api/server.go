@@ -77,7 +77,6 @@ func (s *Server) setupRouter() {
 		r.Get("/search", s.searchHandler)
 		r.Get("/stats", s.statsHandler)
 		r.Get("/media", s.mediaHandler)
-		r.Post("/capture/audio", s.handleAudioCapture)
 		r.Get("/notes/{path:.*}", s.noteHandler)
 		r.Delete("/note", s.noteDeleteHandler)
 		r.Get("/queue", s.queueListHandler)

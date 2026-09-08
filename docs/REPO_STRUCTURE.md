@@ -319,7 +319,6 @@ Private application code. Not importable by external packages.
 | `queue/` | Job queue, FTS5 + semantic search, entity/chunk stores |
 | `backup/` | Encrypted backup (age) and additive-merge restore |
 | `events/` | In-process pub-sub hub for realtime job updates |
-| `stt/` | Speech-to-text clients (OpenAI-compatible, whisper.cpp) |
 | `connections/` | Proactive connections |
 | `config/` | Configuration management |
 | `version/` | Version info |

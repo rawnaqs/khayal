@@ -1114,7 +1114,7 @@ CREATE VIRTUAL TABLE vec_chunks USING vec0(
 - Parameters: `from=2024-03-11&to=2024-03-16` (optional ISO date strings)
 
 ### Explicitly Out of v1
-- Voice notes
+- Voice notes (attempted in v1.2, deferred — see Voice Capture section)
 - PDF ingestion
 - YouTube / video ingestion
 - Browser extension
@@ -1285,46 +1285,15 @@ entities, chunks, connections — with `source_file` linking the stored
 PDF. Note titles prefer the uploaded filename, falling back to the
 first content line (media storage renames uploads to timestamps).
 
-### Voice Capture (v1.2)
+### Voice Capture — deferred (v1.2)
 
-Two capture surfaces:
-
-- **PWA**: recorded in-browser (MediaRecorder; preview + re-record
-  before submit), POSTed to `/v1/capture/audio`. The voice tab is
-  hidden until STT is configured (health advertises the capability).
-- **CLI**: `kl voice [file]` — with a file argument, uploads an
-  existing recording; without, records from the mic via the best
-  available platform recorder (arecord on Linux, sox/rec elsewhere;
-  ctrl+c stops, temp file uploaded then removed). Go has no stdlib mic
-  access, so recording shells out; uploading a file always works.
-
-Both surfaces POST to `/v1/capture/audio`. The server stores the audio in vault
-media and transcribes synchronously via a pluggable STT service —
-transcription failure aborts the capture (502, nothing enqueued); STT
-not configured returns 503 with a setup hint. The transcript rides the
-standard pipeline as a voice-type note.
-
-```yaml
-stt:
-  enabled: true
-  endpoint: http://127.0.0.1:9001/v1/audio/transcriptions
-  api: openai        # openai (/v1/audio/transcriptions) | whispercpp (/inference)
-  model: whisper-small-turbo   # omit for whisper.cpp default
-  unload_after: false
-```
-
-RAM note: speaches natively offloads the model after 300s idle — leave
-`unload_after: false`. Its current version wedges on explicit unload
-requests (khayal's knob exists for other services; observe behavior
-with speaches before enabling).
-
-Works with any OpenAI-compatible transcription server or a whisper.cpp
-server. Recommended: **speaches** (CPU-friendly, OpenAI contract) —
-shipped as an optional docker-compose profile. Speaches requires the
-`model` field per request (set `stt.model`, e.g.
-`Systran/faster-whisper-tiny`) and models preload via
-`POST /v1/models/{model_id}`. No ambient capture — recording is always
-explicit.
+Voice capture shipped experimentally in v1.2 and was **removed**: local
+STT quality (tiny/base whisper models) loop-hallucinated on short clips
+and the service required operational babysitting (model reloads, wedge
+recovery). Mobile keyboard dictation + text capture covers the same
+flow today. Revisit when local STT models mature — the v1.2
+implementation lives in git history (speaches/whisper.cpp client,
+segment-level hallucination filtering).
 
 ### Capture Response
 
@@ -1599,7 +1568,7 @@ v1.1  → Chunking + entity extraction + connections (similar, person, amount)
       + capture intelligence (relative-date resolution + LLM context memory,
       phase 2.5) + search overview (on-demand AI answer, phase 2.6)
       + user-facing delete note (soft-delete, in vault commands) + backup
-v1.2  ✅ → connections (contradiction, follow_up, revisit) + voice notes + PDF
+v1.2  ✅ → connections (contradiction, follow_up, revisit) + PDF (voice deferred)
 v1.3  → Graph connections, backlinks
 v1.4  → YouTube / video ingestion
 v1.5  → Browser extension (github.com/rawnaqs/khayal-browser)
