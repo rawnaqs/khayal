@@ -12,7 +12,7 @@ interface CaptureResultProps {
   onRetry: () => void
 }
 
-function getStepsForType(type: string): string[] {
+function getStepsForType(type: string): { label: string; detail?: string }[] {
   return STAGE_LABELS[type] || STAGE_LABELS.text
 }
 
@@ -67,9 +67,14 @@ function QueuedTile({ result, onDismiss }: { result: CaptureResponse; onDismiss:
         <div className="tile-sub">{result.note_path || result.type} · {result.id.slice(0, 8)}</div>
         <div className="steps">
           {steps.map((step, i) => (
-            <span key={step}>
+            <span key={step.label}>
               <div className={`sd ${i < activeStep ? 'done' : i === activeStep ? 'act' : 'wait'}`} />
-              <span className={`sl ${i < activeStep ? 'done' : i === activeStep ? 'act' : ''}`}>{step}</span>
+              <span
+                className={`sl ${i < activeStep ? 'done' : i === activeStep ? 'act' : ''}`}
+                title={step.detail}
+              >
+                {step.label}
+              </span>
               {i < steps.length - 1 && <span className="sep">·</span>}
             </span>
           ))}

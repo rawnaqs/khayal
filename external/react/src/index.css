@@ -1789,6 +1789,102 @@
   }
 
   /* Hero processing card */
+  .pipe-steps {
+    display: flex;
+    align-items: center;
+    margin: 10px 0 12px;
+  }
+
+  .pipe-step-row {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .pipe-step-row:last-child {
+    flex: 0;
+  }
+
+  .pipe-conn {
+    height: 2px;
+    flex: 1;
+    min-width: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+    margin: 0 6px;
+  }
+
+  .pipe-conn.done {
+    background: linear-gradient(90deg, rgba(201, 147, 58, 0.6), rgba(255, 179, 64, 0.6));
+  }
+
+  .pipe-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .pipe-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #0d0d0d;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1.5px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .pipe-dot svg {
+    stroke-width: 3;
+  }
+
+  .pipe-step.done .pipe-dot {
+    background: var(--gold, #c9933a);
+    border-color: var(--gold, #c9933a);
+  }
+
+  .pipe-step.active .pipe-dot {
+    background: rgba(255, 179, 64, 0.12);
+    border-color: #ffb340;
+    animation: pipe-pulse 1.4s ease-in-out infinite;
+  }
+
+  @keyframes pipe-pulse {
+
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgba(255, 179, 64, 0.35);
+    }
+
+    50% {
+      box-shadow: 0 0 0 5px rgba(255, 179, 64, 0);
+    }
+  }
+
+  .pipe-label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9px;
+    letter-spacing: 0.3px;
+    color: rgba(245, 245, 245, 0.25);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .pipe-step.done .pipe-label {
+    color: rgba(255, 179, 64, 0.75);
+  }
+
+  .pipe-step.active .pipe-label {
+    color: rgba(245, 245, 245, 0.9);
+    font-weight: 700;
+  }
+
   .hero-card {
     background: #141414;
     border: 1px solid rgba(255, 255, 255, 0.05);
@@ -1866,73 +1962,6 @@
     }
   }
 
-  .prog-labels {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 6px;
-  }
-
-  .prog-step {
-    font-family: "IBM Plex Mono", monospace;
-    font-size: 9px;
-    color: rgba(245, 245, 245, 0.2);
-    letter-spacing: 0.3px;
-    display: inline-flex;
-    align-items: center;
-    max-width: 32%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .prog-step.done {
-    color: #ffb340;
-  }
-
-  .prog-step.active {
-    color: rgba(245, 245, 245, 0.85);
-    animation: stage-pulse 1.4s ease-in-out infinite;
-  }
-
-  @keyframes stage-pulse {
-
-    0%,
-    100% {
-      opacity: 1;
-    }
-
-    50% {
-      opacity: 0.45;
-    }
-  }
-
-  .prog-bar {
-    position: relative;
-    height: 3px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 100px;
-    overflow: hidden;
-    margin-bottom: 10px;
-  }
-
-  .prog-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #c9933a, #ffb340);
-    border-radius: 100px;
-    position: absolute;
-    inset: 0 auto 0 0;
-    transition: width 0.4s ease;
-  }
-
-  .prog-fill-live {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 30%;
-    border-radius: 100px;
-    background: linear-gradient(90deg, transparent, rgba(255, 179, 64, 0.7), transparent);
-    animation: prog-live 1.4s linear infinite;
-  }
 
   @keyframes prog-live {
 

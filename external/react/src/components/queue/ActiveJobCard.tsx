@@ -19,9 +19,6 @@ function timeAgo(dateStr: string) {
 }
 
 export function ActiveJobCard({ pipeline }: ActiveJobCardProps) {
-  const doneCount = pipeline.steps.filter((s) => s.state === 'done').length
-  const pct = (doneCount / pipeline.steps.length) * 100
-
   return (
     <>
       <div className="sec">now processing</div>
@@ -38,17 +35,24 @@ export function ActiveJobCard({ pipeline }: ActiveJobCardProps) {
             live
           </div>
         </div>
-        <div className="prog-labels">
+
+        {/* Stepper: dots + short labels, connectors carry the progress */}
+        <div className="pipe-steps" data-testid="pipeline-steps">
           {pipeline.steps.map((step, i) => (
-            <span key={step.label + i} className={`prog-step ${step.state}`} title={step.label}>
-              {step.state === 'done' && <Check className="w-2.5 h-2.5 inline" style={{ marginRight: 2, verticalAlign: -1 }} />}
-              {step.label}
-            </span>
+            <div key={step.label + i} className="pipe-step-row">
+              {i > 0 && (
+                <div
+                  className={`pipe-conn ${pipeline.steps[i - 1].state === 'done' ? 'done' : ''}`}
+                />
+              )}
+              <div className={`pipe-step ${step.state}`} title={step.detail || step.label}>
+                <div className="pipe-dot">
+                  {step.state === 'done' && <Check className="w-2.5 h-2.5" />}
+                </div>
+                <span className="pipe-label">{step.label}</span>
+              </div>
+            </div>
           ))}
-        </div>
-        <div className="prog-bar">
-          <div className="prog-fill" style={{ width: `${pct}%` }} />
-          {pct < 100 && <div className="prog-fill-live" />}
         </div>
       </div>
     </>

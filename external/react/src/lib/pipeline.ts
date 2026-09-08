@@ -2,6 +2,7 @@ import type { QueueJob } from '@/lib/api'
 
 export interface PipelineStep {
   label: string
+  detail?: string
   state: 'done' | 'active' | 'future'
 }
 
@@ -19,11 +20,33 @@ const ACTIVE_STATUSES = new Set(['pending', 'queued', 'processing'])
 // Per-type stage labels. "queued" is the wait; the middle stage is the
 // server's single processing phase (LLM enrichment dominates it); the
 // final stage is the chained connections pass that used to be invisible.
-export const STAGE_LABELS: Record<string, string[]> = {
-  text: ['queued', 'enriching · tags · summary · ideas', 'embedding', 'connecting'],
-  image: ['queued', 'describing · enriching', 'embedding', 'connecting'],
-  article: ['queued', 'fetching · enriching', 'embedding', 'connecting'],
-  pdf: ['queued', 'enriching · tags · summary', 'embedding', 'connecting'],
+export // Short labels for the stepper; long explanations live in `detail`
+// (tooltip) — cramped progress rows must never wrap or truncate.
+const STAGE_LABELS: Record<string, { label: string; detail?: string }[]> = {
+  text: [
+    { label: 'queued' },
+    { label: 'enriching', detail: 'tags · summary · key ideas via local LLM' },
+    { label: 'embedding', detail: 'chunk-level semantic index' },
+    { label: 'connecting', detail: 'matching against older notes' },
+  ],
+  image: [
+    { label: 'queued' },
+    { label: 'describing', detail: 'vision model + enrichment' },
+    { label: 'embedding', detail: 'chunk-level semantic index' },
+    { label: 'connecting', detail: 'matching against older notes' },
+  ],
+  article: [
+    { label: 'queued' },
+    { label: 'fetching', detail: 'article extraction + enrichment' },
+    { label: 'embedding', detail: 'chunk-level semantic index' },
+    { label: 'connecting', detail: 'matching against older notes' },
+  ],
+  pdf: [
+    { label: 'queued' },
+    { label: 'enriching', detail: 'tags · summary · key ideas via local LLM' },
+    { label: 'embedding', detail: 'chunk-level semantic index' },
+    { label: 'connecting', detail: 'matching against older notes' },
+  ],
 }
 
 function titleOf(job: QueueJob): string {
@@ -61,8 +84,9 @@ export function buildPipeline(jobs: QueueJob[]): Pipeline | null {
         type: ingest.type,
         title: titleOf(ingest),
         createdAt: ingest.created_at,
-        steps: steps.map((label, i) => ({
-          label,
+        steps: steps.map((st, i) => ({
+          label: st.label,
+          detail: st.detail,
           state: i < activeIndex ? 'done' : i === activeIndex ? 'active' : 'future',
         })),
       }
@@ -78,8 +102,9 @@ export function buildPipeline(jobs: QueueJob[]): Pipeline | null {
       type: ingest.type,
       title: titleOf(ingest),
       createdAt: ingest.created_at,
-      steps: steps.map((label, i) => ({
-        label,
+      steps: steps.map((st, i) => ({
+        label: st.label,
+        detail: st.detail,
         state: i === total - 1 ? 'active' : 'done',
       })),
     }

@@ -55,8 +55,11 @@ describe('buildPipeline', () => {
   })
 
   it('stage labels make sense per type', () => {
-    expect(STAGE_LABELS.text).toContain('connecting')
-    expect(STAGE_LABELS.image).toContain('describing · enriching')
-    expect(STAGE_LABELS.pdf).toContain('enriching · tags · summary')
+    expect(STAGE_LABELS.text.map((s) => s.label)).toContain('connecting')
+    expect(STAGE_LABELS.image.map((s) => s.label)).toContain('describing')
+    expect(STAGE_LABELS.pdf.map((s) => s.label)).toContain('enriching')
+    // details carry the long text; labels stay short for the stepper
+    expect(STAGE_LABELS.text[1].label.length).toBeLessThanOrEqual(12)
+    expect(STAGE_LABELS.text[1].detail).toBeDefined()
   })
 })
