@@ -1191,3 +1191,45 @@ func TestGetPersonVariants(t *testing.T) {
 		}
 	})
 }
+
+// Enricher jobs (connections/memory) share the ingest note_path since the
+// path-wipe fix — search must only surface the ingest job's type.
+func TestSearchKeyword_ExcludesInternalJobs(t *testing.T) {
+	tmpDir := t.TempDir()
+	q, err := NewQueue(filepath.Join(tmpDir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer q.Close()
+
+	ctx := context.Background()
+	path := "khayal/doc.md"
+	for _, jt := range []string{"pdf", "connections"} {
+		j := &Job{ID: jt + "-1", Type: jt, Status: "done", NotePath: path, CreatedAt: time.Now()}
+		if err := q.CreateJob(ctx, j); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := q.IndexNote(ctx, path, "Doc", "pdf searchable words", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := q.SearchKeyword(ctx, "searchable", 10, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	matches := 0
+	var gotType string
+	for _, r := range results {
+		if r.NotePath == path {
+			matches++
+			gotType = r.Type
+		}
+	}
+	if matches != 1 {
+		t.Errorf("expected exactly 1 result for the note, got %d", matches)
+	}
+	if gotType != "pdf" {
+		t.Errorf("type = %s, want the ingest type", gotType)
+	}
+}

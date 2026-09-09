@@ -602,6 +602,17 @@ const modes = ['hybrid', 'keyword', 'semantic']
 
 ---
 
+## Capture tabs — img/pdf (v1.2)
+
+```tsx
+// img/pdf tab: file picker accepts images + .pdf; server routes by
+//   uploaded filename extension (PDFs extract text at capture time)
+// voice capture deferred until local STT models mature
+```
+
+---
+
+
 ## Note view — full upgrade (v1.2)
 
 ```tsx

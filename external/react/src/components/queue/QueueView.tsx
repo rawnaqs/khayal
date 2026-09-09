@@ -9,6 +9,7 @@ import { RetryAllBanner } from "./RetryAllBanner";
 import { DoneItem } from "./DoneItem";
 import { OfflineSection } from "./OfflineSection";
 import { LIMITS } from "@/lib/constants";
+import { buildPipeline } from "@/lib/pipeline";
 import { useQueue } from "@/hooks/useQueue";
 import { useQueueWS } from "@/hooks/useQueueWS";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +38,8 @@ function getTypeIcon(type: string) {
       return <Link className="w-4 h-4" />;
     case "image":
       return <Image className="w-4 h-4" />;
+    case "pdf":
+      return <FileText className="w-4 h-4" style={{ color: "#e8b86d" }} />;
     default:
       return <FileText className="w-4 h-4" />;
   }
@@ -146,7 +149,7 @@ export function QueueView({ onNoteSelect }: QueueViewProps = {}) {
 
   // Derive job groups — internal pipeline types filtered out everywhere
   const userJobs = jobs.filter((j) => !INTERNAL_JOB_TYPES.has(j.type));
-  const processingJob = userJobs.find((j) => j.status === "processing");
+  const pipeline = buildPipeline(jobs);
   const pendingJobs = userJobs.filter(
     (j) => j.status === "pending" || j.status === "queued",
   );
@@ -175,13 +178,13 @@ export function QueueView({ onNoteSelect }: QueueViewProps = {}) {
 
       {firstLoadDone && (
         <>
-          {/* Hero processing card */}
-          {processingJob && <ActiveJobCard job={processingJob} />}
+          {/* Hero pipeline card — tracks ingest through the connections pass */}
+          {pipeline && <ActiveJobCard pipeline={pipeline} />}
 
           {/* Queue metrics */}
           <QueueMetrics
             pending={pendingJobs.length}
-            processing={processingJob ? 1 : 0}
+            processing={userJobs.filter((j) => j.status === "processing").length}
             failed={failedJobs.length}
           />
 

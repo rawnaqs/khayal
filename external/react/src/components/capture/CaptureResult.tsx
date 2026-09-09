@@ -1,6 +1,6 @@
 import { Check, Loader2, Zap, X, AlertTriangle } from 'lucide-react'
 import type { CaptureResponse } from '@/lib/api'
-import { PROCESSING_STEPS } from '@/lib/constants'
+import { STAGE_LABELS } from '@/lib/pipeline'
 
 interface CaptureResultProps {
   result: CaptureResponse | null
@@ -12,8 +12,8 @@ interface CaptureResultProps {
   onRetry: () => void
 }
 
-function getStepsForType(type: string): string[] {
-  return PROCESSING_STEPS[type] || PROCESSING_STEPS.text
+function getStepsForType(type: string): { label: string; detail?: string }[] {
+  return STAGE_LABELS[type] || STAGE_LABELS.text
 }
 
 function parseError(error: string): { code: string; message: string } {
@@ -49,8 +49,8 @@ function SuccessTile({ result, processingTime, onDismiss }: { result: CaptureRes
 
 function QueuedTile({ result, onDismiss }: { result: CaptureResponse; onDismiss: () => void }) {
   const steps = getStepsForType(result.type)
-  // Simulate: saved=done, others=waiting
-  const activeStep = 1
+  // CaptureResponse means the job is enqueued: stage 0 active, rest ahead
+  const activeStep = 0
 
   return (
     <div className="tile tile-q">
@@ -67,9 +67,14 @@ function QueuedTile({ result, onDismiss }: { result: CaptureResponse; onDismiss:
         <div className="tile-sub">{result.note_path || result.type} · {result.id.slice(0, 8)}</div>
         <div className="steps">
           {steps.map((step, i) => (
-            <span key={step}>
+            <span key={step.label}>
               <div className={`sd ${i < activeStep ? 'done' : i === activeStep ? 'act' : 'wait'}`} />
-              <span className={`sl ${i < activeStep ? 'done' : i === activeStep ? 'act' : ''}`}>{step}</span>
+              <span
+                className={`sl ${i < activeStep ? 'done' : i === activeStep ? 'act' : ''}`}
+                title={step.detail}
+              >
+                {step.label}
+              </span>
               {i < steps.length - 1 && <span className="sep">·</span>}
             </span>
           ))}

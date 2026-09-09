@@ -49,6 +49,7 @@ khayal/
 │           ├── capture_image.go    # Image capture
 │           ├── search.go           # Search vault
 │           ├── delete.go           # Soft-delete a note (kl delete)
+│           ├── capture_pdf.go      # PDF capture (kl pdf)
 │           ├── recent.go           # Recent captures
 │           ├── stats.go            # Vault statistics
 │           ├── status.go           # Lightweight check

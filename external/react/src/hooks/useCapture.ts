@@ -47,7 +47,7 @@ export function useCapture() {
     }
   }
 
-  const uploadImage = async (file: File, note?: string) => {
+  const uploadFile = async (file: File, note?: string) => {
     setLoading(true)
     setError(null)
     setErrorCode(undefined)
@@ -65,7 +65,7 @@ export function useCapture() {
       }
 
       const client = createClient(token)
-      const response = await client.uploadImage(file, note)
+      const response = await client.uploadFile(file, note)
       setProcessingTime(Math.round(performance.now() - startTime))
       setResult(response)
     } catch (err) {
@@ -92,7 +92,7 @@ export function useCapture() {
     isOffline,
     processingTime,
     capture,
-    uploadImage,
+    uploadFile,
     clear,
   }
 }

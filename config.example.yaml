@@ -82,6 +82,7 @@ search:
   chunk_min_words: 50        # smaller fragments merge into the previous chunk
   chunk_overlap_words: 35    # words carried between consecutive chunks
 
+
 connections:
   enabled: true              # master switch for proactive connections
   min_age_days: 7            # never surface notes younger than this (explicit 0 = same-day allowed)

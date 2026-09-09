@@ -77,3 +77,7 @@ func TestMediaHandler(t *testing.T) {
 		}
 	})
 }
+
+// Health must advertise STT capability so the PWA can hide the voice tab.
+// A timed-out transcription must fire the async preload and tell the
+// user to retry — the load often completes server-side right after.

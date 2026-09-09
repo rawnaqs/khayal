@@ -27,6 +27,7 @@ llm:
   truncate_image_tokens: 3000
   truncate_article_tokens: 12000
 
+
 worker:
   max_workers: 1
   max_retries: 3
@@ -57,6 +58,9 @@ connections:
     similar: true
     person: true
     amount: true
+    contradiction: true
+    follow_up: true
+    revisit: true
 
 memory:
   enabled: true             # nil=on; false disables retrieval AND injection

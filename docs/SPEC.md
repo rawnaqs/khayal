@@ -1114,7 +1114,7 @@ CREATE VIRTUAL TABLE vec_chunks USING vec0(
 - Parameters: `from=2024-03-11&to=2024-03-16` (optional ISO date strings)
 
 ### Explicitly Out of v1
-- Voice notes
+- Voice notes (attempted in v1.2, deferred — see Voice Capture section)
 - PDF ingestion
 - YouTube / video ingestion
 - Browser extension
@@ -1273,6 +1273,27 @@ Type priority (highest to lowest):
 Deduplication:
   If same note qualifies for multiple types → show once, use highest priority
 ```
+
+### PDF Capture (v1.2)
+
+`kl pdf report.pdf` or the PWA img/pdf tab. The PDF is stored in the
+vault media dir; the text layer is extracted at capture time
+(ledongthuc/pdf, pure Go, per-page skip so partially-scanned PDFs still
+capture, 200k-char cap). The extracted text rides the standard
+enrichment pipeline as a pdf-type note — tags, summary, key ideas,
+entities, chunks, connections — with `source_file` linking the stored
+PDF. Note titles prefer the uploaded filename, falling back to the
+first content line (media storage renames uploads to timestamps).
+
+### Voice Capture — deferred (v1.2)
+
+Voice capture shipped experimentally in v1.2 and was **removed**: local
+STT quality (tiny/base whisper models) loop-hallucinated on short clips
+and the service required operational babysitting (model reloads, wedge
+recovery). Mobile keyboard dictation + text capture covers the same
+flow today. Revisit when local STT models mature — the v1.2
+implementation lives in git history (speaches/whisper.cpp client,
+segment-level hallucination filtering).
 
 ### Capture Response
 
@@ -1547,7 +1568,7 @@ v1.1  → Chunking + entity extraction + connections (similar, person, amount)
       + capture intelligence (relative-date resolution + LLM context memory,
       phase 2.5) + search overview (on-demand AI answer, phase 2.6)
       + user-facing delete note (soft-delete, in vault commands) + backup
-v1.2  → connections (contradiction, follow_up, revisit) + voice notes + PDF
+v1.2  ✅ → connections (contradiction, follow_up, revisit) + PDF (voice deferred)
 v1.3  → Graph connections, backlinks
 v1.4  → YouTube / video ingestion
 v1.5  → Browser extension (github.com/rawnaqs/khayal-browser)
@@ -1902,7 +1923,7 @@ vault:
     strategy:
       image: vault                     # saved inside vault, linked relatively
       pdf: vault                       # saved inside vault
-      audio: config                    # saved in ~/.config/khayal/media/
+      audio: vault                     # saved inside vault media dir
       video: config                    # transcript goes to vault, raw file stays here
 
 server:

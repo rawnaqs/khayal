@@ -20,9 +20,13 @@ vi.mock('@/hooks/useCapture', () => ({
     isOffline: false,
     processingTime: undefined,
     capture: vi.fn(),
-    uploadImage: vi.fn(),
+    uploadFile: vi.fn(),
     clear: vi.fn(),
   }),
+}))
+
+vi.mock('@/hooks/useServerStatus', () => ({
+  useServerStatus: () => ({ status: 'ok', health: { stt: { enabled: true } } }),
 }))
 
 vi.mock('@/hooks/useStats', () => ({
@@ -44,7 +48,7 @@ describe('CaptureView', () => {
     // Should show the compose area with mode pills
     expect(screen.getByText('txt')).toBeInTheDocument()
     expect(screen.getByText('url')).toBeInTheDocument()
-    expect(screen.getByText('img')).toBeInTheDocument()
+    expect(screen.getByText('img/pdf')).toBeInTheDocument()
   })
 
   it('should show greeting', () => {
@@ -95,6 +99,6 @@ describe('CaptureView', () => {
     expect(pills).toBeInTheDocument()
     expect(screen.getByText('txt')).toBeInTheDocument()
     expect(screen.getByText('url')).toBeInTheDocument()
-    expect(screen.getByText('img')).toBeInTheDocument()
+    expect(screen.getByText('img/pdf')).toBeInTheDocument()
   })
 })

@@ -24,12 +24,6 @@ export const SEARCH_SUGGESTIONS = [
 ];
 
 // Processing steps by capture type
-export const PROCESSING_STEPS: Record<string, string[]> = {
-  text: ["saved", "tagging", "summarizing", "writing"],
-  image: ["saved", "describing", "tagging", "writing"],
-  article: ["saved", "extracting", "summarizing", "writing"],
-};
-
 // Limits
 export const LIMITS = {
   SEARCH_RESULTS: 20,
@@ -58,7 +52,7 @@ export const GREETINGS = [
 ] as const;
 
 // Type filters for search
-export const TYPE_FILTERS = ["all", "text", "article", "image"] as const;
+export const TYPE_FILTERS = ["all", "text", "article", "image", "pdf"] as const;
 
 // Search modes
 export const SEARCH_MODES = ["hybrid", "keyword", "semantic"] as const;

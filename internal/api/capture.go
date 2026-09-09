@@ -1,16 +1,19 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rawnaqs/khayal/internal/ingest"
 	"github.com/rawnaqs/khayal/internal/queue"
 )
 
@@ -31,7 +34,7 @@ func (s *Server) captureHandler(w http.ResponseWriter, r *http.Request) {
 	contentType := r.Header.Get("Content-Type")
 
 	if strings.Contains(contentType, "multipart/form-data") {
-		s.handleImageCapture(w, r)
+		s.handleFileCapture(w, r)
 		return
 	}
 
@@ -115,6 +118,110 @@ func (s *Server) handleTextCapture(w http.ResponseWriter, r *http.Request) {
 		Type:      job.Type,
 		Status:    job.Status,
 		NotePath:  "",
+		CreatedAt: job.CreatedAt.Format(time.RFC3339),
+	})
+}
+
+func (s *Server) handleFileCapture(w http.ResponseWriter, r *http.Request) {
+	// PDFs go down their own pipeline (text extraction at capture time);
+	// everything else stays on the image path. The uploaded filename
+	// lives in the multipart body, so parse the form before routing.
+	maxSize := int64(s.config.Server.MaxImageBodyMB) << 20
+	if err := r.ParseMultipartForm(maxSize); err != nil {
+		WriteError(w, "invalid multipart form or file too large", "CAPTURE_INVALID_FORM", http.StatusRequestEntityTooLarge)
+		return
+	}
+	_, header, err := r.FormFile("file")
+	if err != nil {
+		WriteError(w, "missing file", "CAPTURE_MISSING_FILE", http.StatusBadRequest)
+		return
+	}
+	if strings.EqualFold(filepath.Ext(header.Filename), ".pdf") {
+		s.handlePDFCapture(w, r)
+		return
+	}
+	s.handleImageCapture(w, r)
+}
+
+// handlePDFCapture stores the PDF in the media dir, extracts its text
+// layer, and enqueues a pdf job that rides the normal enrichment
+// pipeline (tags, summary, entities, chunks).
+func (s *Server) handlePDFCapture(w http.ResponseWriter, r *http.Request) {
+	maxSize := int64(s.config.Server.MaxImageBodyMB) << 20
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		WriteError(w, "missing file", "CAPTURE_MISSING_FILE", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	if !strings.EqualFold(filepath.Ext(header.Filename), ".pdf") {
+		WriteError(w, "only pdf files are accepted here", "CAPTURE_NOT_PDF", http.StatusBadRequest)
+		return
+	}
+
+	data, err := io.ReadAll(io.LimitReader(file, maxSize))
+	if err != nil {
+		WriteError(w, "failed to read file", "CAPTURE_READ_FAILED", http.StatusInternalServerError)
+		return
+	}
+
+	text, err := ingest.ExtractPDFText(data)
+	if err != nil {
+		s.logger.Warn("pdf capture failed",
+			"code", "PDF_EXTRACT_FAILED",
+			"error", err,
+		)
+		WriteError(w, "no extractable text (scanned pdf?)", "PDF_EXTRACT_FAILED", http.StatusBadRequest)
+		return
+	}
+
+	mediaPath, err := s.vault.CopyMediaFromReader(bytes.NewReader(data), header.Filename)
+	if err != nil {
+		s.logger.Error("pdf capture failed",
+			"code", "VAULT_MEDIA_FAILED",
+			"error", err,
+		)
+		WriteError(w, "failed to save media", "VAULT_MEDIA_FAILED", http.StatusInternalServerError)
+		return
+	}
+
+	note := r.FormValue("note")
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	job := &queue.Job{
+		ID:          uuid.New().String(),
+		Type:        "pdf",
+		Status:      "pending",
+		SourceFile:  mediaPath,
+		Content:     text,
+		UserContext: note,
+		CreatedAt:   now,
+	}
+	if err := s.queue.CreateJob(ctx, job); err != nil {
+		s.logger.Error("pdf capture failed",
+			"code", "QUEUE_CREATE_FAILED",
+			"job_id", job.ID,
+			"error", err,
+		)
+		WriteError(w, "failed to create job", "QUEUE_CREATE_FAILED", http.StatusInternalServerError)
+		return
+	}
+
+	s.logger.Info("capture",
+		"type", "pdf",
+		"job_id", job.ID,
+		"chars", len(text),
+	)
+
+	notePath := fmt.Sprintf("%s/%s-pdf.md", s.config.Vault.InboxDir, now.Format("2006-01-02-")+job.ID[:8])
+	WriteCreated(w, CaptureResponse{
+		ID:        job.ID,
+		Type:      "pdf",
+		Status:    job.Status,
+		NotePath:  notePath,
 		CreatedAt: job.CreatedAt.Format(time.RFC3339),
 	})
 }

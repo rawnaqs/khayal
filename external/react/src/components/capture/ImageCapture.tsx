@@ -1,5 +1,5 @@
 import { useState, useRef, forwardRef, useImperativeHandle } from 'react'
-import { Image, Camera, X } from 'lucide-react'
+import { Image, Camera, X, FileText } from 'lucide-react'
 
 interface ImageCaptureProps {
   onUpload: (file: File, note?: string) => Promise<void>
@@ -23,6 +23,8 @@ export const ImageCapture = forwardRef<ImageCaptureRef, ImageCaptureProps>(
     const [preview, setPreview] = useState<string | null>(null)
     const fileRef = useRef<HTMLInputElement>(null)
 
+    const isPdf = !!file && file.name.toLowerCase().endsWith('.pdf')
+
     useImperativeHandle(ref, () => ({
       submit: async () => {
         if (!file) return
@@ -35,8 +37,11 @@ export const ImageCapture = forwardRef<ImageCaptureRef, ImageCaptureProps>(
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const selected = e.target.files?.[0]
-      if (selected) {
-        setFile(selected)
+      if (!selected) return
+      setFile(selected)
+      setPreview(null)
+      // PDFs have no <img> preview — show a document card instead.
+      if (!selected.name.toLowerCase().endsWith('.pdf')) {
         const reader = new FileReader()
         reader.onload = (ev) => setPreview(ev.target?.result as string)
         reader.readAsDataURL(selected)
@@ -54,12 +59,12 @@ export const ImageCapture = forwardRef<ImageCaptureRef, ImageCaptureProps>(
         <input
           ref={fileRef}
           type="file"
-          accept="image/*"
+          accept="image/*,.pdf"
           onChange={handleFileChange}
           className="hidden"
         />
 
-        {!preview ? (
+        {!file ? (
           <>
             {/* Empty state - drop zone */}
             <div className="img-drop" onClick={() => fileRef.current?.click()}>
@@ -67,7 +72,7 @@ export const ImageCapture = forwardRef<ImageCaptureRef, ImageCaptureProps>(
                 <Image className="w-5 h-5" style={{ color: '#C9933A' }} />
               </div>
               <div className="img-drop-lbl">tap to choose</div>
-              <div className="img-drop-sub">jpg · png · webp · heic</div>
+              <div className="img-drop-sub">jpg · png · webp · heic · pdf</div>
             </div>
 
             {/* OR divider */}
@@ -85,20 +90,36 @@ export const ImageCapture = forwardRef<ImageCaptureRef, ImageCaptureProps>(
           </>
         ) : (
           <>
-            {/* Filled state - image preview */}
-            <div className="img-filled">
-              <img
-                src={preview}
-                alt="preview"
-                className="w-full h-full object-cover"
-                style={{ position: 'absolute', inset: 0 }}
-              />
-              <div className="img-overlay">
-                <span className="img-name">{file?.name}</span>
-                <span className="img-size">{file ? formatFileSize(file.size) : ''}</span>
-                <div className="img-rm" onClick={handleRemove}>
-                  <X className="w-3 h-3" />
+            {/* Unified attachment card — same shell for image and pdf */}
+            <div className="att-card" data-testid={isPdf ? 'pdf-preview' : 'image-preview'}>
+              {isPdf ? (
+                <div className="att-doc">
+                  <div className="att-doc-icon">
+                    <FileText className="w-7 h-7" style={{ color: '#C9933A' }} />
+                  </div>
+                  <span className="att-type">pdf</span>
                 </div>
+              ) : (
+                <img src={preview || ''} alt="preview" className="att-img" />
+              )}
+
+              <div className="att-meta">
+                <div className="att-meta-icon">
+                  {isPdf
+                    ? <FileText className="w-3.5 h-3.5" style={{ color: '#C9933A' }} />
+                    : <Image className="w-3.5 h-3.5" style={{ color: '#C9933A' }} />}
+                </div>
+                <div className="att-meta-text">
+                  <div className="att-name">{file.name}</div>
+                  <div className="att-sub">
+                    <span className="att-type-chip">{isPdf ? 'pdf' : 'image'}</span>
+                    {formatFileSize(file.size)}
+                    {isPdf && ' · text will be extracted'}
+                  </div>
+                </div>
+                <button className="att-rm" onClick={handleRemove} title="remove" data-testid="att-remove">
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
 

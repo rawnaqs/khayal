@@ -95,10 +95,15 @@ func IngestText(ctx context.Context, job *queue.Job, v *vault.Writer, q *queue.Q
 }
 
 func extractTitle(content string) string {
-	lines := strings.Split(content, "\n")
-	firstLine := strings.TrimSpace(lines[0])
-	if len(firstLine) > 100 {
-		firstLine = firstLine[:100]
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if len(line) > 100 {
+			line = line[:100]
+		}
+		return line
 	}
-	return firstLine
+	return "Untitled"
 }

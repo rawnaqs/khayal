@@ -1,8 +1,8 @@
-import type { QueueJob } from '@/lib/api'
-import { PROCESSING_STEPS } from '@/lib/constants'
+import { Check } from 'lucide-react'
+import type { Pipeline } from '@/lib/pipeline'
 
 interface ActiveJobCardProps {
-  job: QueueJob
+  pipeline: Pipeline
 }
 
 function timeAgo(dateStr: string) {
@@ -18,22 +18,18 @@ function timeAgo(dateStr: string) {
   }
 }
 
-function getSteps(type: string): string[] {
-  return PROCESSING_STEPS[type] || ['saved', 'processing']
-}
-
-export function ActiveJobCard({ job }: ActiveJobCardProps) {
-  const steps = getSteps(job.type)
+export function ActiveJobCard({ pipeline }: ActiveJobCardProps) {
+  const active = pipeline.steps.find((s) => s.state === 'active')
 
   return (
     <>
       <div className="sec">now processing</div>
-      <div className="hero-card">
+      <div className="hero-card" data-testid="pipeline-card">
         <div className="hero-top">
           <div>
-            <div className="hero-filename">{job.note_path || job.type}</div>
+            <div className="hero-filename">{pipeline.title}</div>
             <div className="hero-meta">
-              {job.type} · {timeAgo(job.created_at)}
+              {pipeline.type} · {timeAgo(pipeline.createdAt)}
             </div>
           </div>
           <div className="hero-badge">
@@ -41,16 +37,28 @@ export function ActiveJobCard({ job }: ActiveJobCardProps) {
             live
           </div>
         </div>
-        <div className="prog-labels">
-          {steps.map((step, i) => (
-            <span key={step} className={`prog-step ${i === 0 ? 'done' : ''}`}>
-              {step}
-            </span>
+
+        {/* Flat stepper: dot──conn──dot──conn… as direct flex children.
+            Connectors flex:1 so dots spread evenly at any card width. */}
+        <div className="pipe-dots" data-testid="pipeline-steps">
+          {pipeline.steps.map((step, i) => (
+            <div key={step.label + i} className="pipe-dot-wrap">
+              {i > 0 && (
+                <div className={`pipe-conn ${pipeline.steps[i - 1].state === 'done' ? 'done' : ''}`} />
+              )}
+              <div className={`pipe-dot ${step.state}`} title={step.detail || step.label}>
+                {step.state === 'done' && <Check className="w-2 h-2" />}
+              </div>
+            </div>
           ))}
         </div>
-        <div className="prog-bar">
-          <div className="prog-fill" style={{ animation: 'indeterminate 2s linear infinite' }} />
-        </div>
+
+        {active && (
+          <div className="pipe-now" data-testid="pipeline-active">
+            <span className="pipe-now-label">{active.label}</span>
+            {active.detail && <span className="pipe-now-detail">{active.detail}</span>}
+          </div>
+        )}
       </div>
     </>
   )
