@@ -162,7 +162,7 @@ Release preparation.
 - [x] Docker Compose
 - [x] README, CONTRIBUTING
 - [x] Example config
-- [ ] Shell completion (v1.2)
+- [ ] Shell completion (v1.3+)
 - [x] Vault subcommands (v1.1)
 - [x] Backup/restore (v1.1)
 
@@ -203,6 +203,18 @@ Connection types 4–6 + PDF ingestion complete. See SPEC.md for details.
 
 Deferred: voice capture (local STT models not mature — see SPEC Voice
 Capture section). Shell completion remains deferred.
+
+## v1.3 — PLANNED
+
+Graph connections & backlinks. Scope confirmed: backlinks in the notes
+UI + entity graph data API first; visual graph view decided after
+seeing real data.
+
+| Slice | What |
+|-------|------|
+| Backlinks | reverse-link scan over frontmatter `connections:` (authoritative across manual Obsidian edits); `backlinks: RelatedLink[]` on GET /v1/notes/{path}; "linked from" panel in NoteView |
+| Entity graph API | `GET /v1/graph` -> typed {nodes, edges}: notes + people nodes; note-note edges carrying connection types (contradiction edges ready for red styling); person-note mention edges from entities |
+| Visual graph | deliberately deferred — full force-directed view vs per-note connection web, decided against real data |
 
 ---
 

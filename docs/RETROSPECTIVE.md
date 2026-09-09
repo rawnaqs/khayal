@@ -4,6 +4,20 @@
 
 ---
 
+## v1.2: Voice Capture Deferred
+
+### 2026-09-09: Why voice was removed after shipping
+
+| Aspect | Detail |
+|--------|--------|
+| Shipped | Full voice pipeline: PWA MediaRecorder + kl voice, pluggable STT (speaches/whisper.cpp), segment-level hallucination filtering |
+| Removed | All user-facing surfaces, config, endpoint |
+| Root causes | 1. Small whisper models loop-hallucinate on short/ambient clips ("2 2 2 3 3 4 4…", "Hello? x30") — segment filtering helped but tiny/base quality remained the ceiling. 2. Model-manager wedges on concurrent loads; explicit unload requests also wedged — every capture risked a 120s dead end. 3. First-capture-after-idle paid an unbounded disk reload. |
+| Kept | Mobile keyboard dictation through the text pipeline covers the flow; implementation lives in git history for the revisit |
+| Lesson | Feature-complete != production-safe for ML-dependent features — soak them in real-world use before promising them in a milestone. |
+
+---
+
 ## Phase 1: Foundation Decisions
 
 ### 2026-03-17: SQLite Driver Selection
