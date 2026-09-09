@@ -802,14 +802,14 @@
   .att-img {
     display: block;
     width: 100%;
-    max-height: 220px;
+    max-height: 150px;
     object-fit: contain;
     background:
       repeating-conic-gradient(rgba(255, 255, 255, 0.025) 0% 25%, transparent 0% 50%) 50% / 16px 16px;
   }
 
   .att-doc {
-    height: 110px;
+    height: 88px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -819,8 +819,8 @@
   }
 
   .att-doc-icon {
-    width: 48px;
-    height: 48px;
+    width: 40px;
+    height: 40px;
     border-radius: 12px;
     background: rgba(201, 147, 58, 0.08);
     border: 1px solid rgba(201, 147, 58, 0.3);
@@ -895,6 +895,11 @@
   .att-rm {
     width: 26px;
     height: 26px;
+    /* global tap-target rule (button min-height:44px) stretches small
+       icon buttons — neutralize it here */
+    min-height: 0;
+    padding: 0;
+    box-sizing: border-box;
     border-radius: 8px;
     flex-shrink: 0;
     display: flex;
@@ -905,6 +910,11 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
     cursor: pointer;
     transition: all 0.15s;
+  }
+
+  .att-rm svg {
+    width: 14px;
+    height: 14px;
   }
 
   .att-rm:hover {
