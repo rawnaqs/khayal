@@ -790,6 +790,129 @@
   }
 
   /* Note mini input */
+  /* ── Attachment card (capture: image + pdf) ────────────────── */
+
+  .att-card {
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.02);
+    overflow: hidden;
+  }
+
+  .att-img {
+    display: block;
+    width: 100%;
+    max-height: 220px;
+    object-fit: contain;
+    background:
+      repeating-conic-gradient(rgba(255, 255, 255, 0.025) 0% 25%, transparent 0% 50%) 50% / 16px 16px;
+  }
+
+  .att-doc {
+    height: 110px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: linear-gradient(135deg, #141020, #0a0810);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .att-doc-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: rgba(201, 147, 58, 0.08);
+    border: 1px solid rgba(201, 147, 58, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .att-type {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(201, 147, 58, 0.55);
+  }
+
+  .att-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+  }
+
+  .att-meta-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: rgba(201, 147, 58, 0.07);
+    border: 1px solid rgba(201, 147, 58, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .att-meta-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .att-name {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: rgba(245, 245, 245, 0.8);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .att-sub {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9px;
+    color: rgba(245, 245, 245, 0.3);
+    margin-top: 2px;
+  }
+
+  .att-type-chip {
+    padding: 1px 6px;
+    border-radius: 100px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--gl, #e8b86d);
+    background: rgba(201, 147, 58, 0.08);
+    border: 1px solid rgba(201, 147, 58, 0.22);
+  }
+
+  .att-rm {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(245, 245, 245, 0.35);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .att-rm:hover {
+    color: #f5a9a9;
+    background: rgba(255, 99, 99, 0.08);
+    border-color: rgba(255, 99, 99, 0.3);
+  }
+
   .note-input {
     display: flex;
     align-items: center;
@@ -885,57 +1008,6 @@
   }
 
   /* Image filled state */
-  .img-filled {
-    border-radius: 12px;
-    overflow: hidden;
-    position: relative;
-    height: 120px;
-    background: linear-gradient(135deg, #141020, #0a0810);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 36px;
-    opacity: 0.5;
-    border: 1px solid rgba(201, 147, 58, 0.15);
-  }
-
-  .img-overlay {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 8px 10px;
-    background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .img-name {
-    font-family: "IBM Plex Mono", monospace;
-    font-size: 9px;
-    color: rgba(255, 255, 255, 0.55);
-  }
-
-  .img-size {
-    font-family: "IBM Plex Mono", monospace;
-    font-size: 9px;
-    color: rgba(255, 255, 255, 0.35);
-  }
-
-  .img-rm {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
-    color: rgba(255, 255, 255, 0.4);
-    cursor: pointer;
-  }
 
   .type-pills {
     display: flex;

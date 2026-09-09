@@ -88,50 +88,38 @@ export const ImageCapture = forwardRef<ImageCaptureRef, ImageCaptureProps>(
               <span className="cam-txt">open camera</span>
             </div>
           </>
-        ) : isPdf ? (
-          <>
-            {/* PDF preview — document card, no broken <img> */}
-            <div className="pdf-filled" data-testid="pdf-preview">
-              <div className="pdf-icon">
-                <FileText className="w-7 h-7" style={{ color: '#C9933A' }} />
-              </div>
-              <div className="pdf-meta">
-                <div className="pdf-name">{file.name}</div>
-                <div className="pdf-sub">{formatFileSize(file.size)} · pdf · text will be extracted</div>
-              </div>
-              <div className="img-rm" onClick={handleRemove}>
-                <X className="w-3 h-3" />
-              </div>
-            </div>
-
-            {/* Optional note */}
-            <div className="note-input">
-              <input
-                type="text"
-                placeholder="add a note..."
-                className="w-full bg-transparent text-base text-[rgba(245,245,245,0.3)] placeholder-[rgba(245,245,245,0.2)] outline-none"
-                style={{ fontWeight: 300 }}
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-              />
-            </div>
-          </>
         ) : (
           <>
-            {/* Image preview */}
-            <div className="img-filled">
-              <img
-                src={preview || ''}
-                alt="preview"
-                className="w-full h-full object-cover"
-                style={{ position: 'absolute', inset: 0 }}
-              />
-              <div className="img-overlay">
-                <span className="img-name">{file.name}</span>
-                <span className="img-size">{formatFileSize(file.size)}</span>
-                <div className="img-rm" onClick={handleRemove}>
-                  <X className="w-3 h-3" />
+            {/* Unified attachment card — same shell for image and pdf */}
+            <div className="att-card" data-testid={isPdf ? 'pdf-preview' : 'image-preview'}>
+              {isPdf ? (
+                <div className="att-doc">
+                  <div className="att-doc-icon">
+                    <FileText className="w-7 h-7" style={{ color: '#C9933A' }} />
+                  </div>
+                  <span className="att-type">pdf</span>
                 </div>
+              ) : (
+                <img src={preview || ''} alt="preview" className="att-img" />
+              )}
+
+              <div className="att-meta">
+                <div className="att-meta-icon">
+                  {isPdf
+                    ? <FileText className="w-3.5 h-3.5" style={{ color: '#C9933A' }} />
+                    : <Image className="w-3.5 h-3.5" style={{ color: '#C9933A' }} />}
+                </div>
+                <div className="att-meta-text">
+                  <div className="att-name">{file.name}</div>
+                  <div className="att-sub">
+                    <span className="att-type-chip">{isPdf ? 'pdf' : 'image'}</span>
+                    {formatFileSize(file.size)}
+                    {isPdf && ' · text will be extracted'}
+                  </div>
+                </div>
+                <button className="att-rm" onClick={handleRemove} title="remove" data-testid="att-remove">
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
 
