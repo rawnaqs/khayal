@@ -1802,7 +1802,7 @@
     min-width: 0;
   }
 
-  .pipe-dot-wrap:last-child {
+  .pipe-dot-wrap:first-child {
     flex: 0;
   }
 
