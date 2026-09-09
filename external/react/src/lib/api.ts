@@ -116,6 +116,7 @@ export interface NoteResponse {
   description?: string
   related?: string[]
   related_links?: RelatedLink[]
+  backlinks?: RelatedLink[]
   excerpt?: string
   search_query?: string
   excerpt_section?: string

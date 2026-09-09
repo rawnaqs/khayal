@@ -229,6 +229,48 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /graph:
+    get:
+      tags:
+        - Vault
+      summary: Full connection graph
+      description: |
+        The whole connection web as typed nodes and edges (v1.3):
+        - **nodes**: notes ({kind: "note", id: note_path, name}) and
+          people ({kind: "person", id: "person:<name>"})
+        - **edges**: note->note (from connections results; `types`
+          carries the detector types: similar/person/amount/
+          contradiction/follow_up/revisit) and person->note mentions
+        Capped at 500 nodes for rendering sanity.
+      responses:
+        '200':
+          description: Node/edge graph
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        kind: { type: string, enum: [note, person] }
+                        name: { type: string }
+                  edges:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        source: { type: string }
+                        target: { type: string }
+                        types:
+                          type: array
+                          items: { type: string }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /queue:
     get:
       tags:

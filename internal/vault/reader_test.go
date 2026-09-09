@@ -184,3 +184,50 @@ x
 		t.Errorf("link content mismatch: %v", note.Related)
 	}
 }
+
+// Backlinks: which inbox notes reference a target in their connections
+// block. Sources are returned as inbox-relative note paths.
+func TestReader_ScanBacklinks(t *testing.T) {
+	vaultPath := t.TempDir()
+	inboxPath := filepath.Join(vaultPath, "khayal")
+	os.MkdirAll(inboxPath, 0755)
+
+	note := func(name, connections string) {
+		content := "---\ntype: text\n" + connections + "---\n\n# " + name + "\n"
+		os.WriteFile(filepath.Join(inboxPath, name), []byte(content), 0644)
+	}
+	note("a.md", "connections:\n  - \"[[b]]\"\n")
+	note("b.md", "")
+	note("c.md", "connections:\n  - \"[[a]]\"\n  - \"[[b]]\"\n")
+	note("d.md", "") // not .md? keep all md
+	// a non-md file must be ignored
+	os.WriteFile(filepath.Join(inboxPath, "ignore.txt"), []byte("x"), 0644)
+
+	r := NewReader(vaultPath, "khayal")
+	scan, err := r.ScanBacklinks()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := scan["b"]; len(got) != 2 {
+		t.Errorf("b: expected 2 backlinks (a, c), got %v", got)
+	} else {
+		for _, want := range []string{"khayal/a.md", "khayal/c.md"} {
+			found := false
+			for _, p := range got {
+				if p == want {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("b: missing %s in %v", want, got)
+			}
+		}
+	}
+	if got := scan["a"]; len(got) != 1 || got[0] != "khayal/c.md" {
+		t.Errorf("a: expected [khayal/c.md], got %v", got)
+	}
+	if _, ok := scan["nonexistent"]; ok {
+		t.Error("phantom key")
+	}
+}

@@ -359,6 +359,26 @@ export function NoteView({ notePath, query, onClose, onDeleted, onOpenNote, onSe
                 </div>
               )}
 
+              {/* Backlinks — notes that reference this one */}
+              {note.backlinks && note.backlinks.length > 0 && (
+                <div className="note-links note-links-back" key={'bl-' + note.note_path} data-testid="note-backlinks">
+                  <div className="note-links-label">linked from</div>
+                  {note.backlinks.map((link, i) => (
+                    <button
+                      key={'bl' + i}
+                      className="note-link-chip"
+                      onClick={() => onOpenNote?.(link.note_path)}
+                      onMouseDown={(e) => e.preventDefault()}
+                      title={link.note_path}
+                      data-testid="note-backlink-chip"
+                    >
+                      <Link2 className="w-3 h-3 shrink-0" style={{ transform: 'rotate(180deg)' }} />
+                      <span className="note-link-title">{link.title}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* Excerpt box */}
               {note.excerpt && (
                 <div className="excerpt-box">

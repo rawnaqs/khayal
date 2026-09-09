@@ -180,3 +180,38 @@ func parseListItems(content string) []string {
 
 	return items
 }
+
+// ScanBacklinks walks the inbox and maps every wikilink basename found in
+// a note's connections block to the referencing note's inbox-relative
+// path: map[targetBase][]sourceNotePath. Frontmatter is authoritative —
+// it reflects manual Obsidian edits, unlike connections-job results.
+func (r *Reader) ScanBacklinks() (map[string][]string, error) {
+	entries, err := os.ReadDir(r.inboxPath)
+	if err != nil {
+		return nil, fmt.Errorf("scan inbox: %w", err)
+	}
+
+	inboxRel := filepath.Base(r.inboxPath)
+	out := make(map[string][]string)
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
+			continue
+		}
+		content, err := os.ReadFile(filepath.Join(r.inboxPath, e.Name()))
+		if err != nil {
+			continue
+		}
+		note, err := parseMarkdown(content)
+		if err != nil || len(note.Connections) == 0 {
+			continue
+		}
+		source := filepath.Join(inboxRel, e.Name())
+		for _, link := range note.Connections {
+			base := strings.TrimSuffix(strings.TrimPrefix(strings.TrimSpace(link), "[["), "]]")
+			if base != "" {
+				out[base] = append(out[base], source)
+			}
+		}
+	}
+	return out, nil
+}

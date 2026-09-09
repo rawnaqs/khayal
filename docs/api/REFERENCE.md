@@ -183,6 +183,27 @@ curl -X POST http://localhost:1133/v1/queue/abc123/discard \
 
 ---
 
+### Backlinks (part of GET /notes/{path})
+
+The note response carries `backlinks: [{note_path, title}]` — inbox
+notes whose frontmatter `connections:` block references this note
+(v1.3). Frontmatter is authoritative, so manual Obsidian edits surface
+immediately. Rendered as a "linked from" panel in the PWA note view.
+
+### GET /v1/graph
+
+Full connection web as typed nodes/edges (v1.3):
+
+- `nodes`: `{id, kind: "note"|"person", name}` — notes plus people
+- `edges`: `{source, target, types?}` — note→note from stored
+  connections results (`types` lists the detectors: similar/person/
+  amount/contradiction/follow_up/revisit) and person→note mentions
+- Capped at 500 nodes
+
+```bash
+curl "http://localhost:1133/v1/graph" -H "X-Khayal-Token: your-token"
+```
+
 ### DELETE /v1/note
 
 Soft-delete a note: moves it from the vault inbox to `.khayal-trash/`

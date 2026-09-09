@@ -121,3 +121,30 @@ describe('NoteView linked-notes chips', () => {
     expect(onOpenNote).toHaveBeenCalledWith('khayal/2026-08-26-bob-loves-note-abc123.md')
   })
 })
+
+describe('NoteView backlinks panel', () => {
+  it('renders linked-from chips and switches note on click', async () => {
+    vi.resetModules()
+    const onOpenNote = vi.fn()
+    vi.doMock('@/hooks/useNote', () => ({
+      useNote: () => ({
+        note: {
+          note_path: 'khayal/target.md',
+          title: 'Target',
+          type: 'text',
+          backlinks: [{ note_path: 'khayal/fan1.md', title: 'Fan One' }],
+        },
+        loading: false,
+        error: null,
+      }),
+    }))
+    const { NoteView: NV } = await import('../NoteView')
+    const { render: r, screen: s2, fireEvent: fe } = await import('@testing-library/react')
+    r(<NV notePath="khayal/target.md" onClose={() => {}} onOpenNote={onOpenNote} />)
+    expect(s2.getByTestId('note-backlinks')).toBeTruthy()
+    const chip = s2.getByTestId('note-backlink-chip')
+    expect(chip.textContent).toContain('Fan One')
+    fe.click(chip)
+    expect(onOpenNote).toHaveBeenCalledWith('khayal/fan1.md')
+  })
+})

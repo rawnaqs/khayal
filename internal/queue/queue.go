@@ -2447,3 +2447,60 @@ func levenshtein(a, b string) int {
 	}
 	return prev[len(rb)]
 }
+
+// AllPersonEntities returns every person mention (note_path, value) for
+// graph construction.
+func (q *Queue) AllPersonEntities(ctx context.Context) ([]struct {
+	NotePath string
+	Value    string
+}, error) {
+	rows, err := q.db.QueryContext(ctx,
+		`SELECT note_path, entity_value FROM entities WHERE entity_type = 'person' ORDER BY created_at DESC LIMIT 2000`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []struct {
+		NotePath string
+		Value    string
+	}
+	for rows.Next() {
+		var e struct {
+			NotePath string
+			Value    string
+		}
+		if err := rows.Scan(&e.NotePath, &e.Value); err != nil {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// ConnectionResultRow is one connections job's stored payload.
+type ConnectionResultRow struct {
+	NotePath string
+	Result   string
+}
+
+// AllConnectionResults returns every stored connections result for graph
+// construction (most recent first).
+func (q *Queue) AllConnectionResults(ctx context.Context) ([]ConnectionResultRow, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT note_path, result FROM jobs
+		WHERE type = 'connections' AND result IS NOT NULL AND note_path != ''
+		ORDER BY created_at DESC LIMIT 1000`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ConnectionResultRow
+	for rows.Next() {
+		var r ConnectionResultRow
+		if err := rows.Scan(&r.NotePath, &r.Result); err != nil {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}

@@ -39,6 +39,7 @@ type NoteResponse struct {
 	Description    string                 `json:"description,omitempty"`
 	Related        []string               `json:"related,omitempty"`
 	RelatedLinks   []RelatedLink          `json:"related_links,omitempty"`
+	Backlinks      []RelatedLink          `json:"backlinks,omitempty"`
 	Entities       map[string]interface{} `json:"entities,omitempty"`
 	Excerpt        string                 `json:"excerpt,omitempty"`
 	SearchQuery    string                 `json:"search_query,omitempty"`
@@ -94,6 +95,30 @@ func (s *Server) noteHandler(w http.ResponseWriter, r *http.Request) {
 			related = append(related, RelatedLink{NotePath: path})
 		}
 	}
+	// Backlinks: inbox notes whose connections block references this
+	// note's basename. Frontmatter is authoritative (manual Obsidian
+	// edits surface here, unlike connections-job results).
+	var backlinks []RelatedLink
+	if base := filepath.Base(notePath); strings.HasSuffix(base, ".md") {
+		if scan, err := s.vaultReader.ScanBacklinks(); err == nil {
+			sources := scan[strings.TrimSuffix(base, ".md")]
+			paths := make([]string, 0, len(sources))
+			for _, src := range sources {
+				if src != notePath {
+					paths = append(paths, src)
+				}
+			}
+			blTitles, _ := s.queue.BatchGetNoteTitles(ctx, paths)
+			for _, src := range paths {
+				t := blTitles[src]
+				if t == "" {
+					t = strings.TrimSuffix(filepath.Base(src), ".md")
+				}
+				backlinks = append(backlinks, RelatedLink{NotePath: src, Title: t})
+			}
+		}
+	}
+
 	titles, _ := s.queue.BatchGetNoteTitles(ctx, resolvedPaths)
 	typeByPath := map[string][]string{}
 	if connPayload, err := s.queue.GetConnectionsResultByPath(ctx, notePath); err == nil {
@@ -122,6 +147,7 @@ func (s *Server) noteHandler(w http.ResponseWriter, r *http.Request) {
 	resp := NoteResponse{
 		NotePath:     notePath,
 		RelatedLinks: related,
+		Backlinks:    backlinks,
 		Title:        note.Title,
 		Type:         note.Type,
 		Status:       note.Status,
