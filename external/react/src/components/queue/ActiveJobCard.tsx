@@ -38,11 +38,11 @@ export function ActiveJobCard({ pipeline }: ActiveJobCardProps) {
           </div>
         </div>
 
-        {/* Compact dot stepper: width-proof at any card size. The active
-            stage's label + detail render below instead of beside dots. */}
+        {/* Flat stepper: dot──conn──dot──conn… as direct flex children.
+            Connectors flex:1 so dots spread evenly at any card width. */}
         <div className="pipe-dots" data-testid="pipeline-steps">
           {pipeline.steps.map((step, i) => (
-            <div key={step.label + i} className="pipe-step-row">
+            <div key={step.label + i} className="pipe-dot-wrap">
               {i > 0 && (
                 <div className={`pipe-conn ${pipeline.steps[i - 1].state === 'done' ? 'done' : ''}`} />
               )}

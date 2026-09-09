@@ -1795,13 +1795,14 @@
     margin: 12px 0 10px;
   }
 
-  .pipe-step-row {
+  .pipe-dot-wrap {
     display: flex;
     align-items: center;
     flex: 1;
+    min-width: 0;
   }
 
-  .pipe-step-row:last-child {
+  .pipe-dot-wrap:last-child {
     flex: 0;
   }
 
