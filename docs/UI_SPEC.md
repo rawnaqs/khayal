@@ -631,6 +631,17 @@ const modes = ['hybrid', 'keyword', 'semantic']
 
 ---
 
+## Note view — backlinks (v1.3)
+
+```tsx
+// "linked from" panel below the linked-notes panel — same chip look,
+// arrow icon rotated 180deg; clicks switch notes in place
+// Hidden when empty; both directions together show the full picture:
+//   what this note references + what references it
+```
+
+---
+
 ## Note view — two-step delete (v1.1 phase 3)
 
 ```tsx

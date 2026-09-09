@@ -204,11 +204,11 @@ Connection types 4–6 + PDF ingestion complete. See SPEC.md for details.
 Deferred: voice capture (local STT models not mature — see SPEC Voice
 Capture section). Shell completion remains deferred.
 
-## v1.3 — PLANNED
+## v1.3 — IN PROGRESS
 
-Graph connections & backlinks. Scope confirmed: backlinks in the notes
-UI + entity graph data API first; visual graph view decided after
-seeing real data.
+Graph connections & backlinks. Backlinks + the entity graph data API
+are shipped; the visual graph view is deliberately deferred until the
+real data shape is seen.
 
 | Slice | What |
 |-------|------|
