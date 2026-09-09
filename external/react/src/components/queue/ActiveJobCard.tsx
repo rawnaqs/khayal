@@ -19,6 +19,8 @@ function timeAgo(dateStr: string) {
 }
 
 export function ActiveJobCard({ pipeline }: ActiveJobCardProps) {
+  const active = pipeline.steps.find((s) => s.state === 'active')
+
   return (
     <>
       <div className="sec">now processing</div>
@@ -36,24 +38,27 @@ export function ActiveJobCard({ pipeline }: ActiveJobCardProps) {
           </div>
         </div>
 
-        {/* Stepper: dots + short labels, connectors carry the progress */}
-        <div className="pipe-steps" data-testid="pipeline-steps">
+        {/* Compact dot stepper: width-proof at any card size. The active
+            stage's label + detail render below instead of beside dots. */}
+        <div className="pipe-dots" data-testid="pipeline-steps">
           {pipeline.steps.map((step, i) => (
             <div key={step.label + i} className="pipe-step-row">
               {i > 0 && (
-                <div
-                  className={`pipe-conn ${pipeline.steps[i - 1].state === 'done' ? 'done' : ''}`}
-                />
+                <div className={`pipe-conn ${pipeline.steps[i - 1].state === 'done' ? 'done' : ''}`} />
               )}
-              <div className={`pipe-step ${step.state}`} title={step.detail || step.label}>
-                <div className="pipe-dot">
-                  {step.state === 'done' && <Check className="w-2.5 h-2.5" />}
-                </div>
-                <span className="pipe-label">{step.label}</span>
+              <div className={`pipe-dot ${step.state}`} title={step.detail || step.label}>
+                {step.state === 'done' && <Check className="w-2 h-2" />}
               </div>
             </div>
           ))}
         </div>
+
+        {active && (
+          <div className="pipe-now" data-testid="pipeline-active">
+            <span className="pipe-now-label">{active.label}</span>
+            {active.detail && <span className="pipe-now-detail">{active.detail}</span>}
+          </div>
+        )}
       </div>
     </>
   )
