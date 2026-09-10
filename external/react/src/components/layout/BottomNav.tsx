@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { PenLine, Search, Clock } from 'lucide-react'
+import { PenLine, Search, Clock , Network } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Tab } from '@/App'
 
@@ -12,6 +12,7 @@ const tabs = [
   { id: 'capture' as Tab, label: 'capture', icon: PenLine },
   { id: 'search' as Tab, label: 'search', icon: Search },
   { id: 'queue' as Tab, label: 'queue', icon: Clock },
+  { id: 'graph' as Tab, label: 'graph', icon: Network },
 ]
 
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {

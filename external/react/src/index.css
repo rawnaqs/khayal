@@ -790,6 +790,181 @@
   }
 
   /* Note mini input */
+  /* ── Graph view (v1.3) ─────────────────────────────────────── */
+
+  .graph-view {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+
+  .graph-filters {
+    display: flex;
+    gap: 5px;
+    padding: 10px 16px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  .gfc {
+    padding: 3px 9px;
+    border-radius: 100px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9px;
+    font-weight: 700;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    color: rgba(245, 245, 245, 0.35);
+    cursor: pointer;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    transition: all 0.15s;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .gfc:hover {
+    color: rgba(245, 245, 245, 0.7);
+  }
+
+  .gfc.on {
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .graph-canvas {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .graph-center {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .graph-center-hint {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    color: rgba(245, 245, 245, 0.35);
+  }
+
+  .graph-retry {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 100px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    color: var(--gl, #e8b86d);
+    background: rgba(201, 147, 58, 0.06);
+    border: 1px solid rgba(201, 147, 58, 0.3);
+    cursor: pointer;
+  }
+
+  .graph-info {
+    position: absolute;
+    bottom: 14px;
+    left: 14px;
+    right: 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(13, 13, 13, 0.92);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .graph-info-kind {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--gl, #e8b86d);
+  }
+
+  .graph-info-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgba(245, 245, 245, 0.85);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .graph-info-open {
+    margin-top: 6px;
+    padding: 7px 0;
+    border-radius: 8px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--gl, #e8b86d);
+    background: rgba(201, 147, 58, 0.08);
+    border: 1px solid rgba(201, 147, 58, 0.3);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .graph-info-open:hover {
+    background: rgba(201, 147, 58, 0.16);
+  }
+
+  .graph-info-close {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: rgba(245, 245, 245, 0.35);
+    font-size: 16px;
+    cursor: pointer;
+    min-height: 0;
+  }
+
+  .graph-legend {
+    position: absolute;
+    top: 52px;
+    right: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(13, 13, 13, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .gl-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9px;
+    color: rgba(245, 245, 245, 0.45);
+  }
+
+  .gl-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .gl-hint {
+    margin-top: 3px;
+    color: rgba(245, 245, 245, 0.25);
+  }
+
   /* ── Attachment card (capture: image + pdf) ────────────────── */
 
   .att-card {

@@ -1,5 +1,22 @@
 import { STORAGE_KEYS } from './constants'
 
+export interface GraphNode {
+  id: string
+  kind: 'note' | 'person'
+  name: string
+}
+
+export interface GraphEdge {
+  source: string
+  target: string
+  types?: string[]
+}
+
+export interface GraphData {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+}
+
 export interface CaptureRequest {
   type: 'text' | 'url' | 'image'
   content: string
@@ -243,6 +260,10 @@ export class KhayalClient {
 
   async stats(): Promise<StatsResponse> {
     return this.request<StatsResponse>('GET', '/v1/stats')
+  }
+
+  async graph(): Promise<GraphData> {
+    return this.request<GraphData>('GET', '/v1/graph')
   }
 
   async mediaBlob(mediaPath: string): Promise<Blob> {

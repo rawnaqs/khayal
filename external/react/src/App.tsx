@@ -6,13 +6,14 @@ import { BottomNav } from '@/components/layout/BottomNav'
 import { CaptureView } from '@/components/capture/CaptureView'
 import { SearchView } from '@/components/search/SearchView'
 import { QueueView } from '@/components/queue/QueueView'
+import { GraphView } from '@/components/graph/GraphView'
 import { NoteView } from '@/components/note/NoteView'
 import { Onboarding } from '@/components/Onboarding'
 import { LockScreen } from '@/components/lock/LockScreen'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { useVaultLock } from '@/hooks/useVaultLock'
 
-export type Tab = 'capture' | 'search' | 'queue'
+export type Tab = 'capture' | 'search' | 'queue' | 'graph'
 
 const pageVariants = {
   initial: { opacity: 0, y: 12 },
@@ -86,6 +87,8 @@ export default function App() {
         return <SearchView onCaptureQuery={handleCaptureQuery} onNoteSelect={handleNoteSelect} deletedPaths={deletedNotes} initialQuery={pendingSearch} onInitialQueryConsumed={handlePendingSearchConsumed} />
       case 'queue':
         return <QueueView onNoteSelect={handleNoteSelect} />
+      case 'graph':
+        return <GraphView onNoteSelect={handleNoteSelect} />
       default:
         return <CaptureView captureQuery={captureQuery} onCaptureQueryConsumed={handleCaptureQueryConsumed} />
     }
