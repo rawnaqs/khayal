@@ -1569,7 +1569,7 @@ v1.1  → Chunking + entity extraction + connections (similar, person, amount)
       phase 2.5) + search overview (on-demand AI answer, phase 2.6)
       + user-facing delete note (soft-delete, in vault commands) + backup
 v1.2  ✅ → connections (contradiction, follow_up, revisit) + PDF (voice deferred)
-v1.3  ✅a → Backlinks (notes UI + API) + entity graph data API (visual graph after)
+v1.3  ✅ → Backlinks (notes UI + API) + entity graph data API + typed graph view (sigma.js)
 v1.4  → YouTube / video ingestion
 v1.5  → Browser extension (github.com/rawnaqs/khayal-browser)
 v1.6  → Raycast extension (github.com/rawnaqs/khayal-raycast)

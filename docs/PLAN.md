@@ -204,11 +204,15 @@ Connection types 4–6 + PDF ingestion complete. See SPEC.md for details.
 Deferred: voice capture (local STT models not mature — see SPEC Voice
 Capture section). Shell completion remains deferred.
 
-## v1.3 — IN PROGRESS
+## v1.3 — SHIPPED
 
-Graph connections & backlinks. Backlinks + the entity graph data API
-are shipped; the visual graph view is deliberately deferred until the
-real data shape is seen.
+Graph connections & backlinks complete.
+
+| Feature | What landed |
+|---------|-------------|
+| Backlinks | frontmatter-authoritative reverse-link scan; `backlinks` on GET /v1/notes/{path}; "linked from" panel in NoteView |
+| Entity graph API | `GET /v1/graph` — typed {nodes, edges}: notes + people; note-note edges carry detector types; person-mention edges; 500-node cap |
+| Graph view | sigma.js v3 + graphology + @react-sigma/core v5: ForceAtlas2 layout, edges colored by connection type, type filter chips, click-to-focus neighborhood, open-note info card |
 
 | Slice | What |
 |-------|------|

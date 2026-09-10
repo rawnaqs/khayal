@@ -631,6 +631,25 @@ const modes = ['hybrid', 'keyword', 'semantic']
 
 ---
 
+## Graph view (v1.3 slice C)
+
+```tsx
+// New bottom-nav tab. Built on sigma.js v3 + graphology + @react-sigma
+// core v5 (WebGL, trending stack) — not hand-rolled canvas math.
+// ForceAtlas2 layout over GET /v1/graph: person hubs (gold, larger),
+// notes (gray, smaller); edges colored by connection type in the
+// product language (contradiction orange, similar green, follow-up
+// amber, revisit blue, person gold)
+// Type filter chips: matching edges survive, orphaned nodes drop
+// Click a node: unrelated elements dim, info card (kind + name +
+//   'open note') wired into the App note-select flow
+// Legend top-right: person/note colors + visible link count
+// Pure logic in lib/graphModel.ts (colors, filters, neighbors) is
+//   unit-tested; sigma stays untested (WebGL needs a real canvas)
+```
+
+---
+
 ## Note view — backlinks (v1.3)
 
 ```tsx

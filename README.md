@@ -299,7 +299,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 - **v1.0** ✅ — Core capture, search, CLI, PWA
 - **v1.1** ✅ — Chunking, entity extraction, proactive connections, capture intelligence, AI answers, delete, vault commands, encrypted backups
 - **v1.2** ✅ — Contradiction / follow-up / revisit connections · PDF ingestion (voice deferred until local STT models mature)
-- **v1.3** 🚧 — Backlinks ✅ + entity graph data API ✅ (visual graph next)
+- **v1.3** ✅ — Backlinks + entity graph data API + typed graph view (the Obsidian differentiator: connections carry their meaning)
 - **v1.4** — YouTube / video ingestion
 - **v1.5** — Browser extension
 - **v2.0** — Setup wizard UI

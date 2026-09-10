@@ -212,6 +212,8 @@ khayal/
 │       │   │   ├── useStats.ts              # Polling stats
 │       │   │   ├── useQueue.ts              # Queue polling
 │       │   │   ├── useQueueWS.ts            # Live job updates over WebSocket
+│       │   ├── graph/
+│       │   │   └── GraphView.tsx            # Typed connection web (sigma.js)
 │       │   │   ├── useServerStatus.ts       # Health polling
 │       │   │   ├── useSubmitLock.ts         # Prevent double-submit
 │       │   │   ├── useVaultLock.tsx          # App-lock state + token/key context
@@ -319,6 +321,7 @@ Private application code. Not importable by external packages.
 | `queue/` | Job queue, FTS5 + semantic search, entity/chunk stores |
 | `backup/` | Encrypted backup (age) and additive-merge restore |
 | `events/` | In-process pub-sub hub for realtime job updates |
+| PWA graph | sigma.js + graphology (@react-sigma/core); lib/graphModel.ts pure logic |
 | `connections/` | Proactive connections |
 | `config/` | Configuration management |
 | `version/` | Version info |
