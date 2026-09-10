@@ -21,6 +21,17 @@ export interface GraphData {
   edges: GraphEdge[]
 }
 
+// hex -> rgba with alpha: edges render whisper-thin and dim at rest,
+// brightening only on focus — the signature of polished graph views
+export function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace('#', '')
+  if (h.length !== 6) return hex
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return `rgba(${r},${g},${b},${alpha})`
+}
+
 // The product's type color language (matches linked-note badges)
 export const EDGE_COLORS: Record<string, string> = {
   similar: '#3ddc84',

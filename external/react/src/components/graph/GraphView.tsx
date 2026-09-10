@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { RefreshCw } from 'lucide-react'
 import Graph from 'graphology'
 import forceAtlas2 from 'graphology-layout-forceatlas2'
+import EdgeCurveProgram from '@sigma/edge-curve'
 import { SigmaContainer, useLoadGraph, useRegisterEvents, useSetSettings } from '@react-sigma/core'
 import '@react-sigma/core/lib/style.css'
 import { createClient, type GraphNode } from '@/lib/api'
@@ -9,8 +10,10 @@ import {
   CONNECTION_TYPE_LABELS,
   EDGE_COLORS,
   NODE_COLORS,
+  edgeColor,
   edgeMatchesFilter,
   neighborIds,
+  withAlpha,
 } from '@/lib/graphModel'
 import { useVaultLock } from '@/hooks/useVaultLock'
 import { cn } from '@/lib/utils'
@@ -60,6 +63,7 @@ function GraphInner({
   const registerEvents = useRegisterEvents()
   const setSettings = useSetSettings()
   const graphRef = useRef<Graph | null>(null)
+  const [hovered, setHovered] = useState<string | null>(null)
 
   // build + layout once per dataset
   useEffect(() => {
@@ -70,7 +74,7 @@ function GraphInner({
         kind: n.kind,
         x: (Math.random() - 0.5) * 100,
         y: (Math.random() - 0.5) * 100,
-        size: n.kind === 'person' ? 9 : 5,
+        size: n.kind === 'person' ? 7 : 4,
         color: NODE_COLORS[n.kind],
       })
     }
@@ -80,15 +84,14 @@ function GraphInner({
       if (seen.has(key) || !graph.hasNode(e.source) || !graph.hasNode(e.target)) continue
       seen.add(key)
       graph.addEdge(e.source, e.target, {
-        color: e.types?.length
-          ? EDGE_COLORS[e.types[0]] || 'rgba(245,245,245,0.3)'
-          : 'rgba(245,245,245,0.22)',
-        size: e.types?.includes('contradiction') ? 2.2 : 1,
+        // whisper-thin, dimmed to ~35%: the web reads as texture, not crayon
+        color: withAlpha(edgeColor(e), 0.35),
+        size: 0.6,
       })
     }
     forceAtlas2.assign(graph, {
-      iterations: 60,
-      settings: { gravity: 1.5, scalingRatio: 8, barnesHutOptimize: true },
+      iterations: 80,
+      settings: { gravity: 1.4, scalingRatio: 8, barnesHutOptimize: true, adjustSizes: true },
     })
     graphRef.current = graph
     loadGraph(graph)
@@ -100,12 +103,13 @@ function GraphInner({
     setSettings({
       nodeReducer: (node, attrs) => {
         const out = { ...attrs }
-        if (selected) {
-          const neighbors = neighborIds(selected.id, data.edges)
-          if (node !== selected.id && !neighbors.has(node)) {
-            out.color = 'rgba(245,245,245,0.07)'
+        const focusId = selected?.id ?? hovered
+        if (focusId) {
+          const neighbors = neighborIds(focusId, data.edges)
+          if (node !== focusId && !neighbors.has(focusId)) {
+            out.color = 'rgba(245,245,245,0.06)'
             out.label = ''
-            out.size = 2
+            out.size = 2.5
           }
         }
         return out
@@ -115,8 +119,16 @@ function GraphInner({
         const e = data.edges.find((x) => x.source + '\x00' + x.target === edge)
         if (!e) return out
         if (!edgeMatchesFilter(e, edgeFilter)) out.hidden = true
-        if (selected) {
-          if (e.source !== selected.id && e.target !== selected.id) out.hidden = true
+
+        const focusId = selected?.id ?? hovered
+        if (focusId) {
+          if (e.source === focusId || e.target === focusId) {
+            // the focused node's connections light up at full strength
+            out.color = edgeColor(e)
+            out.size = 1.2
+          } else {
+            out.color = 'rgba(245,245,245,0.05)'
+          }
         }
         return out
       },
@@ -126,6 +138,8 @@ function GraphInner({
   useEffect(() => {
     registerEvents({
       clickNode: ({ node }) => onNodeClick(node),
+      enterNode: ({ node }) => setHovered(node),
+      leaveNode: () => setHovered(null),
     })
   }, [registerEvents, onNodeClick])
 
@@ -206,10 +220,13 @@ export function GraphView({ onNoteSelect }: { onNoteSelect?: (notePath: string) 
         <SigmaContainer
           style={{ height: '100%', width: '100%', background: 'transparent' }}
           settings={{
-            defaultEdgeType: 'line',
+            defaultEdgeType: 'curved',
+            edgeProgramClasses: { curved: EdgeCurveProgram },
             minCameraRatio: 0.2,
             maxCameraRatio: 8,
-            labelRenderedSizeThreshold: 7,
+            labelRenderedSizeThreshold: 12,
+            labelFont: 'IBM Plex Mono, monospace',
+            labelColor: { color: 'rgba(245,245,245,0.65)' },
             defaultEdgeColor: 'rgba(245,245,245,0.2)',
           }}
         >

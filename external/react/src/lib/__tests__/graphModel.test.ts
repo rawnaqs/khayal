@@ -81,3 +81,14 @@ describe('personCount', () => {
     })).toBe(1)
   })
 })
+
+import { withAlpha } from '../graphModel'
+
+describe('withAlpha', () => {
+  it('converts hex to rgba with alpha', () => {
+    expect(withAlpha('#ff8a5c', 0.35)).toBe('rgba(255,138,92,0.35)')
+  })
+  it('passes through non-hex values untouched', () => {
+    expect(withAlpha('rgba(1,2,3,0.5)', 0.9)).toBe('rgba(1,2,3,0.5)')
+  })
+})
