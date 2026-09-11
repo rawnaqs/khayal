@@ -105,10 +105,18 @@ function GraphInner({
     loadGraph(graph)
 
     // free-flow physics: a few FA2 iterations per frame, pausing while a
-    // node is being dragged so the dragged position sticks
+    // node is being dragged so the dragged position sticks.
+    // inferSettings scales the force to the graph's node count — the
+    // same settings feel right at 50 or 500 nodes.
     let frame = 0
     let raf = 0
-    const FA2 = { gravity: 1.4, scalingRatio: 8, barnesHutOptimize: true, adjustSizes: true }
+    const FA2 = {
+      ...forceAtlas2.inferSettings(graph),
+      gravity: 1,
+      slowDown: 4,
+      barnesHutOptimize: true,
+      adjustSizes: true,
+    }
     const step = () => {
       if (!dragNodeRef.current) {
         // small batch per frame: the graph visibly flows into its shape
@@ -121,7 +129,10 @@ function GraphInner({
           }
         })
       }
-      sigma.refresh({ skipIndexation: true })
+      // FULL refresh every frame: skipIndexation leaves the hit-test
+      // index stale at the initial positions, which made hover/click/
+      // drag dead. Hit-test re-indexing at this scale is cheap.
+      sigma.refresh()
       if (++frame < 320) raf = requestAnimationFrame(step)
     }
     raf = requestAnimationFrame(step)
