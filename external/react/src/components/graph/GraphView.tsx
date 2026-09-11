@@ -80,7 +80,15 @@ function GraphInner({
   const sigma = useSigma()
   const graphRef = useRef<Graph | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
-  const dragNodeRef = useRef<string | null>(null)
+  // Drag state: a click must never count as a drag. We only start moving
+  // the node after the pointer has travelled past a small threshold
+  // WHILE the button is held.
+  const dragRef = useRef<{
+    node: string
+    startX: number
+    startY: number
+    active: boolean
+  } | null>(null)
 
   // Build: deterministic edge keys (so reducers can match edges by key),
   // age-ordered nodes, all hidden until the reveal sweeps them in.
@@ -139,7 +147,7 @@ function GraphInner({
       frame++
       // reveal ~all nodes over ~1.5s
       revealRef.current = revealProgress(revealRef.current, ordered.length)
-      if (!dragNodeRef.current) {
+      if (!dragRef.current?.active) {
         const slowDown = Math.min(2 + frame * 0.04, 10)
         const iterations = frame < 30 ? 4 : frame < 90 ? 2 : 1
         const mapping = forceAtlas2(graph, { iterations, settings: { ...FA2, slowDown } })
@@ -224,11 +232,15 @@ function GraphInner({
   // camera pan while a node is held; empty-space drags still pan.
   useEffect(() => {
     registerEvents({
-      clickNode: ({ node }) => onNodeClick(node),
       enterNode: ({ node }) => setHovered(node),
       leaveNode: () => setHovered(null),
       downNode: ({ node }) => {
-        dragNodeRef.current = node
+        dragRef.current = { node, startX: NaN, startY: NaN, active: false }
+      },
+      clickNode: ({ node }) => {
+        // a click is not a drag: drop any pending drag state
+        dragRef.current = null
+        onNodeClick(node)
       },
     })
   }, [registerEvents, onNodeClick])
@@ -243,18 +255,37 @@ function GraphInner({
       preventSigmaDefault?: () => void
       original?: { preventDefault?: () => void; stopPropagation?: () => void }
     }) => {
-      const node = dragNodeRef.current
-      if (!node) return
+      const drag = dragRef.current
+      // mousemovebody fires on EVERY cursor move (button or not) and
+      // mouseup can bail early, so a stale target used to drag the node
+      // around on later moves. Hard requirement: the button is held.
+      if (!drag) return
+      if (!captor.isMouseDown) {
+        dragRef.current = null
+        return
+      }
+      if (Number.isNaN(drag.startX)) {
+        // first move establishes the origin; real travel is measured
+        // from here on subsequent moves
+        drag.startX = e.x
+        drag.startY = e.y
+        return
+      }
+      const dx = e.x - drag.startX
+      const dy = e.y - drag.startY
+      if (!drag.active && Math.hypot(dx, dy) < 4) return
+      drag.active = true
+
       e.preventSigmaDefault?.()
       e.original?.preventDefault?.()
       e.original?.stopPropagation?.()
       const pos = sigma.viewportToGraph({ x: e.x, y: e.y })
-      graphRef.current?.setNodeAttribute(node, 'x', pos.x)
-      graphRef.current?.setNodeAttribute(node, 'y', pos.y)
+      graphRef.current?.setNodeAttribute(drag.node, 'x', pos.x)
+      graphRef.current?.setNodeAttribute(drag.node, 'y', pos.y)
       sigma.refresh()
     }
     const onUp = () => {
-      dragNodeRef.current = null
+      dragRef.current = null
     }
     // disable autoscale on first interaction so the camera doesn't fight
     // the dragged node (official sigma drag example does the same)
