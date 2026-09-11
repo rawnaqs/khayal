@@ -21,6 +21,40 @@ declare global {
   }
 }
 
+
+// Small note dots (~3px) drift while physics runs, so read the position
+// immediately before pressing — exactly what a human does.
+async function nodeAt(page: import("@playwright/test").Page, id: string) {
+  return page.evaluate((nid) => {
+    const d = window.__graphDebug;
+    const rect = d.canvasRect();
+    const vp = d.nodeViewport(nid);
+    return vp && rect ? { x: rect.left + vp.x, y: rect.top + vp.y } : null;
+  }, id);
+}
+
+async function dragNode(page: import("@playwright/test").Page, id: string) {
+  const before = await page.evaluate((nid) => window.__graphDebug.nodeState(nid), id);
+  const camBefore = await page.evaluate(() => window.__graphDebug.camera());
+  const downsBefore = await page.evaluate(() => window.__graphDebug.counts().downs);
+  const p = await nodeAt(page, id);
+  await page.mouse.move(p!.x, p!.y);
+  await page.mouse.down();
+  await page.waitForTimeout(40);
+  const downFired = (await page.evaluate(() => window.__graphDebug.counts().downs)) - downsBefore;
+  await page.mouse.move(p!.x + 70, p!.y + 60, { steps: 12 });
+  await page.mouse.move(p!.x + 150, p!.y + 110, { steps: 12 });
+  const after = await page.evaluate((nid) => window.__graphDebug.nodeState(nid), id);
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  const camAfter = await page.evaluate(() => window.__graphDebug.camera());
+  return {
+    downFired,
+    nodeMoved: Math.hypot(after!.x - before!.x, after!.y - before!.y),
+    camMoved: Math.hypot(camAfter.x - camBefore.x, camAfter.y - camBefore.y),
+  };
+}
+
 async function openGraph(page: import("@playwright/test").Page) {
   await page.locator("nav .nt", { hasText: "graph" }).click();
   await page.waitForSelector('[data-testid="graph-canvas"] canvas', { timeout: 10000 });
@@ -70,29 +104,52 @@ async function emptySpot(page: import("@playwright/test").Page) {
   });
 }
 
-test("node drag moves the node without panning the camera", async ({ page }) => {
+test("dragging a small note node moves the node, not the camera (physics live)", async ({ page }) => {
   await page.goto("/");
-  await openGraph(page);
+  // deliberately do NOT pause physics: the reported bug only appears while
+  // nodes are drifting and small
+  await page.locator("nav .nt", { hasText: "graph" }).click();
+  await page.waitForSelector('[data-testid="graph-canvas"] canvas', { timeout: 10000 });
+  await page.waitForTimeout(3000);
 
-  const pick = await centreNode(page);
-  expect(pick, "no node found").not.toBeNull();
-  const before = await page.evaluate((id) => window.__graphDebug.nodeState(id), pick!.id);
+  const id = await page.evaluate(() => {
+    const d = window.__graphDebug;
+    return d.nodeIds().find((n) => d.nodeState(n)?.kind === "note") ?? null;
+  });
+  expect(id, "no note node").not.toBeNull();
+
+  const r = await dragNode(page, id!);
+  console.log("NOTE-DRAG", JSON.stringify({ down: r.downFired, moved: +r.nodeMoved.toFixed(1), cam: +r.camMoved.toFixed(3) }));
+  expect(r.downFired, "the press must register on the node").toBe(1);
+  expect(r.nodeMoved, "node should follow the drag").toBeGreaterThan(5);
+  expect(r.camMoved, "camera must not pan while dragging a node").toBeLessThan(0.5);
+});
+
+test("panning still works after dragging a node", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("nav .nt", { hasText: "graph" }).click();
+  await page.waitForSelector('[data-testid="graph-canvas"] canvas', { timeout: 10000 });
+  await page.waitForTimeout(3000);
+
+  const id = await page.evaluate(() => {
+    const d = window.__graphDebug;
+    return d.nodeIds().find((n) => d.nodeState(n)?.kind === "note") ?? null;
+  });
+  await dragNode(page, id!);
+
+  // the captor must be usable again: empty-space drag pans the camera
   const camBefore = await page.evaluate(() => window.__graphDebug.camera());
-
-  const p = pick!.vp;
-  await page.mouse.move(p.x, p.y);
+  const spot = await emptySpot(page);
+  expect(spot).not.toBeNull();
+  await page.mouse.move(spot!.x, spot!.y);
   await page.mouse.down();
-  await page.mouse.move(p.x + 140, p.y + 100, { steps: 15 });
+  await page.mouse.move(spot!.x + 120, spot!.y + 60, { steps: 10 });
   await page.mouse.up();
-  await page.waitForTimeout(300);
-
-  const after = await page.evaluate((id) => window.__graphDebug.nodeState(id), pick!.id);
+  await page.waitForTimeout(200);
   const camAfter = await page.evaluate(() => window.__graphDebug.camera());
-  const nodeMoved = Math.hypot(after!.x - before!.x, after!.y - before!.y);
   const camMoved = Math.hypot(camAfter.x - camBefore.x, camAfter.y - camBefore.y);
-  console.log("NODE-MOVED", nodeMoved.toFixed(1), "CAM-MOVED", camMoved.toFixed(3));
-  expect(nodeMoved, "node should follow the drag").toBeGreaterThan(5);
-  expect(camMoved, "camera must not pan while dragging a node").toBeLessThan(0.5);
+  console.log("PAN-AFTER-DRAG", camMoved.toFixed(3));
+  expect(camMoved, "camera should pan after a node drag").toBeGreaterThan(0.001);
 });
 
 test("panning on empty space still works", async ({ page }) => {

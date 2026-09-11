@@ -87,11 +87,19 @@ function GraphInner({
   // candidate node, the pointer origin, whether real travel happened, and
   // we disable sigma's captor while dragging so the camera stays put.
   const dragCandidateRef = useRef<string | null>(null)
-  const dragOriginRef = useRef<{ x: number; y: number } | null>(null)
   const dragActiveRef = useRef(false)
   const physicsPausedRef = useRef(false)
   const downCountRef = useRef(0)
   const clickCountRef = useRef(0)
+  // set while we own a gesture (pressed on a node), so sigma's captor
+  // handlers know to ignore the click that follows
+  const ownGestureRef = useRef(false)
+  const onNodeClickRef = useRef(onNodeClick)
+  const hitNodeRef = useRef<(x: number, y: number) => string | null>(() => null)
+
+  useEffect(() => {
+    onNodeClickRef.current = onNodeClick
+  }, [onNodeClick])
 
   // Build: deterministic edge keys (so reducers can match edges by key),
   // age-ordered nodes, all hidden until the reveal sweeps them in.
@@ -231,83 +239,138 @@ function GraphInner({
     })
   }, [selected, hovered, edgeFilter, data, setSettings, revealRef])
 
-  // Events: selection, hover, drag candidate.
+  // Events: hover + empty-space clicks. Node clicks and node drags are
+  // owned by the pointer handler below.
   useEffect(() => {
     registerEvents({
-      enterNode: ({ node }) => setHovered(node),
-      leaveNode: () => setHovered(null),
-      downNode: ({ node }) => {
-        downCountRef.current++
-        dragCandidateRef.current = node
-        dragOriginRef.current = null
-        dragActiveRef.current = false
+      enterNode: ({ node }) => {
+        if (!ownGestureRef.current) setHovered(node)
       },
+      leaveNode: () => setHovered(null),
       clickNode: ({ node }) => {
+        // our pointer handler already handled this gesture
+        if (ownGestureRef.current) return
         clickCountRef.current++
-        // a click is not a drag: drop any pending drag state
-        dragCandidateRef.current = null
         onNodeClick(node)
       },
-      // clicking empty space clears the selection (previously the card
-      // could only be dismissed with a second click)
-      clickStage: () => onStageClick(),
+      // clicking empty space clears the selection
+      clickStage: () => {
+        if (ownGestureRef.current) return
+        onStageClick()
+      },
     })
   }, [registerEvents, onNodeClick, onStageClick])
 
-  // Drag: fully self-owned pointer handling. sigma's captor has quirks
-  // (mousemovebody fires with no button held, mouseup can bail early), so
-  // we track pointer state ourselves and disable the captor during an
-  // active node drag — the camera cannot pan underneath it.
+  // Node drag + selection, fully self-owned.
+  //
+  // sigma's captor hit test is exact-pixel: a ~3px note dot is ungrabbable,
+  // and with physics running the node drifts out from under the cursor, so
+  // `downNode` never fires and the camera pans instead. We therefore
+  // hit-test ourselves with a tolerance on pointerdown. Because pointerdown
+  // precedes sigma's mousedown, disabling the captor here stops the camera
+  // before it ever starts moving (and sigma never enters its drag state, so
+  // it cannot get stuck down). Clicks on nodes are synthesised on pointerup,
+  // and ownGestureRef tells sigma's captor handlers to ignore the trailing
+  // click event.
   useEffect(() => {
-    const endDrag = () => {
-      if (dragActiveRef.current) {
-        const captor = sigma.getMouseCaptor()
-        if (captor) captor.enabled = true
-      }
-      dragCandidateRef.current = null
-      dragOriginRef.current = null
+    const container = sigma.getContainer()
+
+    const hitNode = (px: number, py: number): string | null => {
+      const graph = graphRef.current
+      if (!graph) return null
+      let best: string | null = null
+      let bestDist = Infinity
+      graph.forEachNode((id) => {
+        const attrs = graph.getNodeAttributes(id)
+        const order = (attrs.order as number) ?? 0
+        if (revealRef.current - order <= 0) return // still hidden
+        const vp = sigma.graphToViewport({ x: attrs.x as number, y: attrs.y as number })
+        const dist = Math.hypot(vp.x - px, vp.y - py)
+        const size = (attrs.targetSize as number) || 4
+        const tolerance = Math.max(size + 8, 14)
+        if (dist <= tolerance && dist < bestDist) {
+          bestDist = dist
+          best = id
+        }
+      })
+      return best
+    }
+    hitNodeRef.current = hitNode
+
+    let start: { x: number; y: number } | null = null
+    let travel = 0
+    let dragged = false
+
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      ownGestureRef.current = false
+      const rect = container.getBoundingClientRect()
+      const px = e.clientX - rect.left
+      const py = e.clientY - rect.top
+      const node = hitNode(px, py)
+      if (!node) return // empty space: sigma pans as usual
+      ownGestureRef.current = true
+      downCountRef.current++
+      dragCandidateRef.current = node
       dragActiveRef.current = false
+      start = { x: px, y: py }
+      travel = 0
+      dragged = false
+      // disable BEFORE sigma sees mousedown/touchstart: no pan, no stuck state
+      const captor = sigma.getMouseCaptor()
+      if (captor) captor.enabled = false
     }
 
-    const onPointerMove = (e: PointerEvent) => {
+    const finish = () => {
       const node = dragCandidateRef.current
+      dragCandidateRef.current = null
+      dragActiveRef.current = false
+      start = null
       if (!node) return
-      // button/touch must still be held (works for mouse and touch)
+      if (!dragged) {
+        // a click, not a drag: we own this gesture, so fire it ourselves
+        clickCountRef.current++
+        onNodeClickRef.current(node)
+      }
+      const captor = sigma.getMouseCaptor()
+      if (captor) captor.enabled = true
+      dragged = false
+      travel = 0
+    }
+
+    const onMove = (e: PointerEvent) => {
+      const node = dragCandidateRef.current
+      if (!node || !start) return
       if (e.buttons === 0) {
-        endDrag()
+        finish()
         return
       }
-      const rect = sigma.getContainer().getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const y = e.clientY - rect.top
-      if (!dragOriginRef.current) {
-        dragOriginRef.current = { x, y }
-        return
-      }
-      const dx = x - dragOriginRef.current.x
-      const dy = y - dragOriginRef.current.y
-      if (!dragActiveRef.current && Math.hypot(dx, dy) < 4) return
-      if (!dragActiveRef.current) {
-        dragActiveRef.current = true
-        const captor = sigma.getMouseCaptor()
-        if (captor) captor.enabled = false // freeze the camera
-      }
+      const rect = container.getBoundingClientRect()
+      const px = e.clientX - rect.left
+      const py = e.clientY - rect.top
+      travel = Math.max(travel, Math.hypot(px - start.x, py - start.y))
+      if (!dragged && travel < 3) return
+      dragged = true
+      dragActiveRef.current = true
       e.preventDefault()
-      const pos = sigma.viewportToGraph({ x, y })
+      const pos = sigma.viewportToGraph({ x: px, y: py })
       graphRef.current?.setNodeAttribute(node, 'x', pos.x)
       graphRef.current?.setNodeAttribute(node, 'y', pos.y)
       sigma.refresh()
     }
 
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', endDrag)
-    window.addEventListener('pointercancel', endDrag)
+    container.addEventListener('pointerdown', onDown, true)
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', finish)
     return () => {
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', endDrag)
-      window.removeEventListener('pointercancel', endDrag)
+      hitNodeRef.current = () => null
+      container.removeEventListener('pointerdown', onDown, true)
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', finish)
     }
-  }, [sigma])
+  }, [sigma, revealRef])
 
   // DEV-only introspection hook so e2e tests can assert node/camera state
   // (WebGL makes DOM assertions impossible otherwise).
@@ -337,8 +400,8 @@ function GraphInner({
       pause: (v: boolean) => {
         physicsPausedRef.current = v
       },
-      hitTest: (x: number, y: number) =>
-        (sigma as unknown as { getNodeAtPosition: (p: { x: number; y: number }) => string | undefined }).getNodeAtPosition({ x, y }) ?? null,
+      // tolerant hit test — this is what the pointer handler uses
+      hitTest: (x: number, y: number) => hitNodeRef.current(x, y),
       captor: () => {
         const c = sigma.getMouseCaptor()
         return { enabled: c.enabled, isMouseDown: c.isMouseDown, draggedEvents: c.draggedEvents, isMoving: c.isMoving }
