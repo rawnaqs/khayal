@@ -919,6 +919,13 @@
     gap: 3px;
   }
 
+  .graph-info-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
   .graph-info-kind {
     font-family: "IBM Plex Mono", monospace;
     font-size: 8.5px;
@@ -958,11 +965,8 @@
   }
 
   .graph-info-close {
-    position: absolute;
-    top: 8px;
-    right: 10px;
-    width: 24px;
-    height: 24px;
+    width: 26px;
+    height: 26px;
     border-radius: 6px;
     border: none;
     background: transparent;

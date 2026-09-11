@@ -89,6 +89,9 @@ function GraphInner({
   const dragCandidateRef = useRef<string | null>(null)
   const dragOriginRef = useRef<{ x: number; y: number } | null>(null)
   const dragActiveRef = useRef(false)
+  const physicsPausedRef = useRef(false)
+  const downCountRef = useRef(0)
+  const clickCountRef = useRef(0)
 
   // Build: deterministic edge keys (so reducers can match edges by key),
   // age-ordered nodes, all hidden until the reveal sweeps them in.
@@ -147,7 +150,7 @@ function GraphInner({
       frame++
       // reveal ~all nodes over ~1.5s
       revealRef.current = revealProgress(revealRef.current, ordered.length)
-      if (!dragActiveRef.current) {
+      if (!dragActiveRef.current && !physicsPausedRef.current) {
         const slowDown = Math.min(2 + frame * 0.04, 10)
         const iterations = frame < 30 ? 4 : frame < 90 ? 2 : 1
         const mapping = forceAtlas2(graph, { iterations, settings: { ...FA2, slowDown } })
@@ -234,11 +237,13 @@ function GraphInner({
       enterNode: ({ node }) => setHovered(node),
       leaveNode: () => setHovered(null),
       downNode: ({ node }) => {
+        downCountRef.current++
         dragCandidateRef.current = node
         dragOriginRef.current = null
         dragActiveRef.current = false
       },
       clickNode: ({ node }) => {
+        clickCountRef.current++
         // a click is not a drag: drop any pending drag state
         dragCandidateRef.current = null
         onNodeClick(node)
@@ -304,6 +309,44 @@ function GraphInner({
     }
   }, [sigma])
 
+  // DEV-only introspection hook so e2e tests can assert node/camera state
+  // (WebGL makes DOM assertions impossible otherwise).
+  useEffect(() => {
+    if (!import.meta.env.DEV) return
+    ;(window as unknown as Record<string, unknown>).__graphDebug = {
+      nodeIds: () => graphRef.current?.nodes() ?? [],
+      nodeState: (id: string) => {
+        const g = graphRef.current
+        if (!g || !g.hasNode(id)) return null
+        const a = g.getNodeAttributes(id)
+        return { x: a.x as number, y: a.y as number, kind: a.kind as string }
+      },
+      nodeViewport: (id: string) => {
+        const g = graphRef.current
+        if (!g || !g.hasNode(id)) return null
+        const a = g.getNodeAttributes(id)
+        return sigma.graphToViewport({ x: a.x as number, y: a.y as number })
+      },
+      camera: () => sigma.getCamera().getState(),
+      canvasRect: () => {
+        const el = sigma.getContainer().querySelector('canvas')
+        if (!el) return null
+        const r = el.getBoundingClientRect()
+        return { left: r.left, top: r.top, width: r.width, height: r.height }
+      },
+      pause: (v: boolean) => {
+        physicsPausedRef.current = v
+      },
+      hitTest: (x: number, y: number) =>
+        (sigma as unknown as { getNodeAtPosition: (p: { x: number; y: number }) => string | undefined }).getNodeAtPosition({ x, y }) ?? null,
+      captor: () => {
+        const c = sigma.getMouseCaptor()
+        return { enabled: c.enabled, isMouseDown: c.isMouseDown, draggedEvents: c.draggedEvents, isMoving: c.isMoving }
+      },
+      counts: () => ({ downs: downCountRef.current, clicks: clickCountRef.current }),
+    }
+  }, [sigma])
+
   return null
 }
 
@@ -323,9 +366,16 @@ export function GraphView({ onNoteSelect }: { onNoteSelect?: (notePath: string) 
   const handleNodeClick = useCallback(
     (nodeId: string) => {
       const node = data?.nodes.find((n) => n.id === nodeId)
-      if (node) setSelected(node)
+      if (!node) return
+      // clicking a note opens it (Obsidian behaviour); people have no
+      // note to open, so they surface an info card instead
+      if (node.kind === 'note' && onNoteSelect) {
+        onNoteSelect(node.id)
+        return
+      }
+      setSelected(node)
     },
-    [data],
+    [data, onNoteSelect],
   )
 
   const toggleFilter = useCallback((t: string) => {
@@ -422,20 +472,22 @@ export function GraphView({ onNoteSelect }: { onNoteSelect?: (notePath: string) 
 
         {selected && (
           <div className="graph-info" data-testid="graph-info">
-            <div className="graph-info-kind">{selected.kind}</div>
-            <div className="graph-info-name">{selected.name}</div>
-            {onNoteSelect && selected.kind === 'note' && (
+            <div className="graph-info-head">
+              <span className="graph-info-kind">{selected.kind}</span>
               <button
-                className="graph-info-open"
-                onClick={() => onNoteSelect(selected.id)}
-                data-testid="graph-open-note"
+                className="graph-info-close"
+                onPointerDown={(e) => {
+                  e.stopPropagation()
+                  setSelected(null)
+                }}
+                onClick={(e) => e.stopPropagation()}
+                title="close"
+                data-testid="graph-info-close"
               >
-                open note
+                ×
               </button>
-            )}
-            <button className="graph-info-close" onClick={() => setSelected(null)} title="close">
-              ×
-            </button>
+            </div>
+            <div className="graph-info-name">{selected.name}</div>
           </div>
         )}
 

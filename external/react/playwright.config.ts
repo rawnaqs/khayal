@@ -15,7 +15,18 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        // WebGL under headless: SwiftShader software rendering
+        launchOptions: {
+          args: [
+            '--enable-unsafe-swiftshader',
+            '--use-gl=angle',
+            '--use-angle=swiftshader',
+            '--ignore-gpu-blocklist',
+          ],
+        },
+      },
     },
     {
       name: 'mobile',
