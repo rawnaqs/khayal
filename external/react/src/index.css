@@ -797,6 +797,19 @@
     display: flex;
     flex-direction: column;
     position: relative;
+    /* clicks must never start text selection or flash a tap highlight —
+       that was the "weird white background" on node clicks */
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .graph-view canvas {
+    outline: none;
+  }
+
+  .graph-view canvas:focus {
+    outline: none;
   }
 
   .graph-filters {
@@ -832,6 +845,7 @@
 
   .graph-reload {
     margin-left: auto;
+    flex-shrink: 0;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -856,6 +870,9 @@
   .graph-canvas {
     flex: 1;
     min-height: 0;
+    position: relative;
+    /* let pointer drags reach the canvas instead of scrolling the page */
+    touch-action: none;
   }
 
   .graph-center {
@@ -889,9 +906,9 @@
 
   .graph-info {
     position: absolute;
-    bottom: 14px;
-    left: 14px;
-    right: 14px;
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
     padding: 12px 14px;
     border-radius: 12px;
     background: rgba(13, 13, 13, 0.92);
@@ -957,8 +974,9 @@
 
   .graph-legend {
     position: absolute;
-    top: 52px;
-    right: 14px;
+    top: 10px;
+    right: 12px;
+    pointer-events: none;
     display: flex;
     flex-direction: column;
     gap: 5px;

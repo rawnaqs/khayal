@@ -66,12 +66,14 @@ function GraphInner({
   edgeFilter,
   selected,
   onNodeClick,
+  onStageClick,
   revealRef,
 }: {
   data: RawGraph
   edgeFilter: Set<string>
   selected: GraphNode | null
   onNodeClick: (id: string) => void
+  onStageClick: () => void
   revealRef: React.MutableRefObject<number>
 }) {
   const loadGraph = useLoadGraph()
@@ -80,15 +82,13 @@ function GraphInner({
   const sigma = useSigma()
   const graphRef = useRef<Graph | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
-  // Drag state: a click must never count as a drag. We only start moving
-  // the node after the pointer has travelled past a small threshold
-  // WHILE the button is held.
-  const dragRef = useRef<{
-    node: string
-    startX: number
-    startY: number
-    active: boolean
-  } | null>(null)
+  // Drag state, fully self-owned (sigma's captor has quirks: mousemovebody
+  // fires without buttons held, mouseup can bail early). We track the
+  // candidate node, the pointer origin, whether real travel happened, and
+  // we disable sigma's captor while dragging so the camera stays put.
+  const dragCandidateRef = useRef<string | null>(null)
+  const dragOriginRef = useRef<{ x: number; y: number } | null>(null)
+  const dragActiveRef = useRef(false)
 
   // Build: deterministic edge keys (so reducers can match edges by key),
   // age-ordered nodes, all hidden until the reveal sweeps them in.
@@ -147,7 +147,7 @@ function GraphInner({
       frame++
       // reveal ~all nodes over ~1.5s
       revealRef.current = revealProgress(revealRef.current, ordered.length)
-      if (!dragRef.current?.active) {
+      if (!dragActiveRef.current) {
         const slowDown = Math.min(2 + frame * 0.04, 10)
         const iterations = frame < 30 ? 4 : frame < 90 ? 2 : 1
         const mapping = forceAtlas2(graph, { iterations, settings: { ...FA2, slowDown } })
@@ -228,78 +228,79 @@ function GraphInner({
     })
   }, [selected, hovered, edgeFilter, data, setSettings, revealRef])
 
-  // Drag: sigma's own captor pattern — preventSigmaDefault() vetoes the
-  // camera pan while a node is held; empty-space drags still pan.
+  // Events: selection, hover, drag candidate.
   useEffect(() => {
     registerEvents({
       enterNode: ({ node }) => setHovered(node),
       leaveNode: () => setHovered(null),
       downNode: ({ node }) => {
-        dragRef.current = { node, startX: NaN, startY: NaN, active: false }
+        dragCandidateRef.current = node
+        dragOriginRef.current = null
+        dragActiveRef.current = false
       },
       clickNode: ({ node }) => {
         // a click is not a drag: drop any pending drag state
-        dragRef.current = null
+        dragCandidateRef.current = null
         onNodeClick(node)
       },
+      // clicking empty space clears the selection (previously the card
+      // could only be dismissed with a second click)
+      clickStage: () => onStageClick(),
     })
-  }, [registerEvents, onNodeClick])
+  }, [registerEvents, onNodeClick, onStageClick])
 
+  // Drag: fully self-owned pointer handling. sigma's captor has quirks
+  // (mousemovebody fires with no button held, mouseup can bail early), so
+  // we track pointer state ourselves and disable the captor during an
+  // active node drag — the camera cannot pan underneath it.
   useEffect(() => {
-    const captor = sigma.getMouseCaptor()
-    if (!captor) return
+    const endDrag = () => {
+      if (dragActiveRef.current) {
+        const captor = sigma.getMouseCaptor()
+        if (captor) captor.enabled = true
+      }
+      dragCandidateRef.current = null
+      dragOriginRef.current = null
+      dragActiveRef.current = false
+    }
 
-    const onMove = (e: {
-      x: number
-      y: number
-      preventSigmaDefault?: () => void
-      original?: { preventDefault?: () => void; stopPropagation?: () => void }
-    }) => {
-      const drag = dragRef.current
-      // mousemovebody fires on EVERY cursor move (button or not) and
-      // mouseup can bail early, so a stale target used to drag the node
-      // around on later moves. Hard requirement: the button is held.
-      if (!drag) return
-      if (!captor.isMouseDown) {
-        dragRef.current = null
+    const onPointerMove = (e: PointerEvent) => {
+      const node = dragCandidateRef.current
+      if (!node) return
+      // button/touch must still be held (works for mouse and touch)
+      if (e.buttons === 0) {
+        endDrag()
         return
       }
-      if (Number.isNaN(drag.startX)) {
-        // first move establishes the origin; real travel is measured
-        // from here on subsequent moves
-        drag.startX = e.x
-        drag.startY = e.y
+      const rect = sigma.getContainer().getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+      if (!dragOriginRef.current) {
+        dragOriginRef.current = { x, y }
         return
       }
-      const dx = e.x - drag.startX
-      const dy = e.y - drag.startY
-      if (!drag.active && Math.hypot(dx, dy) < 4) return
-      drag.active = true
-
-      e.preventSigmaDefault?.()
-      e.original?.preventDefault?.()
-      e.original?.stopPropagation?.()
-      const pos = sigma.viewportToGraph({ x: e.x, y: e.y })
-      graphRef.current?.setNodeAttribute(drag.node, 'x', pos.x)
-      graphRef.current?.setNodeAttribute(drag.node, 'y', pos.y)
+      const dx = x - dragOriginRef.current.x
+      const dy = y - dragOriginRef.current.y
+      if (!dragActiveRef.current && Math.hypot(dx, dy) < 4) return
+      if (!dragActiveRef.current) {
+        dragActiveRef.current = true
+        const captor = sigma.getMouseCaptor()
+        if (captor) captor.enabled = false // freeze the camera
+      }
+      e.preventDefault()
+      const pos = sigma.viewportToGraph({ x, y })
+      graphRef.current?.setNodeAttribute(node, 'x', pos.x)
+      graphRef.current?.setNodeAttribute(node, 'y', pos.y)
       sigma.refresh()
     }
-    const onUp = () => {
-      dragRef.current = null
-    }
-    // disable autoscale on first interaction so the camera doesn't fight
-    // the dragged node (official sigma drag example does the same)
-    const onDown = () => {
-      if (!sigma.getCustomBBox()) sigma.setCustomBBox(sigma.getBBox())
-    }
 
-    captor.on('mousemovebody', onMove)
-    captor.on('mouseup', onUp)
-    captor.on('mousedown', onDown)
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', endDrag)
+    window.addEventListener('pointercancel', endDrag)
     return () => {
-      captor.off('mousemovebody', onMove)
-      captor.off('mouseup', onUp)
-      captor.off('mousedown', onDown)
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', endDrag)
+      window.removeEventListener('pointercancel', endDrag)
     }
   }, [sigma])
 
@@ -414,39 +415,41 @@ export function GraphView({ onNoteSelect }: { onNoteSelect?: (notePath: string) 
             edgeFilter={activeFilter}
             selected={selected}
             onNodeClick={handleNodeClick}
+            onStageClick={() => setSelected(null)}
             revealRef={revealRef}
           />
         </SigmaContainer>
-      </div>
 
-      {selected && (
-        <div className="graph-info" data-testid="graph-info">
-          <div className="graph-info-kind">{selected.kind}</div>
-          <div className="graph-info-name">{selected.name}</div>
-          {onNoteSelect && selected.kind === 'note' && (
-            <button
-              className="graph-info-open"
-              onClick={() => onNoteSelect(selected.id)}
-              data-testid="graph-open-note"
-            >
-              open note
+        {selected && (
+          <div className="graph-info" data-testid="graph-info">
+            <div className="graph-info-kind">{selected.kind}</div>
+            <div className="graph-info-name">{selected.name}</div>
+            {onNoteSelect && selected.kind === 'note' && (
+              <button
+                className="graph-info-open"
+                onClick={() => onNoteSelect(selected.id)}
+                data-testid="graph-open-note"
+              >
+                open note
+              </button>
+            )}
+            <button className="graph-info-close" onClick={() => setSelected(null)} title="close">
+              ×
             </button>
-          )}
-          <button className="graph-info-close" onClick={() => setSelected(null)} title="close">
-            ×
-          </button>
-        </div>
-      )}
+          </div>
+        )}
 
-      <div className="graph-legend">
-        <span className="gl-item">
-          <span className="gl-dot" style={{ background: '#c9933a' }} /> person
-        </span>
-        <span className="gl-item">
-          <span className="gl-dot" style={{ background: '#8a93a6' }} /> note
-        </span>
-        <span className="gl-item gl-hint">{visibleEdges.length} links</span>
+        <div className="graph-legend">
+          <span className="gl-item">
+            <span className="gl-dot" style={{ background: '#c9933a' }} /> person
+          </span>
+          <span className="gl-item">
+            <span className="gl-dot" style={{ background: '#8a93a6' }} /> note
+          </span>
+          <span className="gl-item gl-hint">{visibleEdges.length} links</span>
+        </div>
       </div>
+
     </div>
   )
 }
