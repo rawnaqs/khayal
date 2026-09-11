@@ -112,14 +112,22 @@ function GraphInner({
     const FA2 = {
       ...forceAtlas2.inferSettings(graph),
       gravity: 1,
-      slowDown: 10,
       barnesHutOptimize: true,
       adjustSizes: true,
     }
     const rafRef = { current: 0 }
+    let frame = 0
     const step = () => {
       if (!dragNodeRef.current) {
-        const mapping = forceAtlas2(graph, { iterations: 1, settings: FA2 })
+        // energy ramp: high energy at start (fast convergence), decaying
+        // to a gentle perpetual simmer — fast to settle, never dead
+        frame++
+        const slowDown = Math.min(2 + frame * 0.04, 10)
+        const iterations = frame < 30 ? 4 : frame < 90 ? 2 : 1
+        const mapping = forceAtlas2(graph, {
+          iterations,
+          settings: { ...FA2, slowDown },
+        })
         graph.forEachNode((node) => {
           const pos = mapping[node]
           if (pos) {
