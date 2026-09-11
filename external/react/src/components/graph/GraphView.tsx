@@ -87,6 +87,8 @@ function GraphInner({
   // candidate node, the pointer origin, whether real travel happened, and
   // we disable sigma's captor while dragging so the camera stays put.
   const dragCandidateRef = useRef<string | null>(null)
+  const dragPointerIdRef = useRef<number | null>(null)
+  const touchCountRef = useRef(0)
   const dragActiveRef = useRef(false)
   const physicsPausedRef = useRef(false)
   const downCountRef = useRef(0)
@@ -261,17 +263,30 @@ function GraphInner({
     })
   }, [registerEvents, onNodeClick, onStageClick])
 
+  // Touch policy: ONE finger drags a node and NEVER pans the view; TWO
+  // fingers pan/zoom. sigma's touch captor pans on a single finger, so we
+  // veto single-finger touchmove before it moves the camera. Two-finger
+  // gestures are left to sigma (pan + pinch).
+  useEffect(() => {
+    const touchCaptor = sigma.getTouchCaptor()
+    const onTouchMove = (coords: { touches?: unknown[]; preventSigmaDefault?: () => void }) => {
+      if ((coords.touches?.length ?? 0) < 2) coords.preventSigmaDefault?.()
+    }
+    touchCaptor.on('touchmove', onTouchMove)
+    return () => {
+      touchCaptor.off('touchmove', onTouchMove)
+    }
+  }, [sigma])
+
   // Node drag + selection, fully self-owned.
   //
   // sigma's captor hit test is exact-pixel: a ~3px note dot is ungrabbable,
   // and with physics running the node drifts out from under the cursor, so
   // `downNode` never fires and the camera pans instead. We therefore
-  // hit-test ourselves with a tolerance on pointerdown. Because pointerdown
-  // precedes sigma's mousedown, disabling the captor here stops the camera
-  // before it ever starts moving (and sigma never enters its drag state, so
-  // it cannot get stuck down). Clicks on nodes are synthesised on pointerup,
-  // and ownGestureRef tells sigma's captor handlers to ignore the trailing
-  // click event.
+  // hit-test ourselves with a tolerance on pointerdown. Clicks on nodes are
+  // synthesised on pointerup, and ownGestureRef tells sigma's captor
+  // handlers to ignore the trailing click event. On touch, a second finger
+  // abandons the node drag so the gesture becomes a view pan.
   useEffect(() => {
     const container = sigma.getContainer()
 
@@ -297,52 +312,63 @@ function GraphInner({
     }
     hitNodeRef.current = hitNode
 
+    const setMouseCaptor = (enabled: boolean) => {
+      const captor = sigma.getMouseCaptor()
+      if (captor) captor.enabled = enabled
+    }
+
     let start: { x: number; y: number } | null = null
     let travel = 0
     let dragged = false
 
+    const reset = () => {
+      dragCandidateRef.current = null
+      dragPointerIdRef.current = null
+      dragActiveRef.current = false
+      start = null
+      travel = 0
+      dragged = false
+    }
+
     const onDown = (e: PointerEvent) => {
-      if (e.pointerType === 'mouse' && e.button !== 0) return
+      const isTouch = e.pointerType === 'touch'
+      if (isTouch) touchCountRef.current++
+
+      // a second finger means "drag the view", so drop any node drag
+      if (isTouch && touchCountRef.current >= 2) {
+        if (dragCandidateRef.current) reset()
+        return
+      }
+      if (!isTouch && e.button !== 0) return
+
       ownGestureRef.current = false
       const rect = container.getBoundingClientRect()
       const px = e.clientX - rect.left
       const py = e.clientY - rect.top
       const node = hitNode(px, py)
-      if (!node) return // empty space: sigma pans as usual
+      if (!node) return // empty space: mouse pans; one-finger touch does nothing
+
       ownGestureRef.current = true
       downCountRef.current++
       dragCandidateRef.current = node
+      dragPointerIdRef.current = e.pointerId
       dragActiveRef.current = false
       start = { x: px, y: py }
       travel = 0
       dragged = false
-      // disable BEFORE sigma sees mousedown/touchstart: no pan, no stuck state
-      const captor = sigma.getMouseCaptor()
-      if (captor) captor.enabled = false
-    }
-
-    const finish = () => {
-      const node = dragCandidateRef.current
-      dragCandidateRef.current = null
-      dragActiveRef.current = false
-      start = null
-      if (!node) return
-      if (!dragged) {
-        // a click, not a drag: we own this gesture, so fire it ourselves
-        clickCountRef.current++
-        onNodeClickRef.current(node)
-      }
-      const captor = sigma.getMouseCaptor()
-      if (captor) captor.enabled = true
-      dragged = false
-      travel = 0
+      // Mouse: freeze the camera before sigma sees mousedown (no pan, no
+      // stuck state). Touch: leave sigma's touch captor alone — it is
+      // needed for two-finger gestures, and single-finger pan is vetoed.
+      if (!isTouch) setMouseCaptor(false)
     }
 
     const onMove = (e: PointerEvent) => {
       const node = dragCandidateRef.current
       if (!node || !start) return
-      if (e.buttons === 0) {
-        finish()
+      if (e.pointerId !== dragPointerIdRef.current) return
+      const isTouch = e.pointerType === 'touch'
+      if (!isTouch && e.buttons === 0) {
+        finish(e)
         return
       }
       const rect = container.getBoundingClientRect()
@@ -357,6 +383,22 @@ function GraphInner({
       graphRef.current?.setNodeAttribute(node, 'x', pos.x)
       graphRef.current?.setNodeAttribute(node, 'y', pos.y)
       sigma.refresh()
+    }
+
+    const finish = (e: PointerEvent) => {
+      const isTouch = e.pointerType === 'touch'
+      if (isTouch) touchCountRef.current = Math.max(0, touchCountRef.current - 1)
+
+      const node = dragCandidateRef.current
+      if (!node || e.pointerId !== dragPointerIdRef.current) return
+
+      const wasClick = !dragged
+      reset()
+      if (wasClick) {
+        clickCountRef.current++
+        onNodeClickRef.current(node)
+      }
+      if (!isTouch) setMouseCaptor(true)
     }
 
     container.addEventListener('pointerdown', onDown, true)
