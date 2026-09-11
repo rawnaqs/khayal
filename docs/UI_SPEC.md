@@ -644,8 +644,16 @@ const modes = ['hybrid', 'keyword', 'semantic']
 // Click a node: unrelated elements dim, info card (kind + name +
 //   'open note') wired into the App note-select flow
 // Legend top-right: person/note colors + visible link count
-// Pure logic in lib/graphModel.ts (colors, filters, neighbors) is
-//   unit-tested; sigma stays untested (WebGL needs a real canvas)
+// Reload button (filters row, right): refetches the graph, resets
+//   filters/selection, and restarts the reveal + physics animation
+// Age-staggered entrance: notes reveal oldest -> newest (nodes carry
+//   `created` from their ingest job), people last; edges appear only
+//   once both endpoints are in
+// Node drag: sigma captor pattern — preventSigmaDefault() vetoes the
+//   camera pan while a node is held; empty-space drags still pan
+// Pure logic in lib/graphModel.ts (colors, filters, neighbors,
+//   revealProgress) is unit-tested; sigma stays untested (WebGL needs
+//   a real canvas)
 ```
 
 ---

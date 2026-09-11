@@ -17,12 +17,14 @@ import {
   isHub,
   neighborIds,
   nodeSize,
+  revealProgress,
   withAlpha,
 } from '@/lib/graphModel'
 import { useVaultLock } from '@/hooks/useVaultLock'
 import { cn } from '@/lib/utils'
 
 type RawGraph = { nodes: GraphNode[]; edges: { source: string; target: string; types?: string[] }[] }
+type RawEdge = RawGraph['edges'][number]
 
 function useGraphData() {
   const { token } = useVaultLock()
@@ -49,19 +51,28 @@ function useGraphData() {
   return { data, loading, error, load }
 }
 
-// GraphInner: builds the graphology model once per data load, then
-// applies reducers for filter/selection state. Loaders must live inside
-// SigmaContainer (they need the sigma instance from context).
+// Reveal order: notes oldest -> newest, people last (they are derived).
+function revealOrderedNodes(nodes: GraphNode[]): GraphNode[] {
+  const notes = nodes
+    .filter((n) => n.kind === 'note')
+    .sort((a, b) => (a.created || '9999') < (b.created || '9999') ? -1 : 1)
+  const people = nodes.filter((n) => n.kind === 'person')
+  return [...notes, ...people]
+}
+
+// GraphInner lives inside SigmaContainer (needs the sigma context).
 function GraphInner({
   data,
   edgeFilter,
   selected,
   onNodeClick,
+  revealRef,
 }: {
   data: RawGraph
   edgeFilter: Set<string>
   selected: GraphNode | null
   onNodeClick: (id: string) => void
+  revealRef: React.MutableRefObject<number>
 }) {
   const loadGraph = useLoadGraph()
   const registerEvents = useRegisterEvents()
@@ -71,32 +82,42 @@ function GraphInner({
   const [hovered, setHovered] = useState<string | null>(null)
   const dragNodeRef = useRef<string | null>(null)
 
-  // build: random spread -> loadGraph -> ForceAtlas2 runs LIVE in small
-  // per-frame batches. The graph visibly flows into its shape (the
-  // Obsidian feel) instead of popping frozen from a precomputed assign.
+  // Build: deterministic edge keys (so reducers can match edges by key),
+  // age-ordered nodes, all hidden until the reveal sweeps them in.
   useEffect(() => {
     const graph = new Graph({ multi: false })
+    const ordered = revealOrderedNodes(data.nodes)
     const degrees = degreeMap(data.edges)
-    for (const n of data.nodes) {
+    revealRef.current = 0
+
+    ordered.forEach((n, index) => {
       const degree = degrees.get(n.id) || 0
+      const size = nodeSize(n, degree)
       graph.addNode(n.id, {
         label: n.name,
         kind: n.kind,
         hub: isHub(n, degree),
+        order: index,
+        targetSize: size,
+        size: 0,
         x: (Math.random() - 0.5) * 40,
         y: (Math.random() - 0.5) * 40,
-        size: nodeSize(n, degree),
-        // notes pick their hue from the capture type
-        color: n.kind === 'person' ? NODE_COLORS.person : NOTE_TYPE_COLORS[n.type || 'text'] || NODE_COLORS.note,
+        color:
+          n.kind === 'person'
+            ? NODE_COLORS.person
+            : NOTE_TYPE_COLORS[n.type || 'text'] || NODE_COLORS.note,
       })
-    }
+    })
+
     const seen = new Set<string>()
     for (const e of data.edges) {
-      const key = e.source + '\x00' + e.target
+      const key = e.source + '\u0000' + e.target
       if (seen.has(key) || !graph.hasNode(e.source) || !graph.hasNode(e.target)) continue
       seen.add(key)
-      graph.addEdge(e.source, e.target, {
-        // whisper-thin, dimmed to ~35%: the web reads as texture, not crayon
+      // explicit key: reducers receive this key and can map back to the
+      // edge's detector types (auto-generated keys broke filters)
+      graph.addEdgeWithKey(key, e.source, e.target, {
+        nodeColor: edgeColor(e),
         color: withAlpha(edgeColor(e), 0.35),
         size: 0.6,
       })
@@ -104,30 +125,24 @@ function GraphInner({
     graphRef.current = graph
     loadGraph(graph)
 
-    // free-flow physics: ForceAtlas2 runs CONTINUOUSLY — one gentle
-    // iteration per frame, forever. The graph is a living system: it
-    // settles from the initial spread, self-heals when nodes are
-    // dragged, and never freezes. rAF auto-pauses in hidden tabs.
-    // inferSettings scales the force to the graph's node count.
+    // Physics + reveal: one gentle FA2 iteration per frame, forever;
+    // the reveal counter sweeps nodes in oldest-first.
     const FA2 = {
       ...forceAtlas2.inferSettings(graph),
       gravity: 1,
       barnesHutOptimize: true,
       adjustSizes: true,
     }
-    const rafRef = { current: 0 }
     let frame = 0
+    const rafRef = { current: 0 }
     const step = () => {
+      frame++
+      // reveal ~all nodes over ~1.5s
+      revealRef.current = revealProgress(revealRef.current, ordered.length)
       if (!dragNodeRef.current) {
-        // energy ramp: high energy at start (fast convergence), decaying
-        // to a gentle perpetual simmer — fast to settle, never dead
-        frame++
         const slowDown = Math.min(2 + frame * 0.04, 10)
         const iterations = frame < 30 ? 4 : frame < 90 ? 2 : 1
-        const mapping = forceAtlas2(graph, {
-          iterations,
-          settings: { ...FA2, slowDown },
-        })
+        const mapping = forceAtlas2(graph, { iterations, settings: { ...FA2, slowDown } })
         graph.forEachNode((node) => {
           const pos = mapping[node]
           if (pos) {
@@ -136,52 +151,64 @@ function GraphInner({
           }
         })
       }
-      // FULL refresh every frame: skipIndexation leaves the hit-test
-      // index stale at the initial positions, which made hover/click/
-      // drag dead. Hit-test re-indexing at this scale is cheap.
+      // FULL refresh every frame keeps the hit-test index live.
       sigma.refresh()
       rafRef.current = requestAnimationFrame(step)
     }
     rafRef.current = requestAnimationFrame(step)
     return () => cancelAnimationFrame(rafRef.current)
-  }, [data, loadGraph, sigma])
+  }, [data, loadGraph, sigma, revealRef])
 
-  // reducers: hide filtered edges, dim everything but the selected
-  // node's neighborhood
+  // Reducers: reveal staging + filters + focus dimming.
   useEffect(() => {
     setSettings({
       nodeReducer: (node, attrs) => {
         const out = { ...attrs }
-        const isPerson = graphRef.current?.getNodeAttribute(node, 'kind') === 'person'
+        const order = (attrs.order as number) ?? 0
+        const reveal = revealRef.current - order
+        if (reveal <= 0) {
+          out.hidden = true
+          return out
+        }
+        // ease in over ~8 nodes of reveal budget
+        const t = Math.min(reveal / 8, 1)
+        out.hidden = false
+        out.size = ((attrs.targetSize as number) || 4) * (0.3 + 0.7 * t)
+
+        const isPerson = attrs.kind === 'person'
         const isHubNode = isPerson || attrs.hub === true
-        // hub notes keep labels; minor notes label only in focus
         if (!isHubNode) out.label = ''
         const focusId = selected?.id ?? hovered
         if (focusId) {
           const neighbors = neighborIds(focusId, data.edges)
-          if (node !== focusId && !neighbors.has(focusId)) {
+          if (node !== focusId && !neighbors.has(node)) {
             out.color = 'rgba(245,245,245,0.08)'
             out.label = ''
             out.size = 2.5
-          } else if (node !== focusId) {
-            // focused node's neighbors get a slight boost
-            out.size = Math.max(out.size as number, 4)
           }
-        } else if (!isPerson && !attrs.hub) {
-          out.label = ''
         }
         return out
       },
       edgeReducer: (edge, attrs) => {
         const out = { ...attrs }
-        const e = data.edges.find((x) => x.source + '\x00' + x.target === edge)
+        const e = data.edges.find((x) => x.source + '\u0000' + x.target === edge)
         if (!e) return out
+
+        // hide until both endpoints have been revealed
+        const orderOf = (id: string) => {
+          const o = graphRef.current?.getNodeAttribute(id, 'order')
+          return typeof o === 'number' ? o : 0
+        }
+        if (revealRef.current - orderOf(e.source) <= 0 || revealRef.current - orderOf(e.target) <= 0) {
+          out.hidden = true
+          return out
+        }
+
         if (!edgeMatchesFilter(e, edgeFilter)) out.hidden = true
 
         const focusId = selected?.id ?? hovered
         if (focusId) {
           if (e.source === focusId || e.target === focusId) {
-            // the focused node's connections light up at full strength
             out.color = edgeColor(e)
             out.size = 1.2
           } else {
@@ -191,31 +218,36 @@ function GraphInner({
         return out
       },
     })
-  }, [selected, edgeFilter, data, setSettings])
+  }, [selected, hovered, edgeFilter, data, setSettings, revealRef])
 
+  // Drag: sigma's own captor pattern — preventSigmaDefault() vetoes the
+  // camera pan while a node is held; empty-space drags still pan.
   useEffect(() => {
     registerEvents({
       clickNode: ({ node }) => onNodeClick(node),
       enterNode: ({ node }) => setHovered(node),
       leaveNode: () => setHovered(null),
       downNode: ({ node }) => {
-        // drag mode begins; physics pauses for this node
         dragNodeRef.current = node
       },
     })
-  }, [registerEvents, onNodeClick, sigma])
+  }, [registerEvents, onNodeClick])
 
-  // Node dragging via sigma's own mouse captor: while a node is held,
-  // each move updates its position and preventSigmaDefault() stops the
-  // camera from panning. Empty-space drags keep the default pan.
   useEffect(() => {
     const captor = sigma.getMouseCaptor()
     if (!captor) return
 
-    const onMove = (e: { x: number; y: number; preventSigmaDefault?: () => void; sigmaDefaultPrevented?: boolean }) => {
+    const onMove = (e: {
+      x: number
+      y: number
+      preventSigmaDefault?: () => void
+      original?: { preventDefault?: () => void; stopPropagation?: () => void }
+    }) => {
       const node = dragNodeRef.current
       if (!node) return
       e.preventSigmaDefault?.()
+      e.original?.preventDefault?.()
+      e.original?.stopPropagation?.()
       const pos = sigma.viewportToGraph({ x: e.x, y: e.y })
       graphRef.current?.setNodeAttribute(node, 'x', pos.x)
       graphRef.current?.setNodeAttribute(node, 'y', pos.y)
@@ -224,12 +256,19 @@ function GraphInner({
     const onUp = () => {
       dragNodeRef.current = null
     }
+    // disable autoscale on first interaction so the camera doesn't fight
+    // the dragged node (official sigma drag example does the same)
+    const onDown = () => {
+      if (!sigma.getCustomBBox()) sigma.setCustomBBox(sigma.getBBox())
+    }
 
     captor.on('mousemovebody', onMove)
     captor.on('mouseup', onUp)
+    captor.on('mousedown', onDown)
     return () => {
       captor.off('mousemovebody', onMove)
       captor.off('mouseup', onUp)
+      captor.off('mousedown', onDown)
     }
   }, [sigma])
 
@@ -240,11 +279,14 @@ export function GraphView({ onNoteSelect }: { onNoteSelect?: (notePath: string) 
   const { data, loading, error, load } = useGraphData()
   const [activeFilter, setActiveFilter] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<GraphNode | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+  const revealRef = useRef(0)
 
-  const visibleEdges = useMemo(
-    () => (data ? data.edges.filter((e) => edgeMatchesFilter(e, activeFilter)) : []),
-    [data, activeFilter],
-  )
+  // filter edges client-side for the link counter
+  const visibleEdges = useMemo(() => {
+    if (!data) return [] as RawEdge[]
+    return data.edges.filter((e) => edgeMatchesFilter(e, activeFilter))
+  }, [data, activeFilter])
 
   const handleNodeClick = useCallback(
     (nodeId: string) => {
@@ -263,7 +305,14 @@ export function GraphView({ onNoteSelect }: { onNoteSelect?: (notePath: string) 
     })
   }, [])
 
-  if (loading) {
+  const handleReload = useCallback(() => {
+    setSelected(null)
+    setActiveFilter(new Set())
+    setReloadKey((k) => k + 1)
+    load()
+  }, [load])
+
+  if (loading && !data) {
     return (
       <div className="graph-center" data-testid="graph-loading">
         <div className="graph-center-hint">mapping your mind…</div>
@@ -304,6 +353,14 @@ export function GraphView({ onNoteSelect }: { onNoteSelect?: (notePath: string) 
             {label}
           </span>
         ))}
+        <button
+          className="graph-reload"
+          onClick={handleReload}
+          title="rebuild the graph"
+          data-testid="graph-reload"
+        >
+          <RefreshCw className={cn('w-3 h-3', loading && 'animate-spin')} />
+        </button>
       </div>
 
       <div className="graph-canvas" data-testid="graph-canvas">
@@ -321,10 +378,12 @@ export function GraphView({ onNoteSelect }: { onNoteSelect?: (notePath: string) 
           }}
         >
           <GraphInner
+            key={reloadKey}
             data={data}
             edgeFilter={activeFilter}
             selected={selected}
             onNodeClick={handleNodeClick}
+            revealRef={revealRef}
           />
         </SigmaContainer>
       </div>
@@ -353,7 +412,7 @@ export function GraphView({ onNoteSelect }: { onNoteSelect?: (notePath: string) 
           <span className="gl-dot" style={{ background: '#c9933a' }} /> person
         </span>
         <span className="gl-item">
-          <span className="gl-dot" style={{ background: '#8a8f98' }} /> note
+          <span className="gl-dot" style={{ background: '#8a93a6' }} /> note
         </span>
         <span className="gl-item gl-hint">{visibleEdges.length} links</span>
       </div>

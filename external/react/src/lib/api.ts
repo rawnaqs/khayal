@@ -5,6 +5,7 @@ export interface GraphNode {
   kind: 'note' | 'person'
   name: string
   type?: string
+  created?: string
 }
 
 export interface GraphEdge {

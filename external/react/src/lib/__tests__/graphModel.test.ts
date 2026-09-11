@@ -115,3 +115,20 @@ describe('node sizing', () => {
     expect(set.size).toBe(4)
   })
 })
+
+import { revealProgress } from '../graphModel'
+
+describe('revealProgress', () => {
+  it('advances by total/90 per frame for big graphs', () => {
+    expect(revealProgress(0, 90)).toBeCloseTo(1, 5)
+  })
+  it('never advances slower than half a node per frame', () => {
+    expect(revealProgress(0, 10)).toBe(0.5)
+  })
+  it('caps at total + ease tail', () => {
+    expect(revealProgress(200, 90)).toBe(98)
+  })
+  it('handles empty graphs', () => {
+    expect(revealProgress(5, 0)).toBe(0)
+  })
+})

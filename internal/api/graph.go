@@ -13,10 +13,11 @@ import (
 
 // GraphNode is a vertex in the connection graph: a note or a person.
 type GraphNode struct {
-	ID   string `json:"id"`
-	Kind string `json:"kind"` // "note" | "person"
-	Name string `json:"name"`
-	Type string `json:"type,omitempty"` // note type: text/image/article/pdf
+	ID      string `json:"id"`
+	Kind    string `json:"kind"` // "note" | "person"
+	Name    string `json:"name"`
+	Type    string `json:"type,omitempty"`    // note type: text/image/article/pdf
+	Created string `json:"created,omitempty"` // RFC3339, drives age-staggered reveal
 }
 
 // GraphEdge is a directed relationship: note→note (connections, with the
@@ -87,7 +88,7 @@ func (s *Server) graphHandler(w http.ResponseWriter, r *http.Request) {
 		if !ok {
 			m = queue.NoteGraphMeta{NotePath: path, Type: "text", Title: strings.TrimSuffix(filepath.Base(path), ".md")}
 		}
-		g.Nodes = append(g.Nodes, GraphNode{ID: path, Kind: "note", Name: m.Title, Type: m.Type})
+		g.Nodes = append(g.Nodes, GraphNode{ID: path, Kind: "note", Name: m.Title, Type: m.Type, Created: m.Created})
 	}
 	personAdded := map[string]bool{}
 	addPersonNode := func(name string) {

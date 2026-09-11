@@ -9,6 +9,7 @@ export interface GraphNode {
   kind: GraphKind
   name: string
   type?: string
+  created?: string
 }
 
 export interface GraphEdge {
@@ -55,6 +56,14 @@ export const NOTE_TYPE_COLORS: Record<string, string> = {
   article: '#6aa9e9',
   image: '#3ddc84',
   pdf: '#e09b6a',
+}
+
+// Age-staggered entrance: advances the reveal counter ~all nodes in 90
+// frames, then a small tail so the last node's ease completes.
+export function revealProgress(current: number, total: number): number {
+  if (total <= 0) return 0
+  const perFrame = Math.max(total / 90, 0.5)
+  return Math.min(current + perFrame, total + 8)
 }
 
 // Hub notes (degree >= 5) carry permanent labels; the rest surface on

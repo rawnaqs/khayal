@@ -2510,6 +2510,7 @@ type NoteGraphMeta struct {
 	NotePath string
 	Type     string
 	Title    string
+	Created  string
 }
 
 // GraphNoteMeta returns note type + human title for every indexed note,
@@ -2519,7 +2520,10 @@ func (q *Queue) GraphNoteMeta(ctx context.Context) ([]NoteGraphMeta, error) {
 		SELECT f.note_path, IFNULL(f.title, ''),
 		       IFNULL((SELECT j.type FROM jobs j WHERE j.note_path = f.note_path
 		               AND j.type IN ('text','image','article','pdf')
-		               ORDER BY j.created_at DESC LIMIT 1), 'text')
+		               ORDER BY j.created_at DESC LIMIT 1), 'text'),
+		       IFNULL((SELECT j.created_at FROM jobs j WHERE j.note_path = f.note_path
+		               AND j.type IN ('text','image','article','pdf')
+		               ORDER BY j.created_at ASC LIMIT 1), '')
 		FROM notes_fts f
 		LIMIT 2000`)
 	if err != nil {
@@ -2529,7 +2533,7 @@ func (q *Queue) GraphNoteMeta(ctx context.Context) ([]NoteGraphMeta, error) {
 	var out []NoteGraphMeta
 	for rows.Next() {
 		var m NoteGraphMeta
-		if err := rows.Scan(&m.NotePath, &m.Title, &m.Type); err != nil {
+		if err := rows.Scan(&m.NotePath, &m.Title, &m.Type, &m.Created); err != nil {
 			continue
 		}
 		out = append(out, m)
