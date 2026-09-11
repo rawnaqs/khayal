@@ -104,23 +104,22 @@ function GraphInner({
     graphRef.current = graph
     loadGraph(graph)
 
-    // free-flow physics: a few FA2 iterations per frame, pausing while a
-    // node is being dragged so the dragged position sticks.
-    // inferSettings scales the force to the graph's node count — the
-    // same settings feel right at 50 or 500 nodes.
-    let frame = 0
-    let raf = 0
+    // free-flow physics: ForceAtlas2 runs CONTINUOUSLY — one gentle
+    // iteration per frame, forever. The graph is a living system: it
+    // settles from the initial spread, self-heals when nodes are
+    // dragged, and never freezes. rAF auto-pauses in hidden tabs.
+    // inferSettings scales the force to the graph's node count.
     const FA2 = {
       ...forceAtlas2.inferSettings(graph),
       gravity: 1,
-      slowDown: 4,
+      slowDown: 10,
       barnesHutOptimize: true,
       adjustSizes: true,
     }
+    const rafRef = { current: 0 }
     const step = () => {
       if (!dragNodeRef.current) {
-        // small batch per frame: the graph visibly flows into its shape
-        const mapping = forceAtlas2(graph, { iterations: 2, settings: FA2 })
+        const mapping = forceAtlas2(graph, { iterations: 1, settings: FA2 })
         graph.forEachNode((node) => {
           const pos = mapping[node]
           if (pos) {
@@ -133,10 +132,10 @@ function GraphInner({
       // index stale at the initial positions, which made hover/click/
       // drag dead. Hit-test re-indexing at this scale is cheap.
       sigma.refresh()
-      if (++frame < 320) raf = requestAnimationFrame(step)
+      rafRef.current = requestAnimationFrame(step)
     }
-    raf = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf)
+    rafRef.current = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(rafRef.current)
   }, [data, loadGraph, sigma])
 
   // reducers: hide filtered edges, dim everything but the selected
