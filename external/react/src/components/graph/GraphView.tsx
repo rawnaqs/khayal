@@ -3,7 +3,7 @@ import { RefreshCw } from 'lucide-react'
 import Graph from 'graphology'
 import forceAtlas2 from 'graphology-layout-forceatlas2'
 import EdgeCurveProgram from '@sigma/edge-curve'
-import { SigmaContainer, useLoadGraph, useRegisterEvents, useSetSettings } from '@react-sigma/core'
+import { SigmaContainer, useLoadGraph, useRegisterEvents, useSetSettings, useSigma } from '@react-sigma/core'
 import '@react-sigma/core/lib/style.css'
 import { createClient, type GraphNode } from '@/lib/api'
 import {
@@ -66,10 +66,14 @@ function GraphInner({
   const loadGraph = useLoadGraph()
   const registerEvents = useRegisterEvents()
   const setSettings = useSetSettings()
+  const sigma = useSigma()
   const graphRef = useRef<Graph | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
+  const dragNodeRef = useRef<string | null>(null)
 
-  // build + layout once per dataset
+  // build: random spread -> loadGraph -> ForceAtlas2 runs LIVE in small
+  // per-frame batches. The graph visibly flows into its shape (the
+  // Obsidian feel) instead of popping frozen from a precomputed assign.
   useEffect(() => {
     const graph = new Graph({ multi: false })
     const degrees = degreeMap(data.edges)
@@ -79,8 +83,8 @@ function GraphInner({
         label: n.name,
         kind: n.kind,
         hub: isHub(n, degree),
-        x: (Math.random() - 0.5) * 100,
-        y: (Math.random() - 0.5) * 100,
+        x: (Math.random() - 0.5) * 40,
+        y: (Math.random() - 0.5) * 40,
         size: nodeSize(n, degree),
         // notes pick their hue from the capture type
         color: n.kind === 'person' ? NODE_COLORS.person : NOTE_TYPE_COLORS[n.type || 'text'] || NODE_COLORS.note,
@@ -97,13 +101,32 @@ function GraphInner({
         size: 0.6,
       })
     }
-    forceAtlas2.assign(graph, {
-      iterations: 80,
-      settings: { gravity: 1.4, scalingRatio: 8, barnesHutOptimize: true, adjustSizes: true },
-    })
     graphRef.current = graph
     loadGraph(graph)
-  }, [data, loadGraph])
+
+    // free-flow physics: a few FA2 iterations per frame, pausing while a
+    // node is being dragged so the dragged position sticks
+    let frame = 0
+    let raf = 0
+    const FA2 = { gravity: 1.4, scalingRatio: 8, barnesHutOptimize: true, adjustSizes: true }
+    const step = () => {
+      if (!dragNodeRef.current) {
+        // small batch per frame: the graph visibly flows into its shape
+        const mapping = forceAtlas2(graph, { iterations: 2, settings: FA2 })
+        graph.forEachNode((node) => {
+          const pos = mapping[node]
+          if (pos) {
+            graph.setNodeAttribute(node, 'x', pos.x)
+            graph.setNodeAttribute(node, 'y', pos.y)
+          }
+        })
+      }
+      sigma.refresh({ skipIndexation: true })
+      if (++frame < 320) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [data, loadGraph, sigma])
 
   // reducers: hide filtered edges, dim everything but the selected
   // node's neighborhood
@@ -157,8 +180,29 @@ function GraphInner({
       clickNode: ({ node }) => onNodeClick(node),
       enterNode: ({ node }) => setHovered(node),
       leaveNode: () => setHovered(null),
+      downNode: ({ node }) => {
+        // drag: node follows the pointer, physics pauses for it
+        dragNodeRef.current = node
+        const container = sigma.getContainer()
+        const onMove = (ev: MouseEvent) => {
+          const rect = container.getBoundingClientRect()
+          const pos = sigma.viewportToGraph({
+            x: ev.clientX - rect.left,
+            y: ev.clientY - rect.top,
+          })
+          graphRef.current?.setNodeAttribute(node, 'x', pos.x)
+          graphRef.current?.setNodeAttribute(node, 'y', pos.y)
+        }
+        const onUp = () => {
+          dragNodeRef.current = null
+          container.removeEventListener('mousemove', onMove)
+          container.removeEventListener('mouseup', onUp)
+        }
+        container.addEventListener('mousemove', onMove)
+        container.addEventListener('mouseup', onUp)
+      },
     })
-  }, [registerEvents, onNodeClick])
+  }, [registerEvents, onNodeClick, sigma])
 
   return null
 }
