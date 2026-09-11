@@ -199,28 +199,39 @@ function GraphInner({
       enterNode: ({ node }) => setHovered(node),
       leaveNode: () => setHovered(null),
       downNode: ({ node }) => {
-        // drag: node follows the pointer, physics pauses for it
+        // drag mode begins; physics pauses for this node
         dragNodeRef.current = node
-        const container = sigma.getContainer()
-        const onMove = (ev: MouseEvent) => {
-          const rect = container.getBoundingClientRect()
-          const pos = sigma.viewportToGraph({
-            x: ev.clientX - rect.left,
-            y: ev.clientY - rect.top,
-          })
-          graphRef.current?.setNodeAttribute(node, 'x', pos.x)
-          graphRef.current?.setNodeAttribute(node, 'y', pos.y)
-        }
-        const onUp = () => {
-          dragNodeRef.current = null
-          container.removeEventListener('mousemove', onMove)
-          container.removeEventListener('mouseup', onUp)
-        }
-        container.addEventListener('mousemove', onMove)
-        container.addEventListener('mouseup', onUp)
       },
     })
   }, [registerEvents, onNodeClick, sigma])
+
+  // Node dragging via sigma's own mouse captor: while a node is held,
+  // each move updates its position and preventSigmaDefault() stops the
+  // camera from panning. Empty-space drags keep the default pan.
+  useEffect(() => {
+    const captor = sigma.getMouseCaptor()
+    if (!captor) return
+
+    const onMove = (e: { x: number; y: number; preventSigmaDefault?: () => void; sigmaDefaultPrevented?: boolean }) => {
+      const node = dragNodeRef.current
+      if (!node) return
+      e.preventSigmaDefault?.()
+      const pos = sigma.viewportToGraph({ x: e.x, y: e.y })
+      graphRef.current?.setNodeAttribute(node, 'x', pos.x)
+      graphRef.current?.setNodeAttribute(node, 'y', pos.y)
+      sigma.refresh()
+    }
+    const onUp = () => {
+      dragNodeRef.current = null
+    }
+
+    captor.on('mousemovebody', onMove)
+    captor.on('mouseup', onUp)
+    return () => {
+      captor.off('mousemovebody', onMove)
+      captor.off('mouseup', onUp)
+    }
+  }, [sigma])
 
   return null
 }
