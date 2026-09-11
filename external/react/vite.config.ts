@@ -26,19 +26,14 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
+        // Hashed assets + index.html are precached with a revision, so a
+        // new deploy always ships. Delete stale precaches on activate.
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
-          {
-            // App shell — cache first
-            urlPattern: /^https?:\/\/.*\.(js|css|html|ico|png|svg)$/,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "khayal-shell",
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-              },
-            },
-          },
+          // NOTE: never add a CacheFirst rule for the app shell
+          // (html/js/css). It pins index.html for days, so the browser
+          // keeps booting an old bundle and never sees a new deploy.
+          // Precache handles the shell; these rules are API-only.
           {
             // Health — network first
             urlPattern: /\/v1\/health/,

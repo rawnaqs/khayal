@@ -12,6 +12,12 @@ if ("serviceWorker" in navigator) {
       .then((registration) => {
         console.log("SW registered:", registration.scope);
 
+        // Check for a new worker on every load rather than waiting up to
+        // 24h for the browser's own update cycle.
+        registration.update().catch(() => {
+          // offline or update check failed; the next load retries
+        });
+
         // Reload once a newly activated worker takes control so deploys
         // land immediately instead of waiting for every tab to close.
         navigator.serviceWorker.addEventListener("controllerchange", () => {
