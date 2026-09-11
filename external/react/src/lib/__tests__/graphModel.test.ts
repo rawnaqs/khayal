@@ -92,3 +92,26 @@ describe('withAlpha', () => {
     expect(withAlpha('rgba(1,2,3,0.5)', 0.9)).toBe('rgba(1,2,3,0.5)')
   })
 })
+
+import { nodeSize, isHub, NOTE_TYPE_COLORS } from '../graphModel'
+
+describe('node sizing', () => {
+  it('persons are a fixed larger size', () => {
+    expect(nodeSize({ id: 'p', kind: 'person', name: 'A' }, 20)).toBe(8)
+  })
+  it('notes grow with degree, capped', () => {
+    const n = { id: 'x', kind: 'note' as const, name: 'x' }
+    expect(nodeSize(n, 0)).toBe(4)
+    expect(nodeSize(n, 5)).toBe(6.5)
+    expect(nodeSize(n, 100)).toBe(10)
+  })
+  it('hub = person or degree >= 5', () => {
+    expect(isHub({ id: 'p', kind: 'person', name: 'A' }, 0)).toBe(true)
+    expect(isHub({ id: 'n', kind: 'note', name: 'N' }, 4)).toBe(false)
+    expect(isHub({ id: 'n', kind: 'note', name: 'N' }, 5)).toBe(true)
+  })
+  it('note types have distinct colors', () => {
+    const set = new Set(Object.values(NOTE_TYPE_COLORS))
+    expect(set.size).toBe(4)
+  })
+})

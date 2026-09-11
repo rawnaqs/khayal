@@ -2504,3 +2504,35 @@ func (q *Queue) AllConnectionResults(ctx context.Context) ([]ConnectionResultRow
 	}
 	return out, rows.Err()
 }
+
+// NoteGraphMeta carries display data for one note in graph construction.
+type NoteGraphMeta struct {
+	NotePath string
+	Type     string
+	Title    string
+}
+
+// GraphNoteMeta returns note type + human title for every indexed note,
+// for the graph API (titles instead of filename slugs on nodes).
+func (q *Queue) GraphNoteMeta(ctx context.Context) ([]NoteGraphMeta, error) {
+	rows, err := q.db.QueryContext(ctx, `
+		SELECT f.note_path, IFNULL(f.title, ''),
+		       IFNULL((SELECT j.type FROM jobs j WHERE j.note_path = f.note_path
+		               AND j.type IN ('text','image','article','pdf')
+		               ORDER BY j.created_at DESC LIMIT 1), 'text')
+		FROM notes_fts f
+		LIMIT 2000`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []NoteGraphMeta
+	for rows.Next() {
+		var m NoteGraphMeta
+		if err := rows.Scan(&m.NotePath, &m.Title, &m.Type); err != nil {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/rawnaqs/khayal/internal/queue"
 )
 
 // GraphNode is a vertex in the connection graph: a note or a person.
@@ -14,6 +16,7 @@ type GraphNode struct {
 	ID   string `json:"id"`
 	Kind string `json:"kind"` // "note" | "person"
 	Name string `json:"name"`
+	Type string `json:"type,omitempty"` // note type: text/image/article/pdf
 }
 
 // GraphEdge is a directed relationship: note→note (connections, with the
@@ -69,13 +72,22 @@ func (s *Server) graphHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	nodeSeen := map[string]bool{}
+	noteMeta := map[string]queue.NoteGraphMeta{}
+	if metaList, err := s.queue.GraphNoteMeta(ctx); err == nil {
+		for _, m := range metaList {
+			noteMeta[m.NotePath] = m
+		}
+	}
 	addNoteNode := func(path string) {
 		if path == "" || nodeSeen[path] {
 			return
 		}
 		nodeSeen[path] = true
-		name := strings.TrimSuffix(filepath.Base(path), ".md")
-		g.Nodes = append(g.Nodes, GraphNode{ID: path, Kind: "note", Name: name})
+		m, ok := noteMeta[path]
+		if !ok {
+			m = queue.NoteGraphMeta{NotePath: path, Type: "text", Title: strings.TrimSuffix(filepath.Base(path), ".md")}
+		}
+		g.Nodes = append(g.Nodes, GraphNode{ID: path, Kind: "note", Name: m.Title, Type: m.Type})
 	}
 	personAdded := map[string]bool{}
 	addPersonNode := func(name string) {

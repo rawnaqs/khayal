@@ -8,6 +8,7 @@ export interface GraphNode {
   id: string
   kind: GraphKind
   name: string
+  type?: string
 }
 
 export interface GraphEdge {
@@ -44,7 +45,38 @@ export const EDGE_COLORS: Record<string, string> = {
 
 export const NODE_COLORS: Record<GraphKind, string> = {
   person: '#c9933a',
-  note: '#8a8f98',
+  note: '#8a93a6',
+}
+
+// Note nodes pick their hue from the capture type — the same badge
+// colors the rest of the product uses for text/article/image/pdf.
+export const NOTE_TYPE_COLORS: Record<string, string> = {
+  text: '#9aa3ad',
+  article: '#6aa9e9',
+  image: '#3ddc84',
+  pdf: '#e09b6a',
+}
+
+// Hub notes (degree >= 5) carry permanent labels; the rest surface on
+// hover/selection. Hubs are also rendered larger — importance, not noise.
+export const HUB_DEGREE = 5
+
+export function degreeMap(edges: GraphEdge[]): Map<string, number> {
+  const m = new Map<string, number>()
+  for (const e of edges) {
+    m.set(e.source, (m.get(e.source) || 0) + 1)
+    m.set(e.target, (m.get(e.target) || 0) + 1)
+  }
+  return m
+}
+
+export function nodeSize(node: GraphNode, degree: number): number {
+  if (node.kind === 'person') return 8
+  return 4 + Math.min(degree, 12) * 0.5
+}
+
+export function isHub(node: GraphNode, degree: number): boolean {
+  return node.kind === 'person' || degree >= HUB_DEGREE
 }
 
 export const CONNECTION_TYPE_LABELS: Record<string, string> = {

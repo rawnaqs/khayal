@@ -10,9 +10,13 @@ import {
   CONNECTION_TYPE_LABELS,
   EDGE_COLORS,
   NODE_COLORS,
+  NOTE_TYPE_COLORS,
+  degreeMap,
   edgeColor,
   edgeMatchesFilter,
+  isHub,
   neighborIds,
+  nodeSize,
   withAlpha,
 } from '@/lib/graphModel'
 import { useVaultLock } from '@/hooks/useVaultLock'
@@ -68,14 +72,18 @@ function GraphInner({
   // build + layout once per dataset
   useEffect(() => {
     const graph = new Graph({ multi: false })
+    const degrees = degreeMap(data.edges)
     for (const n of data.nodes) {
+      const degree = degrees.get(n.id) || 0
       graph.addNode(n.id, {
         label: n.name,
         kind: n.kind,
+        hub: isHub(n, degree),
         x: (Math.random() - 0.5) * 100,
         y: (Math.random() - 0.5) * 100,
-        size: n.kind === 'person' ? 7 : 4,
-        color: NODE_COLORS[n.kind],
+        size: nodeSize(n, degree),
+        // notes pick their hue from the capture type
+        color: n.kind === 'person' ? NODE_COLORS.person : NOTE_TYPE_COLORS[n.type || 'text'] || NODE_COLORS.note,
       })
     }
     const seen = new Set<string>()
@@ -103,14 +111,23 @@ function GraphInner({
     setSettings({
       nodeReducer: (node, attrs) => {
         const out = { ...attrs }
+        const isPerson = graphRef.current?.getNodeAttribute(node, 'kind') === 'person'
+        const isHubNode = isPerson || attrs.hub === true
+        // hub notes keep labels; minor notes label only in focus
+        if (!isHubNode) out.label = ''
         const focusId = selected?.id ?? hovered
         if (focusId) {
           const neighbors = neighborIds(focusId, data.edges)
           if (node !== focusId && !neighbors.has(focusId)) {
-            out.color = 'rgba(245,245,245,0.06)'
+            out.color = 'rgba(245,245,245,0.08)'
             out.label = ''
             out.size = 2.5
+          } else if (node !== focusId) {
+            // focused node's neighbors get a slight boost
+            out.size = Math.max(out.size as number, 4)
           }
+        } else if (!isPerson && !attrs.hub) {
+          out.label = ''
         }
         return out
       },
