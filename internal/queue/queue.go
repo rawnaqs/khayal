@@ -133,6 +133,10 @@ func (q *Queue) initSchema() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)`,
 		`CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at)`,
+		// graph note metadata runs correlated subqueries per note over
+		// (note_path, type, created_at); without this they full-scan jobs
+		// and go superlinear (2000 notes: ~3.4s)
+		`CREATE INDEX IF NOT EXISTS idx_jobs_note_type_created ON jobs(note_path, type, created_at)`,
 		// v1.1: drop the legacy per-job embeddings table; chunks is the
 		// canonical vector store.
 		`DROP TABLE IF EXISTS embeddings`,

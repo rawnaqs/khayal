@@ -15,7 +15,8 @@ import {
   edgeColor,
   edgeMatchesFilter,
   isHub,
-  neighborIds,
+  buildAdjacency,
+  buildEdgeIndex,
   nodeSize,
   revealProgress,
   withAlpha,
@@ -82,6 +83,11 @@ function GraphInner({
   const sigma = useSigma()
   const graphRef = useRef<Graph | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
+  // O(1) lookups for the reducers: resolving an edge or a node's
+  // neighbours by scanning the edge list is O(E) / O(N·E) and spikes on
+  // hover at scale.
+  const edgeIndex = useMemo(() => buildEdgeIndex(data.edges), [data])
+  const adjacency = useMemo(() => buildAdjacency(data.edges), [data])
   // Drag state, fully self-owned (sigma's captor has quirks: mousemovebody
   // fires without buttons held, mouseup can bail early). We track the
   // candidate node, the pointer origin, whether real travel happened, and
@@ -204,8 +210,8 @@ function GraphInner({
         if (!isHubNode) out.label = ''
         const focusId = selected?.id ?? hovered
         if (focusId) {
-          const neighbors = neighborIds(focusId, data.edges)
-          if (node !== focusId && !neighbors.has(node)) {
+          const neighbors = adjacency.get(focusId)
+          if (node !== focusId && !neighbors?.has(node)) {
             out.color = 'rgba(245,245,245,0.08)'
             out.label = ''
             out.size = 2.5
@@ -215,7 +221,7 @@ function GraphInner({
       },
       edgeReducer: (edge, attrs) => {
         const out = { ...attrs }
-        const e = data.edges.find((x) => x.source + '\u0000' + x.target === edge)
+        const e = edgeIndex.get(edge)
         if (!e) return out
 
         // hide until both endpoints have been revealed
@@ -242,7 +248,7 @@ function GraphInner({
         return out
       },
     })
-  }, [selected, hovered, edgeFilter, data, setSettings, revealRef])
+  }, [selected, hovered, edgeFilter, edgeIndex, adjacency, setSettings, revealRef])
 
   // Events: hover + empty-space clicks. Node clicks and node drags are
   // owned by the pointer handler below.

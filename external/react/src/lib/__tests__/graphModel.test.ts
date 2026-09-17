@@ -5,6 +5,9 @@ import {
   neighborIds,
   filterGraph,
   personCount,
+  buildAdjacency,
+  buildEdgeIndex,
+  edgeKey,
   EDGE_COLORS,
 } from '../graphModel'
 import type { GraphEdge } from '../graphModel'
@@ -67,6 +70,31 @@ describe('neighbors', () => {
     expect(n.has('b')).toBe(true)
     expect(n.has('c')).toBe(true)
     expect(n.has('x')).toBe(false)
+  })
+})
+
+describe('indexed lookups', () => {
+  const edges: GraphEdge[] = [
+    { source: 'a', target: 'b', types: ['similar'] },
+    { source: 'c', target: 'a', types: ['contradiction'] },
+  ]
+
+  it('edgeKey matches the sigma edge key (source NUL target)', () => {
+    expect(edgeKey('a', 'b')).toBe('a\u0000b')
+  })
+
+  it('buildEdgeIndex resolves an edge by its key', () => {
+    const idx = buildEdgeIndex(edges)
+    expect(idx.get(edgeKey('a', 'b'))?.types).toEqual(['similar'])
+    expect(idx.get(edgeKey('b', 'a'))).toBeUndefined()
+  })
+
+  it('buildAdjacency collects neighbours in both directions', () => {
+    const adj = buildAdjacency(edges)
+    expect(adj.get('a')).toEqual(new Set(['b', 'c']))
+    expect(adj.get('b')).toEqual(new Set(['a']))
+    expect(adj.get('c')).toEqual(new Set(['a']))
+    expect(adj.get('missing')).toBeUndefined()
   })
 })
 

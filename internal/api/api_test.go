@@ -77,7 +77,7 @@ type testServer struct {
 	Config *config.Config
 }
 
-func setupTestServer(t *testing.T) *testServer {
+func setupTestServer(t testing.TB) *testServer {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 

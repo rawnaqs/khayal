@@ -121,6 +121,39 @@ export function neighborIds(nodeId: string, edges: GraphEdge[]): Set<string> {
   return out
 }
 
+// Canonical edge key. Sigma's graph keys edges by source+target, and the
+// reducers receive that key, so lookups must agree on the separator.
+export function edgeKey(source: string, target: string): string {
+  return source + '\u0000' + target
+}
+
+// edge key -> edge, so reducers can resolve an edge in O(1) instead of
+// scanning every edge per edge (which is O(E²) and spikes on hover).
+export function buildEdgeIndex(edges: GraphEdge[]): Map<string, GraphEdge> {
+  const m = new Map<string, GraphEdge>()
+  for (const e of edges) m.set(edgeKey(e.source, e.target), e)
+  return m
+}
+
+// node id -> neighbour ids, so focus dimming is O(1) per node instead of
+// scanning every edge per node (O(N·E)).
+export function buildAdjacency(edges: GraphEdge[]): Map<string, Set<string>> {
+  const m = new Map<string, Set<string>>()
+  const add = (a: string, b: string) => {
+    let set = m.get(a)
+    if (!set) {
+      set = new Set()
+      m.set(a, set)
+    }
+    set.add(b)
+  }
+  for (const e of edges) {
+    add(e.source, e.target)
+    add(e.target, e.source)
+  }
+  return m
+}
+
 // Filtered view: drop edges that don't match, drop nodes left with no
 // edges (keeps the canvas readable when filters are narrow).
 export function filterGraph(
