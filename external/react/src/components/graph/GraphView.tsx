@@ -3,7 +3,7 @@ import { RefreshCw } from 'lucide-react'
 import Graph from 'graphology'
 import forceAtlas2 from 'graphology-layout-forceatlas2'
 import EdgeCurveProgram from '@sigma/edge-curve'
-import { NodeSquareProgram } from '@sigma/node-square'
+import { RoundedSquareProgram } from './RoundedSquareProgram'
 import { SigmaContainer, useLoadGraph, useRegisterEvents, useSetSettings, useSigma } from '@react-sigma/core'
 import '@react-sigma/core/lib/style.css'
 import { createClient, type GraphNode } from '@/lib/api'
@@ -601,7 +601,7 @@ export function GraphView({ onNoteSelect }: { onNoteSelect?: (notePath: string) 
             defaultEdgeType: 'curved',
             edgeProgramClasses: { curved: EdgeCurveProgram },
             // merges with sigma's default `circle` program
-            nodeProgramClasses: { square: NodeSquareProgram },
+            nodeProgramClasses: { square: RoundedSquareProgram },
             minCameraRatio: 0.2,
             maxCameraRatio: 8,
             labelRenderedSizeThreshold: 12,
