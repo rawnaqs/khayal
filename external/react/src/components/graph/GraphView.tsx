@@ -3,6 +3,7 @@ import { RefreshCw } from 'lucide-react'
 import Graph from 'graphology'
 import forceAtlas2 from 'graphology-layout-forceatlas2'
 import EdgeCurveProgram from '@sigma/edge-curve'
+import { NodeSquareProgram } from '@sigma/node-square'
 import { SigmaContainer, useLoadGraph, useRegisterEvents, useSetSettings, useSigma } from '@react-sigma/core'
 import '@react-sigma/core/lib/style.css'
 import { createClient, type GraphNode } from '@/lib/api'
@@ -17,6 +18,7 @@ import {
   isHub,
   buildAdjacency,
   buildEdgeIndex,
+  nodeShape,
   nodeSize,
   revealProgress,
   withAlpha,
@@ -126,6 +128,8 @@ function GraphInner({
       graph.addNode(n.id, {
         label: n.name,
         kind: n.kind,
+        // sigma renders by `type`: people are squares, notes circles
+        type: nodeShape(n.kind),
         hub: isHub(n, degree),
         order: index,
         targetSize: size,
@@ -464,7 +468,7 @@ function GraphInner({
         const g = graphRef.current
         if (!g || !g.hasNode(id)) return null
         const a = g.getNodeAttributes(id)
-        return { x: a.x as number, y: a.y as number, kind: a.kind as string }
+        return { x: a.x as number, y: a.y as number, kind: a.kind as string, type: a.type as string }
       },
       nodeViewport: (id: string) => {
         const g = graphRef.current
@@ -596,6 +600,8 @@ export function GraphView({ onNoteSelect }: { onNoteSelect?: (notePath: string) 
           settings={{
             defaultEdgeType: 'curved',
             edgeProgramClasses: { curved: EdgeCurveProgram },
+            // merges with sigma's default `circle` program
+            nodeProgramClasses: { square: NodeSquareProgram },
             minCameraRatio: 0.2,
             maxCameraRatio: 8,
             labelRenderedSizeThreshold: 12,
@@ -638,7 +644,7 @@ export function GraphView({ onNoteSelect }: { onNoteSelect?: (notePath: string) 
 
         <div className="graph-legend">
           <span className="gl-item">
-            <span className="gl-dot" style={{ background: '#c9933a' }} /> person
+            <span className="gl-dot gl-square" style={{ background: '#c9933a' }} /> person
           </span>
           <span className="gl-item">
             <span className="gl-dot" style={{ background: '#8a93a6' }} /> note

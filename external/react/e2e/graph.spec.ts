@@ -9,7 +9,7 @@ declare global {
   interface Window {
     __graphDebug: {
       nodeIds: () => string[];
-      nodeState: (id: string) => { x: number; y: number; kind: string } | null;
+      nodeState: (id: string) => { x: number; y: number; kind: string; type: string } | null;
       nodeViewport: (id: string) => { x: number; y: number } | null;
       canvasRect: () => { left: number; top: number; width: number; height: number } | null;
       camera: () => { x: number; y: number; ratio: number };
@@ -66,26 +66,6 @@ async function openGraph(page: import("@playwright/test").Page) {
   await page.waitForTimeout(100);
 }
 
-// pick the node nearest the viewport centre, in PAGE coordinates
-// (graphToViewport is container-relative; the mouse works in page coords)
-async function centreNode(page: import("@playwright/test").Page) {
-  return page.evaluate(() => {
-    const d = window.__graphDebug;
-    const rect = d.canvasRect();
-    if (!rect) return null;
-    let best: { id: string; vp: { x: number; y: number }; dist: number } | null = null;
-    for (const id of d.nodeIds()) {
-      const vp = d.nodeViewport(id);
-      if (!vp) continue;
-      const pageX = rect.left + vp.x;
-      const pageY = rect.top + vp.y;
-      const dist = Math.hypot(pageX - window.innerWidth / 2, pageY - window.innerHeight / 2);
-      if (!best || dist < best.dist) best = { id, vp: { x: pageX, y: pageY }, dist };
-    }
-    return best;
-  });
-}
-
 // find an empty spot (no node within 40px) in page coordinates
 async function emptySpot(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
@@ -103,6 +83,27 @@ async function emptySpot(page: import("@playwright/test").Page) {
     return null;
   });
 }
+
+test("people render as squares and notes as circles", async ({ page }) => {
+  await page.goto("/");
+  await openGraph(page);
+
+  const shapes = await page.evaluate(() => {
+    const d = window.__graphDebug;
+    const out: { person: string[]; note: string[] } = { person: [], note: [] };
+    for (const id of d.nodeIds()) {
+      const st = d.nodeState(id);
+      if (!st) continue;
+      out[st.kind === "person" ? "person" : "note"].push(st.type);
+    }
+    return out;
+  });
+  console.log("SHAPES person", JSON.stringify([...new Set(shapes.person)]), "note", JSON.stringify([...new Set(shapes.note)]));
+  expect(shapes.person.length).toBeGreaterThan(0);
+  expect(shapes.note.length).toBeGreaterThan(0);
+  expect([...new Set(shapes.person)]).toEqual(["square"]);
+  expect([...new Set(shapes.note)]).toEqual(["circle"]);
+});
 
 test("dragging a small note node moves the node, not the camera (physics live)", async ({ page }) => {
   await page.goto("/");
@@ -263,14 +264,37 @@ test("clicking a node selects it; × clears the card", async ({ page }) => {
 test("clicking a note node opens the note", async ({ page }) => {
   await page.goto("/");
   await openGraph(page);
-  const pick = await centreNode(page);
-  expect(pick).not.toBeNull();
-  await page.mouse.click(pick!.vp.x, pick!.vp.y);
-  await page.waitForTimeout(600);
-  const dialog = await page.locator("[role=dialog]").count();
-  const card = await page.getByTestId("graph-info").count();
-  console.log("NOTE-CLICK dialog:", dialog, "card:", card);
-  expect(dialog + card, "clicking a node must do something visible").toBeGreaterThan(0);
+
+  // try several note nodes: a person square may overlap the first one
+  const notes = await page.evaluate(() => {
+    const d = window.__graphDebug;
+    const rect = d.canvasRect();
+    const out: { x: number; y: number }[] = [];
+    for (const id of d.nodeIds()) {
+      if (d.nodeState(id)?.kind !== "note") continue;
+      const vp = d.nodeViewport(id);
+      if (vp && rect) out.push({ x: rect.left + vp.x, y: rect.top + vp.y });
+      if (out.length >= 6) break;
+    }
+    return out;
+  });
+  expect(notes.length).toBeGreaterThan(0);
+
+  let opened = false;
+  for (const p of notes) {
+    await page.mouse.click(p.x, p.y);
+    await page.waitForTimeout(400);
+    if (await page.locator("[role=dialog]").count()) {
+      opened = true;
+      break;
+    }
+    if (await page.getByTestId("graph-info").count()) {
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(200);
+    }
+  }
+  console.log("NOTE-CLICK opened:", opened);
+  expect(opened, "clicking a note node should open the note sheet").toBe(true);
 });
 
 test("reload button visible and not overlapped by the legend", async ({ page }) => {

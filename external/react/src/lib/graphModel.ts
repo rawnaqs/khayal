@@ -49,6 +49,15 @@ export const NODE_COLORS: Record<GraphKind, string> = {
   note: '#8a93a6',
 }
 
+// Shape language: notes are circles, people are squares. sigma picks a
+// node program from the node's `type` attribute, so this must match a key
+// in nodeProgramClasses.
+export type NodeShape = 'circle' | 'square'
+
+export function nodeShape(kind: GraphKind): NodeShape {
+  return kind === 'person' ? 'square' : 'circle'
+}
+
 // Note nodes pick their hue from the capture type — the same badge
 // colors the rest of the product uses for text/article/image/pdf.
 export const NOTE_TYPE_COLORS: Record<string, string> = {

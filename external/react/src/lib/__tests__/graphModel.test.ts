@@ -8,6 +8,7 @@ import {
   buildAdjacency,
   buildEdgeIndex,
   edgeKey,
+  nodeShape,
   EDGE_COLORS,
 } from '../graphModel'
 import type { GraphEdge } from '../graphModel'
@@ -70,6 +71,13 @@ describe('neighbors', () => {
     expect(n.has('b')).toBe(true)
     expect(n.has('c')).toBe(true)
     expect(n.has('x')).toBe(false)
+  })
+})
+
+describe('node shapes', () => {
+  it('people are squares, notes are circles', () => {
+    expect(nodeShape('person')).toBe('square')
+    expect(nodeShape('note')).toBe('circle')
   })
 })
 

@@ -1005,6 +1005,11 @@
     border-radius: 50%;
   }
 
+  /* people render as squares, so the legend marker mirrors it */
+  .gl-dot.gl-square {
+    border-radius: 1px;
+  }
+
   .gl-hint {
     margin-top: 3px;
     color: rgba(245, 245, 245, 0.25);
