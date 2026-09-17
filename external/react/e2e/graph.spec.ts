@@ -125,6 +125,51 @@ test("dragging a small note node moves the node, not the camera (physics live)",
   expect(r.camMoved, "camera must not pan while dragging a node").toBeLessThan(0.5);
 });
 
+test("dragging a node pulls its linked notes along", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("nav .nt", { hasText: "graph" }).click();
+  await page.waitForSelector('[data-testid="graph-canvas"] canvas', { timeout: 10000 });
+  await page.waitForTimeout(3000);
+  await page.evaluate(() => window.__graphDebug.pause(true));
+
+  const pick = await page.evaluate(() => {
+    const d = window.__graphDebug;
+    for (const id of d.nodeIds()) {
+      if (d.nodeState(id)?.kind !== "note") continue;
+      const nbrs = d.neighbors(id);
+      if (nbrs.length > 0) return { id, nbr: nbrs[0] };
+    }
+    return null;
+  });
+  expect(pick, "no note node with a neighbour").not.toBeNull();
+
+  const before = await page.evaluate((p) => ({
+    node: window.__graphDebug.nodeState(p.id),
+    nbr: window.__graphDebug.nodeState(p.nbr),
+  }), pick!);
+
+  const p = await nodeAt(page, pick!.id);
+  await page.mouse.move(p!.x, p!.y);
+  await page.mouse.down();
+  await page.waitForTimeout(40);
+  await page.mouse.move(p!.x + 120, p!.y + 90, { steps: 15 });
+  await page.mouse.up();
+  await page.waitForTimeout(150);
+
+  const after = await page.evaluate((p) => ({
+    node: window.__graphDebug.nodeState(p.id),
+    nbr: window.__graphDebug.nodeState(p.nbr),
+  }), pick!);
+
+  const moved = (a: any, b: any) => Math.hypot(a.x - b.x, a.y - b.y);
+  const nodeMoved = moved(after.node, before.node);
+  const nbrMoved = moved(after.nbr, before.nbr);
+  console.log("PULL node", nodeMoved.toFixed(1), "neighbour", nbrMoved.toFixed(1));
+  expect(nodeMoved, "dragged node should move").toBeGreaterThan(20);
+  expect(nbrMoved, "linked note should follow").toBeGreaterThan(5);
+  expect(nbrMoved, "linked note should move less than the dragged node").toBeLessThan(nodeMoved);
+});
+
 test("panning still works after dragging a node", async ({ page }) => {
   await page.goto("/");
   await page.locator("nav .nt", { hasText: "graph" }).click();

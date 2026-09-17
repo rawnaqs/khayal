@@ -88,6 +88,9 @@ function GraphInner({
   // we disable sigma's captor while dragging so the camera stays put.
   const dragCandidateRef = useRef<string | null>(null)
   const dragPointerIdRef = useRef<number | null>(null)
+  // which nodes follow a drag, and how strongly (dragged node = 1)
+  const dragInfluenceRef = useRef<Map<string, number>>(new Map())
+  const dragLastRef = useRef<{ x: number; y: number } | null>(null)
   const touchCountRef = useRef(0)
   const dragActiveRef = useRef(false)
   const physicsPausedRef = useRef(false)
@@ -312,6 +315,22 @@ function GraphInner({
     }
     hitNodeRef.current = hitNode
 
+    // A dragged node pulls its neighbours along, decaying with graph
+    // distance, so a connected cluster travels together instead of edges
+    // stretching like rubber bands.
+    const buildInfluence = (node: string): Map<string, number> => {
+      const influence = new Map<string, number>([[node, 1]])
+      const graph = graphRef.current
+      if (!graph) return influence
+      graph.forEachNeighbor(node, (n) => influence.set(n, 0.5))
+      graph.forEachNeighbor(node, (n) => {
+        graph.forEachNeighbor(n, (n2) => {
+          if (!influence.has(n2)) influence.set(n2, 0.15)
+        })
+      })
+      return influence
+    }
+
     const setMouseCaptor = (enabled: boolean) => {
       const captor = sigma.getMouseCaptor()
       if (captor) captor.enabled = enabled
@@ -324,6 +343,8 @@ function GraphInner({
     const reset = () => {
       dragCandidateRef.current = null
       dragPointerIdRef.current = null
+      dragInfluenceRef.current = new Map()
+      dragLastRef.current = null
       dragActiveRef.current = false
       start = null
       travel = 0
@@ -353,6 +374,8 @@ function GraphInner({
       dragCandidateRef.current = node
       dragPointerIdRef.current = e.pointerId
       dragActiveRef.current = false
+      dragInfluenceRef.current = buildInfluence(node)
+      dragLastRef.current = sigma.viewportToGraph({ x: px, y: py })
       start = { x: px, y: py }
       travel = 0
       dragged = false
@@ -380,8 +403,18 @@ function GraphInner({
       dragActiveRef.current = true
       e.preventDefault()
       const pos = sigma.viewportToGraph({ x: px, y: py })
-      graphRef.current?.setNodeAttribute(node, 'x', pos.x)
-      graphRef.current?.setNodeAttribute(node, 'y', pos.y)
+      const last = dragLastRef.current
+      const graph = graphRef.current
+      if (last && graph) {
+        const dx = pos.x - last.x
+        const dy = pos.y - last.y
+        dragInfluenceRef.current.forEach((factor, id) => {
+          if (!graph.hasNode(id)) return
+          graph.setNodeAttribute(id, 'x', (graph.getNodeAttribute(id, 'x') as number) + dx * factor)
+          graph.setNodeAttribute(id, 'y', (graph.getNodeAttribute(id, 'y') as number) + dy * factor)
+        })
+      }
+      dragLastRef.current = pos
       sigma.refresh()
     }
 
@@ -420,6 +453,7 @@ function GraphInner({
     if (!import.meta.env.DEV) return
     ;(window as unknown as Record<string, unknown>).__graphDebug = {
       nodeIds: () => graphRef.current?.nodes() ?? [],
+      neighbors: (id: string) => graphRef.current?.neighbors(id) ?? [],
       nodeState: (id: string) => {
         const g = graphRef.current
         if (!g || !g.hasNode(id)) return null
