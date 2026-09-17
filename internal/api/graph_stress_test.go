@@ -119,12 +119,29 @@ func runGraphStress(t testing.TB, shape graphStressShape) graphStressResult {
 		t.Fatalf("status %d", rec.Code)
 	}
 	var g struct {
-		Nodes []json.RawMessage `json:"nodes"`
-		Edges []json.RawMessage `json:"edges"`
+		Nodes []struct {
+			ID string `json:"id"`
+		} `json:"nodes"`
+		Edges []struct {
+			Source string `json:"source"`
+			Target string `json:"target"`
+		} `json:"edges"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &g); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
+
+	// every edge must reference a node that survived the cap
+	ids := make(map[string]bool, len(g.Nodes))
+	for _, n := range g.Nodes {
+		ids[n.ID] = true
+	}
+	for _, e := range g.Edges {
+		if !ids[e.Source] || !ids[e.Target] {
+			t.Fatalf("dangling edge %s -> %s", e.Source, e.Target)
+		}
+	}
+
 	return graphStressResult{
 		Latency: latency,
 		Nodes:   len(g.Nodes),
@@ -148,7 +165,7 @@ func TestGraphStress(t *testing.T) {
 			struct {
 				name  string
 				shape graphStressShape
-			}{"large", graphStressShape{Notes: 2000, ConnJobs: 1000, ConnsPerJob: 20, People: 2000}},
+			}{"large", graphStressShape{Notes: 2000, ConnJobs: 1000, ConnsPerJob: 30, People: 2000}},
 		)
 	}
 
@@ -162,6 +179,68 @@ func TestGraphStress(t *testing.T) {
 				t.Fatalf("node cap violated: %d > %d", r.Nodes, graphMaxNodes)
 			}
 		})
+	}
+}
+
+// TestGraphHandlerCapsConnectionsPerSource verifies the per-note edge cap
+// keeps the strongest links rather than an arbitrary slice.
+func TestGraphHandlerCapsConnectionsPerSource(t *testing.T) {
+	ts := setupTestServer(t)
+	defer ts.close()
+	ctx := context.Background()
+
+	const total = 30
+	src := "khayal/src.md"
+	if err := ts.Queue.IndexNote(ctx, src, "Src", "body", "stress"); err != nil {
+		t.Fatal(err)
+	}
+	job := &queue.Job{ID: "cap-job", Type: "connections", Status: "done", NotePath: src, CreatedAt: time.Now().UTC()}
+	if err := ts.Queue.CreateJob(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	conns := make([]map[string]any, 0, total)
+	for k := 0; k < total; k++ {
+		target := fmt.Sprintf("khayal/t-%02d.md", k)
+		if err := ts.Queue.IndexNote(ctx, target, target, "body", "stress"); err != nil {
+			t.Fatal(err)
+		}
+		// score == k, so the strongest 20 are k = 10..29
+		conns = append(conns, map[string]any{"type": "similar", "note_path": target, "score": k, "excerpt": "x"})
+	}
+	payload, _ := json.Marshal(map[string]any{"connections": conns})
+	if err := ts.Queue.UpdateJobResult(ctx, job.ID, payload); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/graph", nil)
+	req.Header.Set("X-Khayal-Token", "test-token")
+	rec := httptest.NewRecorder()
+	ts.Server.graphHandler(rec, req)
+
+	var g struct {
+		Edges []struct {
+			Source string `json:"source"`
+			Target string `json:"target"`
+		} `json:"edges"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &g); err != nil {
+		t.Fatal(err)
+	}
+	fromSrc := map[string]bool{}
+	for _, e := range g.Edges {
+		if e.Source == src {
+			fromSrc[e.Target] = true
+		}
+	}
+	if len(fromSrc) != graphMaxConnsPerSource {
+		t.Fatalf("expected %d edges from source, got %d", graphMaxConnsPerSource, len(fromSrc))
+	}
+	for k := 0; k < total; k++ {
+		target := fmt.Sprintf("khayal/t-%02d.md", k)
+		want := k >= total-graphMaxConnsPerSource // k = 10..29 are strongest
+		if fromSrc[target] != want {
+			t.Errorf("target %s kept=%v, want %v", target, fromSrc[target], want)
+		}
 	}
 }
 

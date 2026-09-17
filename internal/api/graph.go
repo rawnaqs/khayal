@@ -38,6 +38,11 @@ type Graph struct {
 // runaway index should degrade instead of freezing the client.
 const graphMaxNodes = 500
 
+// graphMaxConnsPerSource keeps only a note's strongest links. Nodes are
+// capped but edges were not, so a single over-eager note could ship
+// thousands of edges on its own.
+const graphMaxConnsPerSource = 20
+
 // graphHandler serves the whole connection web: notes, people, and every
 // relationship between them. Feed for a future visualization.
 func (s *Server) graphHandler(w http.ResponseWriter, r *http.Request) {
@@ -49,8 +54,9 @@ func (s *Server) graphHandler(w http.ResponseWriter, r *http.Request) {
 
 	// --- note-note edges from the connections results -------------------
 	type storedConn struct {
-		NotePath string `json:"note_path"`
-		Type     string `json:"type"`
+		NotePath string  `json:"note_path"`
+		Type     string  `json:"type"`
+		Score    float64 `json:"score"`
 	}
 	connBySource := map[string][]storedConn{}
 	results, err := s.queue.AllConnectionResults(ctx)
@@ -63,6 +69,14 @@ func (s *Server) graphHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			connBySource[jr.NotePath] = append(connBySource[jr.NotePath], payload.Connections...)
+		}
+	}
+	// keep each note's strongest links (connections arrive ranked per job,
+	// but a note can have several jobs)
+	for src, conns := range connBySource {
+		if len(conns) > graphMaxConnsPerSource {
+			sort.SliceStable(conns, func(i, j int) bool { return conns[i].Score > conns[j].Score })
+			connBySource[src] = conns[:graphMaxConnsPerSource]
 		}
 	}
 
@@ -149,6 +163,20 @@ func (s *Server) graphHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		sort.SliceStable(kept, func(i, j int) bool { return kept[i].ID < kept[j].ID })
 		g.Nodes = kept[:min(len(kept), graphMaxNodes)]
+
+		// drop edges whose endpoints were pruned: the client discards
+		// them anyway, so this is pure payload savings
+		keptIDs := make(map[string]bool, len(g.Nodes))
+		for _, n := range g.Nodes {
+			keptIDs[n.ID] = true
+		}
+		live := g.Edges[:0]
+		for _, e := range g.Edges {
+			if keptIDs[e.Source] && keptIDs[e.Target] {
+				live = append(live, e)
+			}
+		}
+		g.Edges = live
 	}
 	WriteJSON(w, http.StatusOK, g)
 }
