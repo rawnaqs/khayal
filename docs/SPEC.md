@@ -1087,25 +1087,24 @@ Never show:
 - FTS5 triggers on content, title, tags
 
 **Semantic Search:**
-- sqlite-vec for vector similarity (MIT/Apache-2 licensed)
-- CGo required (using mattn/go-sqlite3)
-- Virtual table for embeddings
-- 10-20x faster than pure Go
-
-```sql
--- sqlite-vec virtual table
-CREATE VIRTUAL TABLE vec_chunks USING vec0(
-    chunk_embedding float[768]
-);
-```
+- Chunk-level embeddings (target ~175 words, paragraph-aligned, 35-word
+  overlap) stored as BLOBs in the `chunks` table
+- Pure-Go cosine similarity, computed in memory over batched chunk reads —
+  no CGo and no vector extension (`sqlite-vec` deadlocks with
+  `modernc.org/sqlite`; see RETROSPECTIVE)
+- `search.min_semantic_score` (default 0.5) drops weak matches
+- O(n) scan per query: fine for personal vaults; revisit past ~100K
+  embeddings (see RETROSPECTIVE "When to Re-evaluate")
 
 **Sync Strategy:**
-- mtime check on search
-- Re-index stale files inline (on-demand)
+- Capture and `khayal reindex` both write chunks; reindex rebuilds from the
+  note body on disk, so coverage differs slightly between the two paths
+  (accepted deliberately — see ADR 0001)
 
 **Hybrid Merge:**
-- Reciprocal Rank Fusion (RRF, k=60)
-- Combines keyword + semantic rankings
+- Reciprocal Rank Fusion (RRF, k=60): `score = Σ 1/(k + rank)` over the
+  keyword and semantic rankings, deduped by `note_path`, normalized so the
+  best result is 1.0
 
 **Date Filter:**
 - Pre-filter by date range before both keyword and semantic search
@@ -1114,14 +1113,16 @@ CREATE VIRTUAL TABLE vec_chunks USING vec0(
 - Parameters: `from=2024-03-11&to=2024-03-16` (optional ISO date strings)
 
 ### Explicitly Out of v1
+
+> PDF ingestion (v1.2) and graph connections / backlinks (v1.3) were out of
+> v1 but have since shipped — see "Phases After v1".
+
 - Voice notes (attempted in v1.2, deferred — see Voice Capture section)
-- PDF ingestion
 - YouTube / video ingestion
 - Browser extension
 - Raycast extension
 - Mobile app
 - iOS Shortcuts
-- Graph connections / wikilinks
 - Windows support
 - Setup wizard UI (non-technical users)
 - Multi-user
@@ -1148,7 +1149,7 @@ After every capture is processed, khayal automatically finds related notes from 
 Find notes with high embedding similarity to the new note.
 
 ```
-Detection: sqlite-vec cosine similarity
+Detection: cosine similarity over chunk embeddings
 Threshold: score > 0.85
 Filter:    note age > 7 days, exclude current note
 Max:       3 results
@@ -1349,7 +1350,7 @@ connections:
 ### Performance
 
 ```
-semantic similar:    ~5ms   (sqlite-vec)
+semantic similar:    ~5ms   (pure-Go cosine over chunk BLOBs)
 person + amount:    ~2ms   (SQL entity lookup)
 revisit:             ~10ms  (reuses semantic search)
 follow-up:           ~10ms  (SQL + date comparison)
@@ -1448,7 +1449,7 @@ CREATE INDEX idx_entities_type ON entities(entity_type);
 Auto-discover related notes after capture. Delivered asynchronously.
 
 **v1.1 Connection Types:**
-- Semantic similar (sqlite-vec similarity > 0.85)
+- Semantic similar (cosine similarity ≥ `connections.similarity_threshold`)
 - Same person mentioned (entity lookup)
 - Same amount/financial (entity lookup)
 
@@ -1475,9 +1476,13 @@ connections:
 
 ---
 
-### 4. Search Pipeline (v1.1)
+### 4. Search Pipeline (v1.1) — proposal, not implemented
 
-*Note: sqlite-vec is already included in v1. This section adds advanced features.*
+> Status: **not implemented.** Shipped search is FTS5 + pure-Go cosine +
+> RRF (see "Search Implementation" above), plus an optional on-demand AI
+> answer (`overview=true`). Temporal detection, query rewriting, HyDE and
+> cross-encoder reranking below remain a proposal, as does the config shown
+> here.
 
 **Full pipeline in order:
 
@@ -1495,7 +1500,7 @@ User query
     │
     ├──────────────────────────────┐
     ▼                              ▼
-4a. FTS5 keyword search       4b. sqlite-vec vector search
+4a. FTS5 keyword search       4b. vector search (pure-Go cosine)
     (original + rewritten)          (HyDE embedding)
     date filter applied             date filter applied
     top-20                         top-20
@@ -1541,23 +1546,12 @@ search:
   temporal_enabled: true
 ```
 
-**Technical Changes:**
-- Uses `mattn/go-sqlite3` (CGO) from v1
-- Add gcc to goreleaser CI build environment
-- Virtual table for vectors, regular table for content/metadata
-
-```sql
--- sqlite-vec virtual table (v1.1)
-CREATE VIRTUAL TABLE chunks_vec USING vec0(
-    embedding FLOAT[768],
-    note_id TEXT,
-    chunk_id TEXT
-);
-```
-
-**v1.1 Changes:**
-- Add sqlite-vec extension for faster similarity search
-- Switch to virtual table for embeddings
+**Technical Changes (if pursued):**
+- The shipped build is deliberately pure Go (`modernc.org/sqlite`, no CGo)
+  with embeddings stored in the `chunks` table and scored by in-memory
+  cosine. A vector index would mean an HNSW implementation in Go or a
+  second database — not a `mattn/go-sqlite3` switch. See RETROSPECTIVE
+  "When to Re-evaluate".
 
 ---
 

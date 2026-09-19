@@ -211,14 +211,8 @@ Graph connections & backlinks complete.
 | Feature | What landed |
 |---------|-------------|
 | Backlinks | frontmatter-authoritative reverse-link scan; `backlinks` on GET /v1/notes/{path}; "linked from" panel in NoteView |
-| Entity graph API | `GET /v1/graph` — typed {nodes, edges}: notes + people; note-note edges carry detector types; person-mention edges; 500-node cap |
-| Graph view | sigma.js v3 + graphology + @react-sigma/core v5: ForceAtlas2 layout, edges colored by connection type, type filter chips, click-to-focus neighborhood, open-note info card |
-
-| Slice | What |
-|-------|------|
-| Backlinks | reverse-link scan over frontmatter `connections:` (authoritative across manual Obsidian edits); `backlinks: RelatedLink[]` on GET /v1/notes/{path}; "linked from" panel in NoteView |
-| Entity graph API | `GET /v1/graph` -> typed {nodes, edges}: notes + people nodes; note-note edges carrying connection types (contradiction edges ready for red styling); person-note mention edges from entities |
-| Visual graph | deliberately deferred — full force-directed view vs per-note connection web, decided against real data |
+| Entity graph API | `GET /v1/graph` — typed {nodes, edges}: notes + people; note-note edges carry detector types; person-mention edges; 500-node cap and 20 links/note cap |
+| Graph view | sigma.js v3 + graphology + @react-sigma/core v5: ForceAtlas2 layout, curved edges colored by connection type, filter chips, note-click opens the note, person info card, drag pulls linked notes, people as rounded squares; one-finger node drag / two-finger pan |
 
 ---
 
@@ -319,5 +313,5 @@ See CONTRIBUTING.md after Phase 7 setup.
 
 This plan covers **Khayal v1** and **v1.1**.
 
-- **v1**: Core capture, search (FTS5 + sqlite-vec), CLI, PWA
+- **v1**: Core capture, search (FTS5 + pure-Go cosine), CLI, PWA
 - **v1.1**: Chunking, entity extraction, proactive connections
