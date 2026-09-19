@@ -42,3 +42,72 @@ jobs:
         uses: golangci/golangci-lint-action@v7
         with:
           version: v2.11.4
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: external/react/package-lock.json
+
+      - name: Install dependencies
+        working-directory: external/react
+        run: npm ci
+
+      - name: Typecheck
+        working-directory: external/react
+        run: npm run typecheck
+
+      - name: Unit tests
+        working-directory: external/react
+        run: npm run test:run
+
+      - name: Build
+        working-directory: external/react
+        run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: external/react/package-lock.json
+
+      - name: Install dependencies
+        working-directory: external/react
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: external/react
+        run: npx playwright install --with-deps chromium
+
+      # playwright.config.ts starts both the vite dev server and the Go
+      # backend (with --skip-deps, so no Ollama is required).
+      - name: Run e2e
+        working-directory: external/react
+        run: npx playwright test --project=chromium
+
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: external/react/playwright-report/
+          retention-days: 7

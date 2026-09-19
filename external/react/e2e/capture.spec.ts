@@ -102,8 +102,8 @@ test.describe("Capture Flow", () => {
       page.getByText("article · will extract content"),
     ).toBeVisible();
 
-    // Image mode hint
-    await page.click("text=img");
-    await expect(page.getByText("image · will be describe")).toBeVisible();
+    // Image / PDF mode hint
+    await page.click("text=img/pdf");
+    await expect(page.getByText("image or pdf · will be processed")).toBeVisible();
   });
 });

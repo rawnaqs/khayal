@@ -49,7 +49,8 @@ export default defineConfig({
       timeout: 120 * 1000,
     },
     {
-      command: 'go run ./cmd/khayal start',
+      // --skip-deps: e2e doesn't need Ollama (graph/API surfaces only)
+      command: 'go run ./cmd/khayal start --skip-deps',
       cwd: repoRoot,
       // served unauthenticated, so it works as a readiness probe
       url: 'http://localhost:1133/',

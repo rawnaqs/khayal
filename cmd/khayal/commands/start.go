@@ -22,16 +22,21 @@ import (
 )
 
 func newStartCmd() *cobra.Command {
-	return &cobra.Command{
+	var skipDeps bool
+	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start server + worker, run dependency checker",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStart()
+			return runStart(skipDeps)
 		},
 	}
+	// e2e/CI runs the server without Ollama; the graph and API surfaces
+	// don't need it, and the worker simply fails any jobs it can't process.
+	cmd.Flags().BoolVar(&skipDeps, "skip-deps", false, "skip the dependency check (tests/CI)")
+	return cmd
 }
 
-func runStart() error {
+func runStart(skipDeps bool) error {
 	fmt.Println(theme.Primary.Render(fmt.Sprintf("khayal v%s", VersionCmd())))
 	fmt.Println()
 
@@ -50,27 +55,31 @@ func runStart() error {
 		return err
 	}
 
-	fmt.Println(theme.Muted.Render("checking dependencies..."))
-	deps := cli.CheckDependencies(cfg)
-	cli.PrintDependencies(deps)
-	fmt.Println()
+	if skipDeps || os.Getenv("KHAYAL_SKIP_DEPS") != "" {
+		fmt.Println(theme.Muted.Render("skipping dependency check"))
+	} else {
+		fmt.Println(theme.Muted.Render("checking dependencies..."))
+		deps := cli.CheckDependencies(cfg)
+		cli.PrintDependencies(deps)
+		fmt.Println()
 
-	missingDeps := []string{}
-	for _, d := range deps {
-		if !d.OK {
-			missingDeps = append(missingDeps, d.Name)
-		}
-	}
-	if len(missingDeps) > 0 {
-		cli.PrintSection("install missing dependencies:")
-		for _, name := range missingDeps {
-			for _, d := range deps {
-				if d.Name == name && d.Install != "" {
-					fmt.Println(theme.Dim.Render("  " + d.Install))
-				}
+		missingDeps := []string{}
+		for _, d := range deps {
+			if !d.OK {
+				missingDeps = append(missingDeps, d.Name)
 			}
 		}
-		return fmt.Errorf("missing dependencies: %v", missingDeps)
+		if len(missingDeps) > 0 {
+			cli.PrintSection("install missing dependencies:")
+			for _, name := range missingDeps {
+				for _, d := range deps {
+					if d.Name == name && d.Install != "" {
+						fmt.Println(theme.Dim.Render("  " + d.Install))
+					}
+				}
+			}
+			return fmt.Errorf("missing dependencies: %v", missingDeps)
+		}
 	}
 
 	if err := cli.EnsureDirectories(cfg, configPath); err != nil {
