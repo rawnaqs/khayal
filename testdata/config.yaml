@@ -18,9 +18,9 @@ llm:
   provider: ollama
   ollama_host: http://0.0.0.0:11434
   embed_model: nomic-embed-text
-  text_model: qwen2.5:3b
-  consolidation_model: qwen2.5:7b
-  vision_model: moondream
+  text_model: gemma4:e2b
+  consolidation_model: ""
+  vision_model: gemma4:e2b
   fallback_provider: ""
   fallback_api_key: ""
   truncate_text_tokens: 2000

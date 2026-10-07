@@ -116,8 +116,8 @@ llm:
   provider: ollama
   ollama_host: %s
   embed_model: nomic-embed-text
-  text_model: qwen2.5:3b
-  vision_model: moondream
+  text_model: gemma4:e2b
+  vision_model: gemma4:e2b
 
 worker:
   max_workers: 1

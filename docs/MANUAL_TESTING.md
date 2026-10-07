@@ -31,7 +31,7 @@ logging:
 
 # Ollama (for Phase 3+)
 # Run: ollama list
-# Required models: nomic-embed-text, qwen2.5:3b, moondream
+# Required models: nomic-embed-text, gemma4:e2b
 ```
 
 ---
@@ -665,13 +665,11 @@ ollama list
 
 # Required models:
 # - nomic-embed-text (for embeddings)
-# - qwen2.5:3b (for text processing)
-# - moondream (for image description)
+# - gemma4:e2b (text + vision)
 
 # Pull missing models
-ollama pull qwen2.5:3b
+ollama pull gemma4:e2b
 ollama pull nomic-embed-text
-ollama pull moondream
 ```
 
 ### Server won't start

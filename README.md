@@ -80,11 +80,10 @@ curl -fsSL https://ollama.com/install.sh | sh
 
 # Pull required models
 ollama pull nomic-embed-text
-ollama pull qwen2.5:3b
-ollama pull moondream
+ollama pull gemma4:e2b        # text + vision in one model
 
 # optional: a larger model just for memory consolidation (recommended)
-ollama pull qwen2.5:7b
+ollama pull qwen3.5:9b
 ```
 
 ### 2. Install Khayal
@@ -171,8 +170,8 @@ llm:
   provider: ollama
   ollama_host: http://localhost:11434
   embed_model: nomic-embed-text
-  text_model: qwen2.5:3b
-  vision_model: moondream
+  text_model: gemma4:e2b
+  vision_model: gemma4:e2b
 
 worker:
   max_workers: 1
