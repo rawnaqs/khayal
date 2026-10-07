@@ -98,6 +98,11 @@ jobs:
         working-directory: external/react
         run: npx playwright install --with-deps chromium
 
+      # the testdata DB + vault notes are gitignored, so CI starts empty;
+      # seed a deterministic fixture before the backend boots
+      - name: Seed e2e fixture
+        run: go run ./cmd/seedtestdata -db testdata/khayal.db -vault testdata/vault/khayal
+
       # playwright.config.ts starts both the vite dev server and the Go
       # backend (with --skip-deps, so no Ollama is required).
       - name: Run e2e

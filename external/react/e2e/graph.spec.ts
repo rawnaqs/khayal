@@ -144,30 +144,28 @@ test("dragging a node pulls its linked notes along", async ({ page }) => {
   });
   expect(pick, "no note node with a neighbour").not.toBeNull();
 
-  const before = await page.evaluate((p) => ({
-    node: window.__graphDebug.nodeState(p.id),
-    nbr: window.__graphDebug.nodeState(p.nbr),
-  }), pick!);
+  // measure on screen (not in graph units): graph-unit movement depends on
+  // the layout's scale, which varies with node count
+  const before = { node: await nodeAt(page, pick!.id), nbr: await nodeAt(page, pick!.nbr) };
+  expect(before.node, "dragged node not on screen").not.toBeNull();
+  expect(before.nbr, "neighbour not on screen").not.toBeNull();
 
-  const p = await nodeAt(page, pick!.id);
-  await page.mouse.move(p!.x, p!.y);
+  const p = before.node!;
+  await page.mouse.move(p.x, p.y);
   await page.mouse.down();
   await page.waitForTimeout(40);
-  await page.mouse.move(p!.x + 120, p!.y + 90, { steps: 15 });
+  await page.mouse.move(p.x + 120, p.y + 90, { steps: 15 });
   await page.mouse.up();
   await page.waitForTimeout(150);
 
-  const after = await page.evaluate((p) => ({
-    node: window.__graphDebug.nodeState(p.id),
-    nbr: window.__graphDebug.nodeState(p.nbr),
-  }), pick!);
+  const after = { node: await nodeAt(page, pick!.id), nbr: await nodeAt(page, pick!.nbr) };
 
   const moved = (a: any, b: any) => Math.hypot(a.x - b.x, a.y - b.y);
   const nodeMoved = moved(after.node, before.node);
   const nbrMoved = moved(after.nbr, before.nbr);
   console.log("PULL node", nodeMoved.toFixed(1), "neighbour", nbrMoved.toFixed(1));
-  expect(nodeMoved, "dragged node should move").toBeGreaterThan(20);
-  expect(nbrMoved, "linked note should follow").toBeGreaterThan(5);
+  expect(nodeMoved, "dragged node should follow the pointer").toBeGreaterThan(60);
+  expect(nbrMoved, "linked note should follow").toBeGreaterThan(10);
   expect(nbrMoved, "linked note should move less than the dragged node").toBeLessThan(nodeMoved);
 });
 
