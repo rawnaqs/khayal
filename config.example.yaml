@@ -21,14 +21,11 @@ llm:
   provider: ollama
   ollama_host: http://localhost:11434
   embed_model: nomic-embed-text
-  # One model for text + vision: a single pull, no weight swapping.
-  # More RAM? gemma4:e4b. Lighter alternative: qwen3.5:2b.
-  text_model: gemma4:e2b
-  vision_model: gemma4:e2b
-  # Optional larger model for memory consolidation and contradiction
-  # verdicts (defaults to text_model). Suggested: qwen3.5:9b, or
-  # qwen3.6:27b with 32 GB+.
+  text_model: llama3.2:3b
+  # Optional dedicated model for memory consolidation (defaults to text_model)
   consolidation_model: ""
+
+  vision_model: moondream
   fallback_provider: ""
   fallback_api_key: ""
   truncate_text_tokens: 2000

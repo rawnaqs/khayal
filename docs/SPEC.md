@@ -265,7 +265,7 @@ Waits for current job to complete before stopping worker. Never kills mid-proces
   └─────────────────────────────────────────────────────────────┘
 
   ┌─ dependencies ──────────────────────────────────────────────┐
-  │  ollama    ✓   gemma4:e2b · nomic-embed-text               │
+  │  ollama    ✓   qwen2.5:3b · moondream · nomic-embed-text    │
   │  ffmpeg    ✓                                                │
   │  yt-dlp    ✗   video ingestion unavailable                  │
   └─────────────────────────────────────────────────────────────┘
@@ -366,8 +366,8 @@ khayal config
   llm
     provider    ollama
     embed       nomic-embed-text
-    text        gemma4:e2b
-    vision      gemma4:e2b
+    text        qwen2.5:3b
+    vision      moondream
     fallback    (none)
 
   worker
@@ -1760,7 +1760,7 @@ khayal/
 │   │   └── worker.go            ← job processor, configurable concurrency, exponential backoff
 │   ├── ingest/
 │   │   ├── text.go              ← text processing
-│   │   ├── image.go             ← vision model + OCR
+│   │   ├── image.go             ← LLaVA/moondream + OCR
 │   │   └── article.go           ← scrape + summarize
 │   ├── llm/
 │   │   ├── interface.go         ← LLM interface definition
@@ -1932,8 +1932,8 @@ llm:
   provider: ollama                     # ollama | groq | openai
   ollama_host: http://localhost:11434
   embed_model: nomic-embed-text
-  text_model: gemma4:e2b
-  vision_model: gemma4:e2b
+  text_model: llama3.2:3b
+  vision_model: moondream
   consolidation_model: ""              # dedicated model for memory consolidation; "" or same as text_model = reuse text model
   fallback_provider: ""                # groq | openai | "" (none)
   fallback_api_key: ""
@@ -2551,8 +2551,8 @@ Fallback activates if Ollama is unreachable. If no fallback configured and Ollam
 | Task | Model | Size |
 |---|---|---|
 | Embeddings | nomic-embed-text | 274MB |
-| Text extraction / tagging | gemma4:e2b | ~2GB |
-| Vision / image description | gemma4:e2b | (same model) |
+| Text extraction / tagging | llama3.2:3b | 2GB |
+| Vision / image description | moondream | 1.8GB |
 
 ---
 

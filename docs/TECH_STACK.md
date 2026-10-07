@@ -45,9 +45,9 @@
 | Fallback 1 | Groq | Fast inference, good API |
 | Fallback 2 | OpenAI | Universal fallback |
 | Embedding Model | nomic-embed-text | Ollama default, good quality |
-| Text Model | gemma4:e2b | Multimodal; one pull serves text + vision |
-| Consolidation Model | optional (e.g. qwen3.5:9b) | Dedicated model for memory consolidation; temp 0.2 |
-| Vision Model | gemma4:e2b (same as text) | No second model, no weight swapping |
+| Text Model | qwen2.5:3b (default config: llama3.2:3b) | Balanced size/performance |
+| Consolidation Model | optional (e.g. qwen2.5:7b) | Dedicated model for memory consolidation; temp 0.2 |
+| Vision Model | moondream | Lightweight, effective |
 
 ## CLI
 
