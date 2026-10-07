@@ -7,7 +7,14 @@ import (
 )
 
 func NewLLM(cfg config.LLMConfig) (LLMExt, error) {
-	return newOllamaLLM(cfg, cfg.TextModel)
+	return NewLLMWithPing(cfg, true)
+}
+
+// NewLLMWithPing builds the primary client. With ping=false the Ollama
+// reachability check is skipped, so the server can start without Ollama
+// (tests/CI); jobs that need the LLM simply fail until it is back.
+func NewLLMWithPing(cfg config.LLMConfig, ping bool) (LLMExt, error) {
+	return newOllamaLLM(cfg, cfg.TextModel, ping)
 }
 
 // NewConsolidationLLM returns a dedicated client for memory consolidation
@@ -15,13 +22,17 @@ func NewLLM(cfg config.LLMConfig) (LLMExt, error) {
 // the consolidation model is unset or identical to the main text model, in
 // which case callers should reuse their primary client.
 func NewConsolidationLLM(cfg config.LLMConfig) (LLMExt, error) {
+	return NewConsolidationLLMWithPing(cfg, true)
+}
+
+func NewConsolidationLLMWithPing(cfg config.LLMConfig, ping bool) (LLMExt, error) {
 	if cfg.ConsolidationModel == "" || cfg.ConsolidationModel == cfg.TextModel {
 		return nil, nil
 	}
-	return newOllamaLLM(cfg, cfg.ConsolidationModel)
+	return newOllamaLLM(cfg, cfg.ConsolidationModel, ping)
 }
 
-func newOllamaLLM(cfg config.LLMConfig, textModel string) (LLMExt, error) {
+func newOllamaLLM(cfg config.LLMConfig, textModel string, ping bool) (LLMExt, error) {
 	switch cfg.Provider {
 	case ProviderOllama:
 		client := NewOllamaClientWithConcurrency(
@@ -54,8 +65,10 @@ func newOllamaLLM(cfg config.LLMConfig, textModel string) (LLMExt, error) {
 			applyPromptConfig(client, cfg.Prompts)
 		}
 
-		if err := client.Ping(); err != nil {
-			return nil, fmt.Errorf("ollama unavailable at %s: %w", cfg.OllamaHost, err)
+		if ping {
+			if err := client.Ping(); err != nil {
+				return nil, fmt.Errorf("ollama unavailable at %s: %w", cfg.OllamaHost, err)
+			}
 		}
 
 		return client, nil

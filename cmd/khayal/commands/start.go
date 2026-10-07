@@ -139,7 +139,9 @@ func runStart(skipDeps bool) error {
 		}
 	}
 
-	llmClient, err := llm.NewLLM(cfg.LLM)
+	// skip-deps (tests/CI) also skips the Ollama reachability ping, so the
+	// server can serve the API without a running LLM.
+	llmClient, err := llm.NewLLMWithPing(cfg.LLM, !skipDeps)
 	if err != nil {
 		cli.Fatal(cli.ExitServer, "failed to initialize LLM: %v", err)
 		return err
@@ -150,7 +152,7 @@ func runStart(skipDeps bool) error {
 
 	w := worker.NewWorker(cfg.Worker, cfg.Search.ChunkOptions(), cfg.Connections, cfg.Memory, q, v, llmClient, loggerSetup.WorkerLogger)
 	w.SetHub(hub)
-	memLLM, err := llm.NewConsolidationLLM(cfg.LLM)
+	memLLM, err := llm.NewConsolidationLLMWithPing(cfg.LLM, !skipDeps)
 	if err != nil {
 		cli.Fatal(cli.ExitServer, "failed to initialize consolidation LLM: %v", err)
 		return err
